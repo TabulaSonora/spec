@@ -5,9 +5,9 @@ evidence turned up while reverse-engineering `SCCore.dll`, and works toward the 
 port of the original Sound Canvas hardware firmware, an emulation, or a from-scratch reimplementation?**
 
 Everything in the "Verified evidence" sections below was confirmed directly against the DLL bytes /
-decompile during this project. The "Hardware architecture" and "Verdict" sections are being completed
-from a dedicated research pass (external hardware sourcing + porting-artifact analysis) — marked
-🔬 PENDING until filled in.
+decompile during this project. The "Hardware architecture" (§5) section has now been completed from a
+dedicated hardware-sourcing pass against Roland service notes and board teardowns; the SC-88, SC-88Pro,
+and SC-8820 silicon is sourced part-by-part, closing the earlier SC-8820 caveat.
 
 ---
 
@@ -121,22 +121,52 @@ Independently confirmed against the DLL / decompile:
   exposed here. Carrying orphaned, unreachable algorithms is a hallmark of **porting a shared codebase**,
   not writing a fresh engine.
 
-## 5. Hardware architecture of the physical Sound Canvas
+## 5. Hardware architecture of the physical Sound Canvas ✅ (sourced from service notes)
 
-- **Main CPU: Hitachi H8/510** (`HD6415108F`), a 16-bit microcontroller — confirmed on SK-88Pro /
-  SC-88Pro boards. Big-endian (as is the whole Hitachi H8/SH family); x86-64 is little-endian, so a
-  genuine port must flip endianness (matching the byte-swap in §4).
-- **Synthesis ran on a separate custom ASIC, not the CPU**: a dedicated Roland **"XP" tone-generator**
-  (e.g. `XP RA01-005`) did the PCM voice synthesis, and a **separate `MB87837PF` DSP** did
-  reverb/chorus/EFX. The H8 handled MIDI, patch management, envelopes/LFO, and GS SysEx.
-- The SC-8820 (what SC-VA is based on) uses a PCM engine derived from the SC-88Pro (128-voice/64-part).
-  Roland never publicly documented SC-VA's construction method; the verdict rests on the internal
-  evidence, which is unambiguous.
+SC-VA embeds **three** hardware wave-ROM generations (§1: SC-88 `ver200`, SC-88Pro `rom_make`,
+SC-8820 `8820_wv0`). Their silicon is now sourced directly from Roland service notes and board
+teardowns. Two facts matter for the verdict: (a) across the three generations the tone-generation
+and effects ASICs are a **single continuous lineage** (XP tone generator + `MB87837PF` effects DSP),
+and (b) the **main CPU changed architecture** between the SC-88/88Pro era and the SC-8820.
 
-Sources: [sandsoftwaresound.net teardown](https://sandsoftwaresound.net/dive-into-old-roland-gear/) ·
-[VOGONS SC-88 repair](https://www.vogons.org/viewtopic.php?t=47094) ·
-[Roland SC-8850 (Wikipedia)](https://en.wikipedia.org/wiki/Roland_SC-8850) ·
-[H8 Family (Wikipedia)](https://en.wikipedia.org/wiki/H8_Family).
+| Function | SC-88 / SC-88Pro (1994 / 1996) | SC-8820 (1999) |
+|---|---|---|
+| Main CPU | **Hitachi H8/510** `HD6415108F` — 16-bit | **Hitachi SH-2** `HD64F7017F28` (SH7016/7017) — 32-bit |
+| Sub CPU (MIDI I/O) | Mitsubishi `M38881M2` | Mitsubishi `M37640E8FP` |
+| Tone-generator ASIC ("XP") | `RA01-005` | `RA09-002` ("XP6") |
+| Effects DSP | Fujitsu `MB87837PF-G-BND` | Fujitsu `MB87837PF-G-BND` (**same part**) |
+| Wave/mask ROM | 4× 4 MB mask ROM | 64 Mbit mask ROM + 16 Mbit flash |
+| DAC | NEC `μPD63200GS-E2` (per channel) | Burr-Brown/TI `PCM1716E` |
+
+Key points, each now sourced:
+
+- **The tone generator was always a separate custom ASIC, not the CPU.** On the SC-88 the sound
+  section is one custom IC (IC15, labelled **"XP"**) that the service notes describe as *"integrating
+  PCM sound source, reverb, chorus, TVA, and TVF functions"* — the exact set of subsystems this repo
+  reversed out of `SCCore.dll`. That is a direct correspondence between a named hardware block and the
+  ported software.
+- **The XP tone generator is a cross-product family, not a Sound-Canvas one-off.** The SC-8820's
+  `RA09-002 (XP6)` is the **same tone-generator ASIC used in Roland's pro JV/XV line** — it appears as
+  `IC3 XP6 RA09-002` in the XV-1010 teardown. This is what makes the *"orphaned dead-code from a shared
+  Roland DSP codebase"* argument in §4 concrete: the silicon (and therefore its microcode/algorithms)
+  was shared across the Sound Canvas and JV/XV products, so a software port of it naturally carries
+  algorithms that no single product exposes.
+- **Big-endian → little-endian.** The Hitachi H8 and SH families are big-endian; x86-64 is
+  little-endian, so a genuine port must flip byte order — matching the single offline endian-swap noted
+  in §4. Wikipedia's H8 Family article independently lists the **Roland SC-55 and JV880** among H8-based
+  music synthesizers, corroborating the H8 lineage of the early Sound Canvas control firmware.
+- **The H8-idiom control path fits the SC-88/88Pro era specifically.** SC-VA's control code is
+  exclusively 16-bit fixed-point (§4) — the native idiom of the 16-bit H8/510, *not* the 32-bit SH-2 in
+  the SC-8820 whose wave set SC-VA is nominally "based on." The most economical reading: SC-VA is a port
+  of the **SC-88/88Pro-generation H8 control firmware** carried forward, running the XP tone-generator
+  algorithms over all three stacked ROM generations, rather than a port of the SC-8820's newer SH-2
+  firmware. The SC-8820 is the *sound-set* ancestor; the H8 line is the *code* ancestor.
+
+Sources: [sandsoftwaresound.net teardown (SK-88Pro / XP-80 / XV-1010 IC tables)](https://sandsoftwaresound.net/dive-into-old-roland-gear/) ·
+[Roland SC-88Pro service notes (Manuals+)](https://manuals.plus/m/e3369464a0a8ae7c0c6d98b29114fbc0611712b99e614392774bc4e266f29325) ·
+[Roland SC-88 service notes — IC15 "XP" integrates PCM/reverb/chorus/TVA/TVF (Manuals+)](https://manuals.plus/m/1f34e16e83f71def9e22fcf89da7c250d02c82864f7da431df69da0f1345acdd) ·
+[Roland SC-8820 service notes, Nov 1999 (synfo.nl)](http://www.synfo.nl/servicemanuals/Roland/ROLAND_SC-8820_SERVICE_NOTES.pdf) ·
+[H8 Family — lists Roland SC-55 / JV880 (Wikipedia)](https://en.wikipedia.org/wiki/H8_Family).
 
 ## 6. Verdict
 
@@ -167,9 +197,14 @@ genuinely new code is the outer host/threading wrapper. **For preservation purpo
 should be regarded as derived directly from Roland's original Sound Canvas hardware source, not a
 behavioral re-creation.**
 
-*Caveat:* the SC-8820's exact CPU part number wasn't confirmable from a direct teardown (service manual
-unreachable); it is inferred from the confirmed SC-88Pro H8/510 lineage and the "engine based on
-SC-88Pro" statement. This does not affect the verdict — the internal artifacts are unambiguous.
+*Refinement (was a caveat, now sourced):* the SC-8820's silicon is confirmed from its Nov 1999 service
+notes (§5) — and it is **not** an H8/510 machine but a 32-bit Hitachi SH-2 (`HD64F7017F28`) with a
+later XP tone generator (`RA09-002`/XP6) and the same `MB87837PF` effects DSP. This *strengthens* rather
+than weakens the verdict: SC-VA's control path is exclusively 16-bit fixed-point — the H8/510 idiom of
+the SC-88/88Pro generation, not the SH-2's — so the ported firmware is the older H8 control code carried
+forward over all three stacked ROM generations, while the XP tone-generator algorithms (a lineage shared
+with the JV/XV pro line) and the wave ROMs are what span SC-88 → SC-88Pro → SC-8820. The SC-8820 supplies
+the *sound set*; the H8 line supplies the *code*. The internal artifacts remain unambiguous either way.
 
 ---
 
