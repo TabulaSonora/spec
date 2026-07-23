@@ -1,0 +1,28 @@
+# --- DLL-derived data is NOT redistributed (copyrighted). Regenerate locally: ---
+#   python tools/extract_tables.py <SCCore.dll>   -> tables/*.bin
+#   scdec revdump/chodump (tools/decoder)         -> tables/*.txt
+SCCore.dll
+SCCore.decompiled.c
+tables/*.bin
+tables/*.txt
+# (tables/manifest.json IS tracked -- it's the map, not the data)
+
+# Rendered audio outputs (regenerate with scvx_engine.py / scdec)
+*.wav
+*.flac
+
+# Engine-state traces (regenerate with scdec tvftrace / ampramp / etc.)
+tvftrace_*.csv
+tvftrace_*.bin
+tvftrace_*.f32
+*.f32
+
+# Build / cache
+__pycache__/
+*.pyc
+tools/decoder/bin/
+tools/decoder/obj/
+
+# Scratch
+scratchpad/
+/tmp/
