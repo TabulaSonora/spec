@@ -61,3 +61,18 @@ A different DLL build may move tables — re-run `tools/gen_manifest.py` to re-d
 
 The core voice + GS **send** effects are specified. The 66-algorithm **insertion EFX** subsystem is
 intentionally out of scope here — it belongs downstream in a concrete engine, layered on top of this.
+
+## Implementations
+
+- [**DotNetAdministravit**](https://github.com/TabulaSonora/DotNetAdministravit) — a managed C#
+  engine built to this spec. Renders MIDI to audio at ~15× realtime, reading `SCCore.dll` as a data
+  file rather than loading it as code.
+
+## Licence
+
+BSD 3-Clause — see [`LICENSE`](LICENSE). That covers this repository's own work: the docs, the Python
+reference, the tooling, and `tables/manifest.json`. It grants nothing in Roland's DLL or the data
+inside it; see [`NOTICE.md`](NOTICE.md).
+
+The licence is permissive so that an implementation can be built from this spec under any licence,
+including the GPL.
