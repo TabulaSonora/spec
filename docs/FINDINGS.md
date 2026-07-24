@@ -2353,3 +2353,83 @@ The 66-algorithm insertion EFX subsystem (separate from the GS send effects, whi
 deliberately **not** implemented here -- it belongs downstream in the concrete cross-platform engine,
 not the reference model. This repo specifies the core voice + send-FX path and the DLL table/ROM
 layout; a downstream implementation adds insertion EFX on top.
+
+## The tone table is 2363 records, not 2048 `[confirmed — A/B against the DLL]`
+
+`tables/tone_a.bin` was sliced at `0x80000` — a round 2048 records — and that was 315 records short.
+Every drum key pointing past 2047 resolved to nothing: **484 keys across the 47 kit records**, on both
+drum map rows.
+
+**Nothing in the engine bounds this table.** `tone_lookup` @`1800026d0` tests only `tone# < 0x4000`
+and indexes `g_tone_table_melodic` directly, so the length is not a code fact — it is a layout fact,
+and three measurements agree on it:
+
+- Drum kits reference tones up to **2353** (`g_drum_kits` tone plane, `+0x000`).
+- Records read as tone records — 12-byte Latin-1 name, level byte at `+0x0c` in range, the same
+  `01 00 00` at `+0x0d` — through **2362**. Index 2363 is not one: its name field is `00 04 7F 54`.
+- The next known object, `g_ramp_exp_tbl`, starts at file offset `0x1985420`, leaving room for no
+  more. 2363 records end at `0x1985310`.
+
+So the region is `0x18f1810 + 0x93b00` = **604,928 bytes**.
+
+**The disputed records are named, and named as what the kits use them for.** 2048 `Req_tik`, 2049
+`Tabla_Te`, 2071 `Standard KK1`, 2362 `ConcertBD Mt` — sitting on exactly the keys a tabla or a kick
+belongs on. Random bytes do not do that.
+
+**Verified against the DLL, not against the arithmetic.** `scdec drumnote 49 57 100 2` — program 49,
+note 57 on ch10, whose key is tone 2049 — sounds at **peak 0.118** through the real engine, and
+rendered **silent** in the downstream C# engine on the short slice. With the region widened, the same
+hit against that capture: envelope correlation **1.000**, decay to −20 dB **45 ms vs 45 ms**, and
+every octave band from 40 Hz to 16 kHz within **0.4 dB** (the 0.1–0.2 dB floor is the normalisation
+offset between the two harnesses).
+
+**Blast radius.** The keys past 2047 belong to the ethnic and SFX kits rather than the GM ones, so
+most drum renders are unaffected: `onestop.mid`'s drum part is bit-identical before and after on map
+row 0. On row 1, where program 0 resolves to kit 38 and its two kicks live at 2070 and 2071, it moves
+**115% RMS**.
+
+Found by ear, downstream, by a person saying "drum b has no kick drum" — after the silence had been
+measured, explained, and pronounced correct.
+
+## The wave descriptor table is 4259 records, not 4096 `[confirmed — three oracles]`
+
+The same round-number mistake as the tone table, one level down. `tables/wavedesc_a.bin` was sliced at
+`4096*0x16` and **163 zones** — across the multisamples a defined tone actually reaches — pointed past
+the end and resolved to nothing.
+
+The bound is exact rather than inferred:
+
+- Those multisamples name waves up to **4258**.
+- 4259 records from `0x181897b40` end at `0x18189ad942`, and `g_drum_kits` begins at `0x18189ad950`.
+  Fourteen bytes of padding, and room for not one more record.
+
+**The third oracle arrived unprompted.** `wave_directory_full.csv` — the waves the real engine was
+captured selecting — matches **2022 of 2022** forward waves against the widened table, where it
+matched 2014 against the short one. Those eight had been written off downstream as empty-loop
+one-shots reached through the drum tone table. They were nothing of the kind: they were waves 4096
+and up, off the end of the slice.
+
+Confirmed audibly too, on a key the shortfall silenced. Program 53 note 91 on the drum part — `Hand
+Clap`, wave 4097 — sounds at peak 0.118 through the DLL and rendered silent downstream. Widened, the
+same hit against that capture: envelope correlation **1.000**, decay to −20 dB **100 ms vs 100 ms**,
+every band within 1 dB where the clap has energy.
+
+`multisample_a.bin` is **not** short. Nothing reaches past multisample 1174 of its 2048, so that
+round number is coincidence rather than a third instance — worth stating, so all three do not read as
+the same guess.
+
+### Two things this uncovers rather than settles
+
+**The sampler has no reverse path.** Of the 198 drum voices the two widened tables make reachable,
+**167 are reverse waves** (`flags` bit 2), and they still render silence downstream: the descriptor
+bit is decoded and then read by nobody. The affected kits are the reverse-cymbal and SFX sets —
+`Rev.PowerK1`, `Rev.Std1SD1`, `Rev.Cymbal2`. Their descriptors carry `start == end` with the region
+running back from the loop point, so a forward reader gets a zero-length span. `sampler_fmt4`
+@`18003fdd0` is the engine's bidirectional variant and is the thing to reverse next.
+
+**`g_wave_desc_table_b` and `_g_multisample_table_b` are aliases, in this build.** They are selected
+against a tone# threshold (`g_tone_set_header_b + 0xe`) in `multisample_select_wave` @`180003420`, so
+it looks like a second table set — but init @`180086d00` does `_g_multisample_table_b =
+g_multisample_table_a` and `g_wave_desc_table_b = g_wave_desc_table_a`, and neither is assigned
+anywhere else. The branch chooses between two pointers to the same memory. Anyone reading a wave
+index above 4095 as "that must be table B" will be wrong here.

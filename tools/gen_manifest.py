@@ -67,9 +67,18 @@ META = {
  "lut1_2e30.bin":("g_dir_lut1","u8","128","DIR","program/tone directory LUT 1"),
  "lut2_28b0.bin":("g_dir_lut2","u8/u16","16384","DIR","program/tone directory LUT 2"),
  "lut3_32b0.bin":("g_dir_lut3","u16","32768","DIR","program/tone directory LUT 3 (tone# lookup)"),
- "tone_a.bin":("g_tone_table","bytes","0x100 stride","DIR","tone records (header 0x24 + 4 partial 0x6e blocks)"),
+ # 2363 records, not the round 2048 the first slice took. Nothing in the engine bounds this table --
+ # tone_lookup tests only tone# < 0x4000 and indexes -- so the length is a layout fact: records read
+ # as tone records through 2362, 2363 is not one, and the next known object starts at 0x1985420.
+ # Drum kits reach tone 2353, so a short slice silences them. See FINDINGS, "The tone table is 2363".
+ "tone_a.bin":("g_tone_table","bytes","0x100 stride x2363","DIR","tone records (header 0x24 + 4 partial 0x6e blocks)"),
  "multisample_a.bin":("g_multisample_table","bytes","0x8c stride","DIR","multisample key/vel zone -> wave#"),
- "wavedesc_a.bin":("g_wavedesc_table","bytes","stride","DIR","wave descriptors: ROM coords, root key, loop"),
+ # 4259 records, and 4096 was the same round-number mistake as the tone table one level down. The
+ # multisamples a defined tone reaches name waves up to 4258, and 4259 records end at 0x18189ad942 --
+ # fourteen bytes below g_drum_kits at 0x18189ad950, so the layout leaves room for no more. The
+ # engine's own captured wave selections agree: 2022 of 2022 forward waves resolve, against 2014 on
+ # the short slice. See FINDINGS, "The wave descriptor table is 4259 records".
+ "wavedesc_a.bin":("g_wavedesc_table","bytes","0x16 stride x4259","DIR","wave descriptors: ROM coords, root key, loop"),
  "layered_1896690.bin":("g_layered_table","bytes","0x18 stride x50","DIR","layered / alternate-articulation records"),
 }
 
