@@ -2420,12 +2420,11 @@ the same guess.
 
 ### Two things this uncovers rather than settles
 
-**The sampler has no reverse path.** Of the 198 drum voices the two widened tables make reachable,
-**167 are reverse waves** (`flags` bit 2), and they still render silence downstream: the descriptor
-bit is decoded and then read by nobody. The affected kits are the reverse-cymbal and SFX sets —
-`Rev.PowerK1`, `Rev.Std1SD1`, `Rev.Cymbal2`. Their descriptors carry `start == end` with the region
-running back from the loop point, so a forward reader gets a zero-length span. `sampler_fmt4`
-@`18003fdd0` is the engine's bidirectional variant and is the thing to reverse next.
+**~~The sampler has no reverse path.~~ Solved — see "Reverse waves" at the end.** Of the 198 drum
+voices the two widened tables make reachable, **167 are reverse waves** (`flags` bit 2) and they
+rendered silence. The guess recorded here — that their descriptors describe a region running back
+from the loop point, needing an alternate register setup — was wrong on both counts. The descriptors
+are ordinary; the partial was being skipped before anything read them.
 
 **`g_wave_desc_table_b` and `_g_multisample_table_b` are aliases, in this build.** They are selected
 against a tone# threshold (`g_tone_set_header_b + 0xe`) in `multisample_select_wave` @`180003420`, so
@@ -2433,3 +2432,45 @@ it looks like a second table set — but init @`180086d00` does `_g_multisample_
 g_multisample_table_a` and `g_wave_desc_table_b = g_wave_desc_table_a`, and neither is assigned
 anywhere else. The branch chooses between two pointers to the same memory. Anyone reading a wave
 index above 4095 as "that must be table B" will be wrong here.
+
+## Reverse waves — the data is simply read backwards `[confirmed — A/B against the DLL]`
+
+The 218 descriptors carrying `flags` bit 2 rendered **silence** downstream, and the reason was not the
+sampler at all: both renderers held an explicit `if (descriptor.Reverse) continue;`, added when the
+reference model skipped them too. The partial was dropped before anything tried to play it. Worth
+recording because it is the failure mode that hides — a wrong *sound* gets noticed, and a missing one
+looks like data the module lacks.
+
+**What they actually are.** No alternate register setup is needed to sound one. The static descriptor
+gives an ordinary `[loop, start]` data region — measured across the whole table, **all 218 reverse
+descriptors have `loop <= end`**, exactly like the 4 041 forward ones — and the wave is that data read
+from the far end back to the near one. The `loop_start > end` the harness captures for a reverse wave
+is the *runtime* register layout, which is the engine expressing "start high, run down", not a
+different region.
+
+Always a one-shot. 202 of the 218 already collapse `end` onto `start` statically and the engine
+reconfigures the other 16 to match, which is why the loop geometry in the descriptor decides nothing
+here.
+
+**Implementation note for the downstream engine:** decoding forward and reversing the finished buffer
+is equivalent to walking the delta stream backwards, and avoids the seam question entirely — the
+predictor is integrated in its natural direction and only the output order changes. There is no loop,
+so the DC-carry problem that makes the engine's own backwards walk delicate never arises.
+
+**Verified against the DLL on two keys**, program 57 note 38 (`Rev.PowerK1`) and program 53 note 71
+(`Rev.Cymbal2`):
+
+| | Rev.PowerK1 | Rev.Cymbal2 |
+|---|---|---|
+| envelope correlation vs capture | **+1.0000** | **+0.9998** |
+| same, with our output time-reversed | −0.5601 | −0.7463 |
+| peak position, real / ours | 97.22% / 97.22% | 85.62% / 85.62% |
+
+The second row is the control and it is the one that matters. A magnitude spectrum is very nearly
+invariant under time reversal — every octave band from 40 Hz to 16 kHz matched to 0.0 dB whichever way
+round the samples went — so the spectrum cannot tell a correct implementation from a backwards one.
+The envelope can, and it separates the two by 1.6 in correlation.
+
+`scdec drumnote 57 38` also shows the engine holding `amp` **constant at 0.768860** across the whole
+hit while `tva_lvl` decays gently from 12773 to 11783. The swell is in the sample data, not in the
+envelope — which is the clue that the fix belonged in the sampler and not in the TVA.
