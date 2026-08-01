@@ -2543,26 +2543,41 @@ dual-ramp form adds are the non-default cases:
   crossfades into the release ramp.
 - When B's phase reaches `0xffff` its stage is set to 4 and the output stays at the release level.
 
-### `block[0x00]` / `block[0x01]` — one-shot mode and the retrigger clock `[confirmed]`
+### `block[0x00]` / `block[0x01]` — the envelope hold clock `[confirmed]`
 
-Two previously undocumented bytes at the head of the 0x6e partial block:
+*(An earlier draft of this section called this a periodic "retrigger clock". Tracing the arming and
+firing code settled it: the clock **fires once and disarms** — it is a delayed envelope start, not a
+tremolo. The tremolo tones carry their tremolo in the recorded sample.)*
 
-- **Bit 7 of `block[0x00]` = one-shot.** The note-off handler skips engaging the release while the
-  envelope machine still runs; `block[0x00] == 0xff` is the plain "play to the end regardless of
-  note-off" form. This is exactly the `.o` variation tones — `Harpsi.o`, `Clav.o`, `Organ o`,
-  `Nylon Gt.o`, `MandolinTrem`, `Aqua`, `Biwa 3` (10 partials).
-- **Low 7 bits = a retrigger clock.** When nonzero, note-on arms a 16-bit tick counter
-  (`voice+0xfa`) stepping by `(level_scale(velocity, block[0x01]) · g_rate_curve[clamp(
-  part+0x45b + part+0x44b + (block[0]&0x7f) − 0x80)] >> 8) / 10` per tick; while armed the voice's
-  envelopes do not step, and when the counter wraps the engine calls `voice_env_retrigger` —
-  restarting the amp/pitch ramps — and redraws the random detune (below). 92 partials use it:
-  the tremolo organs, `12-str.Gt`'s delayed second course (period byte 2), `Piano+Choir1`'s choir
-  swell (4), `Trem Str.St.`, etc. With `block[0x00] = 0` the counter never arms (the default path).
+Two previously undocumented bytes at the head of the 0x6e partial block arm a one-shot clock at
+note-on (16-bit counter at `voice+0xfa`, step word `0xffff / period` at `voice+0xfc`). **While the
+clock runs, the voice's whole envelope machine is suspended** — the per-tick driver counts the clock
+instead of stepping TVA/TVF/pitch/LFO, so every control value stays where the note-on compute left
+it (for an ordinary attack envelope, silence; the sample itself runs from note-on underneath). When
+the counter wraps, the engine snaps the output ramps to the stored note-on values
+(`voice_env_retrigger`), disarms, and the envelopes simply start.
 
-This closes most of the old "what makes the engine stop advancing a pitch envelope" question — an
-armed clock freezes stepping between retriggers. It does **not** explain the two recorded outliers:
-Mellow Gt. and Bird 2 both have `block[0x00] = 0`. Their early halt therefore lives in the
-alt-articulation / voice-pair kill path (`voice+0x120`/`voice+0x188`), which remains open — the
+- **Low 7 bits ≠ 0: a delayed start.** `period_ticks = (level_scale(velocity, block[0x01]) ·
+  g_rate_curve[clamp(part+0x45b + part+0x44b + (block[0]&0x7f) − 0x80)] >> 8) / 10`. Both part
+  bytes default to `0x40`, so the index is normally just the byte itself, and `g_rate_curve` is in
+  milliseconds: `Piano+Choir1`'s choir layer enters 3 ticks (30 ms) late, `Puff Organ`'s puff 5.
+  Values 1–2 compute to zero ticks and never arm (data carried from hardware, inert at the 100 Hz
+  tick). A period of zero stores the disarmed sentinel `0xffff` — the default path for
+  `block[0x00] = 0`. **Note-off while the delay runs kills the voice before it ever sounds.**
+- **`block[0x00] == 0xff`: suspended forever (one-shot).** Armed with step 0, so the clock never
+  fires: the sample plays out at its note-on control levels for the voice's whole life. This is
+  exactly the `.o` variation tones — `Harpsi.o`, `Clav.o`, `Organ o`, `Nylon Gt.o`, `MandolinTrem`,
+  `Aqua`, `Biwa 3` (10 partials). At note-off a suspended voice takes a fast ramp-down in place of
+  a release — unless its note-group queue holds a pending alt-articulation entry, in which case the
+  engine redraws the random detune (`tvf_env_prep`) and snaps to it instead.
+- **Bit 7 sets the one-shot flag (`voice+5`)** consulted by the normal (disarmed) note-off path to
+  skip engaging the envelope releases; in the shipped tone set bit 7 only ever appears as part of
+  `0xff`. 92 partials carry a nonzero low field in total.
+
+The suspended state is also a piece of the old "what makes the engine stop advancing a pitch
+envelope" question — an armed clock freezes all stepping. It does **not** explain the two recorded
+outliers: Mellow Gt. and Bird 2 both have `block[0x00] = 0`. Their early halt therefore lives in
+the alt-articulation / voice-pair kill path (`voice+0x120`/`voice+0x188`), which remains open — the
 practical impact is unchanged (it only matters once a voice has stopped contributing).
 
 ### `block[0x1a]` — random start-pitch jitter `[confirmed]`
@@ -2610,8 +2625,9 @@ way.)
   before joining the pitch sum — a key-scaled part detune.
 - A second random subsystem (`g_pitch_split_coarse/fine`, indexed by `part+0x3dd` or randomly per
   note-group when that byte is 0) writes a coarse/fine pitch-word pair at `voice+0xf4/0xf6`,
-  redrawn on every retrigger-clock wrap; its consumer is the per-sample pitch-word path. Documented
-  as far as verified; the exact consumer remains to be pinned.
+  redrawn when a suspended one-shot advances to a queued alt-articulation entry at note-off; its
+  consumer is the per-sample pitch-word path. Documented as far as verified; the exact consumer
+  remains to be pinned.
 
 *Method: pointer-table entries read from the DLL image at `0x1819a17c8` (file `0x19a07c8`) and
 disassembled directly — three 0x70-byte loaders Ghidra's recursive descent never reached because
