@@ -307,7 +307,7 @@ Coverage: **739 named functions**, **86 still `FUN_`** (low-value one-byte SysEx
 | `18005f8e0` | `voice_init_from_parent` | init voice pitch/state, inherit from parent voice |
 | `18005fab0` | `voice_init_fresh` | fresh voice init: base pitch table + LFSR seed |
 | `18005fc20` | `partial_compute_pitch` |  |
-| `18005fde0` | `partial_compute_pitch_env` |  |
+| `18005fde0` | `partial_compute_pitch_env` | note-on: 5 absolute env levels -> voice+0x64/0x68/0x210/0x214/0x80 |
 
 ## Synth voice core + MIDI stream/SysEx/mod-matrix
 
@@ -315,8 +315,8 @@ Coverage: **739 named functions**, **86 still `FUN_`** (low-value one-byte SysEx
 
 | Address | Name | Purpose |
 |---------|------|---------|
-| `1800600c0` | `pitch_env_apply_stage` |  |
-| `180060150` | `partial_apply_pitch_env_rates` |  |
+| `1800600c0` | `pitch_env_apply_stage` | actually the `block[0x1a]` random start-pitch jitter (see FINDINGS "TVP runtime machine") |
+| `180060150` | `partial_apply_pitch_env_rates` | seg0 rate word +0x62; seg1-3 times +0x204/6/8; release rate +0x7a (doubles as enable) |
 | `180060390` | `voice_volume_apply` |  |
 | `180060560` | `pitch_env_rand_init` | randomize partial-group pitch-env via prng+pitch split tables |
 | `180060620` | `tvf_env_prep` |  |

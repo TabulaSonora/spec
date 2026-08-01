@@ -1848,6 +1848,11 @@ not give us: the stage-advance handlers reached through `PTR_1819a17c8`, whose t
 from the file. Worth noting the practical impact is small — it only matters once a voice has
 effectively stopped contributing.
 
+*[Later resolved in part: the handler targets were recovered from the DLL image and the full stage
+machine is documented in "TVP — the pitch-envelope runtime machine, recovered" below. The two
+outliers here are still not explained by it — their halt is in the voice-pair kill path, not the
+envelope.]*
+
 **Method note, earned twice now:** a validation set of one is worth very little. The single-patch
 check reported 1.2 cents and hid three separate defects; the 6-patch check found them but produced a
 *false* anomaly that only an 11-patch set could refute. Both times the fix was more data, not more
@@ -2474,3 +2479,142 @@ The envelope can, and it separates the two by 1.6 in correlation.
 `scdec drumnote 57 38` also shows the engine holding `amp` **constant at 0.768860** across the whole
 hit while `tva_lvl` decays gently from 12773 to 11783. The swell is in the sample data, not in the
 envelope — which is the clue that the fix belonged in the sampler and not in the TVA.
+
+## TVP — the pitch-envelope runtime machine, recovered `[confirmed from binary + decompile]`
+
+The earlier pitch-envelope work (see "Broadening the pitch-envelope test set" above) derived the
+segment law from measurement and left one open question: the stage-advance handlers reached through
+`PTR_1819a17c8`, whose targets were **absent from the decompile**. Those targets have now been
+recovered by disassembling the pointer table's entries straight from the DLL image, and together
+with the control-tick driver they give the complete runtime machine. Everything below is engine
+behaviour restated from that code; nothing here is measurement-inferred any more.
+
+### The stage machine
+
+The per-voice pitch-envelope state is **two ramp structs**, A at `voice+0x5c` and B at `voice+0x74`
+(each: stage byte, rate-scale byte, per-sample interp word, shape word `0x4000`, rate word, start
+`i32`, target `i32`, output `i32`, 16-bit phase + carry). The engine copies the whole voice control
+block into a scratch area each control tick, steps it, and copies it back; ramp A's output is the
+`voice+0x6c` value every trace in this project measured.
+
+- **Stage advance.** At the *start* of a tick, if ramp A's phase word reads `0xffff`, the engine
+  zeroes it, steps the stage byte through a 6-byte next-stage map `[1, 2, 3, 4, 4, 4]`, and calls
+  the handler for the new stage from a 5-entry pointer table (`0x1819a17c8`). Stages 0 and 4 point
+  at a no-op; stages 1–3 point at three tiny loaders (`0x180083870/83800/83790` — these are the
+  functions Ghidra never disassembled). Stage 4 is terminal: the ramp-step routine returns
+  immediately when the stage byte is 4, so the level holds forever.
+- **The handlers load the next segment fresh.** Handler *n* sets: start ← the ramp's current
+  *target* (not its output), target ← `voice+0x210/0x214/0x218` (the levels the note-on compute
+  wrote: targets 2, 3, and 4 — the last being the unbiased base pitch), rate word ← from a stored
+  segment *time* `voice+0x204/0x206/0x208` converted **at segment start** by the familiar
+  `T < 11 ? 0xffff : 0xa0000/T`, shape word ← `0x4000`, and the per-sample interp word ←
+  `g_env_startphase[min(T, 10)]`. Segment 0's rate word is the only one precomputed at note-on
+  (`voice+0x62`); segments 1–3 store milliseconds and convert lazily. This is the mechanism behind
+  the measured "next segment starts fresh with no phase carry" law.
+- **Rate-scale byte.** Each ramp carries a scale byte `c`: the effective rate is
+  `rate · (0x10000 − ((c<<9)|(c>>7)) − 1) >> 16`, i.e. roughly `rate · (1 − c/128)`. The value
+  `0x7f` is used as a **park marker** — a parked ramp is not stepped at all.
+- **Ramp interpolation.** Output = start + (target − start) · phase/0x10000, with the
+  (target − start) delta clamped to ±`0x1f018` first. Phase accumulates `rate × block-speed` per
+  tick with a carry word for multi-block catch-up; hitting `0xffff` exactly snaps output to target.
+
+### Release is a second ramp and a crossfade — and the "enable flag" is the release rate
+
+At note-on, ramp B is initialized **parked** (rate-scale `0x7f`) with start = output = **absolute
+zero pitch**, target = the release level (`voice+0x80`), phase = 0, and rate word = the release
+rate (`voice+0x7a`) computed by the same `T<11` rule. What the earlier work called the envelope's
+"enable flag at voice+0x7a" is literally this release rate word — a disabled envelope zeroes it,
+and the block update skips all stepping when it is zero.
+
+At note-off the engine:
+
+1. parks ramp A (rate-scale ← `0x7f`) — in the default configuration;
+2. activates ramp B by writing its rate-scale byte from **`part+0x462`** (default 0 = full rate);
+3. thereafter outputs `A.out · (0xffff − phaseB)/0x10000 + B.out` each tick.
+
+Since B interpolates 0 → release-level by the same phase that weights the blend, the default
+(A parked at level `L`) collapses algebraically to `L·(1−t) + release·t` — **exactly the linear
+splice the reference model already implements and validated to ≤1 mst**. The refinements the
+dual-ramp form adds are the non-default cases:
+
+- `part+0x462 ≥ 0x40` — the pitch release is **not engaged at all**; the envelope keeps running
+  through note-off. Values 1–0x3f scale the release rate down by the rate-scale formula.
+- On the voice-steal path (a flag at `voice+8`), ramp A is *not* parked: the still-running envelope
+  crossfades into the release ramp.
+- When B's phase reaches `0xffff` its stage is set to 4 and the output stays at the release level.
+
+### `block[0x00]` / `block[0x01]` — one-shot mode and the retrigger clock `[confirmed]`
+
+Two previously undocumented bytes at the head of the 0x6e partial block:
+
+- **Bit 7 of `block[0x00]` = one-shot.** The note-off handler skips engaging the release while the
+  envelope machine still runs; `block[0x00] == 0xff` is the plain "play to the end regardless of
+  note-off" form. This is exactly the `.o` variation tones — `Harpsi.o`, `Clav.o`, `Organ o`,
+  `Nylon Gt.o`, `MandolinTrem`, `Aqua`, `Biwa 3` (10 partials).
+- **Low 7 bits = a retrigger clock.** When nonzero, note-on arms a 16-bit tick counter
+  (`voice+0xfa`) stepping by `(level_scale(velocity, block[0x01]) · g_rate_curve[clamp(
+  part+0x45b + part+0x44b + (block[0]&0x7f) − 0x80)] >> 8) / 10` per tick; while armed the voice's
+  envelopes do not step, and when the counter wraps the engine calls `voice_env_retrigger` —
+  restarting the amp/pitch ramps — and redraws the random detune (below). 92 partials use it:
+  the tremolo organs, `12-str.Gt`'s delayed second course (period byte 2), `Piano+Choir1`'s choir
+  swell (4), `Trem Str.St.`, etc. With `block[0x00] = 0` the counter never arms (the default path).
+
+This closes most of the old "what makes the engine stop advancing a pitch envelope" question — an
+armed clock freezes stepping between retriggers. It does **not** explain the two recorded outliers:
+Mellow Gt. and Bird 2 both have `block[0x00] = 0`. Their early halt therefore lives in the
+alt-articulation / voice-pair kill path (`voice+0x120`/`voice+0x188`), which remains open — the
+practical impact is unchanged (it only matters once a voice has stopped contributing).
+
+### `block[0x1a]` — random start-pitch jitter `[confirmed]`
+
+Another previously undocumented byte. At note-on (after the five bias levels are computed, and
+**even when the envelope depth is zero**), the engine draws one value `r` from the shared PRNG and
+offsets the envelope's *start level*:
+
+```
+if bit14 of r is clear:  start += ((((r & 0x7fff) >> 7) · d + 0x80) >> 8) · 10
+else:                    start −= ((((uint16)(−2·r) >> 8) · d + 0x80) >> 8) · 10,  clamped ≥ 0
+```
+
+with `d = block[0x1a]`. Note the asymmetry: the positive branch takes a **7-bit** magnitude slice
+(bit 14 is already known clear, bit 15 is masked off) while the negative branch takes an 8-bit one,
+so the jitter ranges over roughly `[−10·d, +5·d]` milli-semitones, biased flat. It is applied to
+the start level only — with an active envelope it fades over segment 0; with a disabled envelope the level is
+never stepped, so it is a per-note **constant random detune**. 19 partials use it (`d` = 5 or 10 →
+±50 or ±100 mst): `Jazz Bass 2`, `Fretless Bs2`, `Octave Brass`, `Oct SynBrass`/`2`, `Soft Brass`,
+`Velo Brass 1`, `TB Lead`, `SynthBrass1`, `Poly Brass`, `Quack Brass`, and friends — the classic
+"analog feel" detune on layered brass/bass patches.
+
+### The PRNG, exactly
+
+`prng_lfsr` keeps two 16-bit registers, **seeded at engine reset to `0xEFA6` and `0x9C23`** (the
+reset routine that also installs the MIDI-drain/scheduler pointers and resets the parameter
+tables writes both constants):
+
+- R1 (`0xEFA6`): Fibonacci LFSR shifting right, new bit15 ← bit5 ⊕ bit15.
+- R2 (`0x9C23`): shifts left; inserted bit0 ← bit9 when bit2 is clear, else ¬bit13.
+- Output: one step of each, then `R2' ^ R1'`.
+
+So the engine's "random" detune sequence is **deterministic from engine reset**; only the order in
+which voices consume draws varies with polyphony. (This is the same shared generator the random LFO
+waveforms use, which is why those were left returning zero in the reference — a *sequence* cannot
+be aligned under polyphony, but the note-on jitter is one draw with the correct distribution either
+way.)
+
+### Also recovered in passing
+
+- **Portamento glide** is a separate additive term (`voice+0x8c`): an offset that decays linearly
+  to zero by `g_porta_step[part-portamento-time-byte] · block-speed` per tick (step table at
+  `0x1819a7800`), summed into the absolute pitch inside the same `[0, 0x1f018]` clamp.
+- **Part fine pitch** (`part+0x3db`, `0x80`-centred) is scaled by a per-key table at `0x1819a7900`
+  before joining the pitch sum — a key-scaled part detune.
+- A second random subsystem (`g_pitch_split_coarse/fine`, indexed by `part+0x3dd` or randomly per
+  note-group when that byte is 0) writes a coarse/fine pitch-word pair at `voice+0xf4/0xf6`,
+  redrawn on every retrigger-clock wrap; its consumer is the per-sample pitch-word path. Documented
+  as far as verified; the exact consumer remains to be pinned.
+
+*Method: pointer-table entries read from the DLL image at `0x1819a17c8` (file `0x19a07c8`) and
+disassembled directly — three 0x70-byte loaders Ghidra's recursive descent never reached because
+they are only referenced through data. The TVA envelope has an identical machine (its own 5-entry
+table at `0x1819a2408`, same next-stage map) and the TVF a third; the three loaders' TVF/TVA twins
+sit at `0x1800838e0/83960/839e0`.*
