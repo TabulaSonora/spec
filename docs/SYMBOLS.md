@@ -378,6 +378,10 @@ Coverage: **739 named functions**, **86 still `FUN_`** (low-value one-byte SysEx
 | `180065400` | `modmatrix_apply_linear` | ctrl amount x 11 assign depths (linear) -> dests |
 | `180065730` | `modmatrix_apply_bipolar` | ctrl amount x 11 depths (pitch/TVF/TVA scaled) |
 | `180065bd0` | `modmatrix_apply_pitch1` | single-dest pitch bipolar mod-depth apply |
+| `180065c70` | `cc67_soft_pedal` | CC dispatch table 0x18199fb30 slot 67 (recovered from image; absent from decompile) |
+| `180065e50` | `cc64_hold_damper` | writes part+0x462: raw value on half-damper tones (hdr byte 0xd bit2), else 0/0x7f |
+| `180065eb0` | `cc11_expression` | writes part+0x464 (Rx gates 0x810) |
+| `1800661a0` | `cc66_sostenuto` | CC dispatch slot 66 (recovered from image; not yet analysed) |
 | `180065cd0` | `caseD_7b` |  |
 | `180065d00` | `caseD_7e` |  |
 | `180065d50` | `caseD_7f` |  |

@@ -2680,3 +2680,47 @@ harpsichord is the tone's *other*, ordinary partial, which releases normally at 
 The reimplementation's hold model was corrected from these measurements (armed voice = pure
 silence, wave parked, fire = time-shift; 0xff = fires at note-off with no release pending) — see
 the sibling repo's `EnvelopeMachine.HoldSamples` / `PartialVoice` / `NoteRenderer.RenderPartial`.
+
+## `part+0x462` is the damper pedal — and the SC pianos have half-damper `[confirmed]`
+
+The TVP release investigation left `part+0x462` as "a release-rate modify byte, default 0". It is
+the **CC64 damper value**, and the odd-looking release semantics are a working **half-damper
+implementation** reserved for the piano tones.
+
+**Recovering the CC dispatch.** The engine's per-CC handlers live in a 187-entry pointer table at
+VA `0x18199fb30` (file `0x199eb30`): slots 0–127 indexed by controller number, the rest carrying
+channel-level events. Ghidra recovered only the handlers that other code references; the rest —
+including CC64 — are reachable only through the table and are absent from the decompile, the same
+failure mode as the pitch-envelope stage loaders. (Cross-checks: slot 120 = the named All-Sound-Off
+handler, slot 121 = Reset All Controllers — which is what zeroes `+0x462` — and the recovered
+slot-11 handler writes `part+0x464`, the expression byte that same reset restores to `0x7f`.)
+
+**The CC64 handler** (`0x180065e50`, disassembled from the image): for every part receiving on the
+channel (Rx gates `0x820` in `part+0x3d6`),
+
+```
+if (part+0x24c bit 2)  part+0x462 = value            half-damper: raw 0..127
+else                   part+0x462 = value > 0x3f ? 0x7f : 0     binary pedal
+```
+
+**How it plays out at note-off** (per the release-engagement logic already documented above):
+
+- `part+0x462 ≥ 0x40` — the envelope releases are not engaged and a key-off (0xff) layer does not
+  fire: the note sustains. The bookkeeping boolean at `part+0x46f` (pedal ≥ 0x40) queues the
+  note-off for replay at pedal-up, so the release finally engages with whatever the pedal value is
+  *then*.
+- `1 ≤ part+0x462 ≤ 0x3f` — only reachable on a half-damper part — the release engages, but the
+  value lands in release ramp B's rate-scale byte: rate × `(0x10000 − (v<<9|v>>7) − 1) >> 16`,
+  roughly `1 − v/128`. A half-pressed pedal makes the release proportionally longer — real
+  half-damper behaviour.
+- `0` — normal full-rate release.
+
+**Half-damper is a per-tone property.** `part+0x24c` is copied on every tone select from **tone
+header byte `+0x0d`**, a flags byte (values 0/1/5/6/7 across the table; bit 2 = half-damper).
+Exactly **57 of 2363 tones** set bit 2 — the piano family, wall to wall: `Piano 1/2/3`,
+`UprightPiano`, `Mild/Pop/Rock/Dance Piano`, `European Pf`, `Piano + Str.`, `Piano+Choir`,
+`EG+Rhodes`, and friends. Half-pedal on the Sound Canvas is a piano feature, as on the hardware.
+
+*Downstream note: the reimplementation models CC64 as a boolean with note-off replay, which is
+exact for the other 2306 tones; the missing refinement is routing the raw pedal value into the
+release-rate scale on the 57 half-damper tones.*
