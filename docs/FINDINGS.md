@@ -2551,11 +2551,13 @@ tremolo. The tremolo tones carry their tremolo in the recorded sample.)*
 
 Two previously undocumented bytes at the head of the 0x6e partial block arm a one-shot clock at
 note-on (16-bit counter at `voice+0xfa`, step word `0xffff / period` at `voice+0xfc`). **While the
-clock runs, the voice's whole envelope machine is suspended** — the per-tick driver counts the clock
-instead of stepping TVA/TVF/pitch/LFO, so every control value stays where the note-on compute left
-it (for an ordinary attack envelope, silence; the sample itself runs from note-on underneath). When
-the counter wraps, the engine snaps the output ramps to the stored note-on values
-(`voice_env_retrigger`), disarms, and the envelopes simply start.
+clock runs, the voice renders nothing at all** — the per-tick driver counts the clock instead of
+stepping TVA/TVF/pitch/LFO, the amp word stays at zero, and the **wave's read position stays
+frozen too** (measured live: the sampler-state position sits still until the clock fires — an
+earlier draft here guessed the sample ran underneath, which was wrong). When the counter wraps, the
+engine snaps the output ramps to the stored note-on values (`voice_env_retrigger`), disarms, and
+the whole voice — envelopes *and* wave — simply starts. An armed voice is exactly the same voice
+time-shifted.
 
 - **Low 7 bits ≠ 0: a delayed start.** `period_ticks = (level_scale(velocity, block[0x01]) ·
   g_rate_curve[clamp(part+0x45b + part+0x44b + (block[0]&0x7f) − 0x80)] >> 8) / 10`. Both part
@@ -2564,12 +2566,16 @@ the counter wraps, the engine snaps the output ramps to the stored note-on value
   Values 1–2 compute to zero ticks and never arm (data carried from hardware, inert at the 100 Hz
   tick). A period of zero stores the disarmed sentinel `0xffff` — the default path for
   `block[0x00] = 0`. **Note-off while the delay runs kills the voice before it ever sounds.**
-- **`block[0x00] == 0xff`: suspended forever (one-shot).** Armed with step 0, so the clock never
-  fires: the sample plays out at its note-on control levels for the voice's whole life. This is
-  exactly the `.o` variation tones — `Harpsi.o`, `Clav.o`, `Organ o`, `Nylon Gt.o`, `MandolinTrem`,
-  `Aqua`, `Biwa 3` (10 partials). At note-off a suspended voice takes a fast ramp-down in place of
-  a release — unless its note-group queue holds a pending alt-articulation entry, in which case the
-  engine redraws the random detune (`tvf_env_prep`) and snaps to it instead.
+- **`block[0x00] == 0xff`: a key-off layer.** Armed with step 0, so the clock never fires on its
+  own — the voice stays silent for the whole held note, and **note-off is what fires it**: the
+  engine disarms, redraws the random detune (`tvf_env_prep`), snaps the output ramps, and the
+  layer sounds — envelopes running their normal course from the top (the note-off was consumed
+  arming the fire, so no release is pending; the voice ends by sample end or envelope end). That
+  is what the `.o` suffix means: `Harpsi.o`'s 0xff partial is the harpsichord's **key-off clack**,
+  measured firing on the control tick after note-off with its wave starting from position ~0 after
+  600 ms of being held. The 10 partials: `Harpsi.o`, `Clav.o`, `Organ o`, `Nylon Gt.o`,
+  `MandolinTrem`, `Aqua`, `Biwa 3`. (When the note-group queue check fails the engine kills the
+  armed voice instead of firing it — condition observed in code, not yet exercised.)
 - **Bit 7 sets the one-shot flag (`voice+5`)** consulted by the normal (disarmed) note-off path to
   skip engaging the envelope releases; in the shipped tone set bit 7 only ever appears as part of
   `0xff`. 92 partials carry a nonzero low field in total.
@@ -2634,3 +2640,43 @@ disassembled directly — three 0x70-byte loaders Ghidra's recursive descent nev
 they are only referenced through data. The TVA envelope has an identical machine (its own 5-entry
 table at `0x1819a2408`, same next-stage map) and the TVF a third; the three loaders' TVF/TVA twins
 sit at `0x1800838e0/83960/839e0`.*
+
+## The hold clock and start jitter, verified against the DLL — under Wine `[confirmed]`
+
+The DLL oracle does not need Windows: `scdec` is a console app and `SCCore.dll` is pure compute, so
+the whole tracing harness runs under Wine (verified with wine 11.14; publish the decoder
+self-contained for `win-x64` and pass the DLL as a `Z:\…` path). A `postrace` mode was added to
+`scdec` for this pass: per-control-tick sampler read positions for every active voice, with an
+optional mid-note note-off.
+
+**Start jitter (`block[0x1a]`) — bit-exact against the modelled PRNG.** Jazz Bass 2 (tone 246,
+depth 5, both partials), map 3 bank 3 program 33:
+
+| measurement | result |
+|---|---|
+| `voice+0x64` vs the no-jitter prediction (base + envelope start) | Δ = **0** and **+10** mst on the two partials |
+| control (Piano 1, no jitter byte) | Δ = 0 (−1 mst base residual, known) |
+| repeat run, fresh process | identical Δ — deterministic from engine reset |
+| velocity 32 instead of 100 | identical Δ — jitter is velocity-independent |
+| note 57 instead of 45 | identical Δ riding on the shifted base |
+| the pair (0, +10) in the modelled LFSR jitter sequence | draws **3 and 4** from the reset seeds |
+
+So the LFSR algorithm, the `0xEFA6/0x9C23` seeds, and the jitter formula are all confirmed
+bit-exact, modulo a fixed **3-draw preamble** consumed by engine initialisation before the first
+note. (Sequence from reset, depth 5: −20, −20, 0, **0, +10**, −10, +20, 0, …)
+
+**Delayed start (Piano+Choir1, tone 8).** The choir partial's voice shows amp exactly 0.000000 and
+its envelope level frozen at 13476 for precisely **3 control ticks**, first movement on tick 4 —
+matching the predicted `g_rate_curve[4] = 31 ms → 3 ticks` hold. Its **sampler position is frozen
+at 3** for those ticks and starts advancing at tick 4: the wave is delayed along with the
+envelopes.
+
+**Key-off layer (Harpsi.o, tone 44).** The 0xff partial's voice: amp 0.000000 and sampler position
+frozen at 3 for the entire 600 ms held note; on the control tick after note-off the position starts
+advancing from ~0, the amp bursts, and the envelope level begins stepping from its note-on value —
+the harpsichord's key-off clack, played whole no matter how long the note was held. The audible
+harpsichord is the tone's *other*, ordinary partial, which releases normally at the same moment.
+
+The reimplementation's hold model was corrected from these measurements (armed voice = pure
+silence, wave parked, fire = time-shift; 0xff = fires at note-off with no release pending) — see
+the sibling repo's `EnvelopeMachine.HoldSamples` / `PartialVoice` / `NoteRenderer.RenderPartial`.

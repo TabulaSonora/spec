@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -81,6 +81,43 @@ unsafe
         System.Runtime.InteropServices.Marshal.Copy((nint)addr, buf, 0, count);
         File.WriteAllBytes(outp, buf);
         Console.WriteLine($"dumpmem VA=0x{va:X} -> {count} bytes @ 0x{addr:X} -> {outp}");
+        return;
+    }
+    // postrace mode: per-CONTROL-TICK sampler read position (+0x28 of the sampler-state struct) for
+    //   every active voice, with an optional mid-note note-off. Built to answer whether a voice whose
+    //   envelope hold clock is armed (partial block byte 0x00 - the delayed-layer / key-off-layer
+    //   mechanism) advances its wave while it waits, or starts the sample fresh when the clock fires.
+    //   args: dll postrace <prog> <note> <holdSec> [vel] [bank] [map] [offFrac*1000]
+    if (args.Length > 1 && args[1] == "postrace")
+    {
+        int SRp=32000; int pgp=int.Parse(args[2]); int ntp=int.Parse(args[3]);
+        double hsp=double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
+        int vlp=args.Length>5?int.Parse(args[5]):100;
+        int bkp=args.Length>6?int.Parse(args[6]):0;
+        int mpp=args.Length>7?int.Parse(args[7]):0;
+        int offFracP=args.Length>8?int.Parse(args[8]):int.MaxValue;
+        setSR((float)SRp); setBS(512); activate((float)SRp,512); setThr();
+        long fbp=b+0x1a1b5b8, ssp=b+0x1a1b570;
+        var lp2=new float[512]; var rp2=new float[512];
+        GsReset(); if(mpp>=1&&mpp<=4) for(int c=0;c<16;c++) ToneMap0(c,mpp); flush();
+        fixed(float* pl=lp2,pr=rp2) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCq(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        CCq(0,bkp);CCq(32,0);CCq(7,127);CCq(10,64);CCq(91,0);CCq(93,0);
+        shortIn((uint)(0xC0|(pgp<<8)),0); flush();
+        shortIn((uint)(0x90|(ntp<<8)|(vlp<<16)),0); flush();
+        int totalP=(int)(hsp*SRp), posP=0;
+        int offAtP = offFracP==int.MaxValue?int.MaxValue:(int)(offFracP/1000.0*totalP);
+        bool offSentP=false;
+        while(posP<totalP){
+            if(!offSentP && posP>=offAtP){ shortIn((uint)(0x80|(ntp<<8)),0); flush(); offSentP=true;
+                Console.WriteLine($"--- note-off @ {posP*1000.0/SRp:0}ms"); }
+            fixed(float* pl=lp2,pr=rp2) process(pl,pr,320); posP+=320;
+            Console.Write($"{posP*1000.0/SRp,6:0}ms:");
+            for(int v=0;v<64;v++){ if((*(byte*)(fbp+v*0x50)&1)==0) continue;
+                long st=ssp+(long)v*0x50;
+                Console.Write($"  v{v} pos={*(int*)(st+0x28)}/{*(int*)(st+0x2c)}"); }
+            Console.WriteLine();
+        }
         return;
     }
     // ampramp mode: read the per-voice GAIN WORD (the amp value voice_ctrl_ramp_a hands the sampler,
