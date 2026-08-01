@@ -47,8 +47,11 @@ section skew above.
 
 ## What's where
 
-- **Wave ROM** — two banks, file offsets `0x92700` (A: stacked SC-88/88Pro) and `0x1092730` (B: 8820),
-  ~12 MB each, addressed in 1 MB blocks. Each sample is a block-floating-point ADPCM pair of streams
+- **Wave ROM** — two banks, file offsets `0x92700` (bank A, 16 MB: SC-88 `ver200` + first 8 MB of
+  SC-88Pro `rom_make`) and `0x1092730` (bank B, 8 MB: rest of `rom_make` + SC-8820 `8820_wv0`),
+  addressed in 1 MB blocks. The two banks are byte-for-byte the SC-8820's two physical wave mask
+  ROMs (IC7 128 Mbit / IC39 64 Mbit) embedded back-to-back — see
+  [HARDWARE_ROMS.md](HARDWARE_ROMS.md). Each sample is a block-floating-point ADPCM pair of streams
   (per-sample delta + per-16-sample scale nibble); decode = `cumsum(delta << (scale + 10)) * CONST`.
   See `decode_wave` in `scvx_engine.py`.
 - **Patch directory** (data section): `tone` (0x100-stride records = 0x24 header + four 0x6e partial

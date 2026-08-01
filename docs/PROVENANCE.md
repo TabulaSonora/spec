@@ -57,6 +57,14 @@ block-15→16 boundary (`0xF92700` → `0x1092730`). The `8820_wv0` label names 
 the dates line up with each model's release era. **Conclusion: SC-VA ships the actual SC-88 +
 SC-88Pro + SC-8820 mask-ROM wave data, stacked, with the original ROM build stamps intact.**
 
+**The +0x30 discontinuity is the physical chip boundary.** It falls at exactly 16 MB into the wave
+region — precisely where the SC-8820's 128 Mbit wave mask ROM (IC7, NEC `μPD23C128040LGY-823-MJH`)
+ends and its 64 Mbit companion (IC39, Macronix `MX23C6410RC-12`) begins, per the service-notes parts
+list and block diagram. The DLL embeds the **two chip images back-to-back** (16 MB + 8 MB = 24 MB
+exactly), with 0x30 bytes of host-side data between them; the 12 MB SC-88Pro `rom_make` set straddles
+the two chips (8 MB + 4 MB). Per-chip reference images, hashes, and the full block↔chip map are in
+[`HARDWARE_ROMS.md`](HARDWARE_ROMS.md).
+
 ## 2. Verified evidence — the synthesis matches the hardware algorithms exactly
 
 The reverse-engineered voice engine reproduces hardware-specific algorithms bit-for-bit, not generic
@@ -135,7 +143,8 @@ and (b) the **main CPU changed architecture** between the SC-88/88Pro era and th
 | Sub CPU (MIDI I/O) | Mitsubishi `M38881M2` | Mitsubishi `M37640E8FP` |
 | Tone-generator ASIC ("XP") | `RA01-005` | `RA09-002` ("XP6") |
 | Effects DSP | Fujitsu `MB87837PF-G-BND` | Fujitsu `MB87837PF-G-BND` (**same part**) |
-| Wave/mask ROM | 4× 4 MB mask ROM | 64 Mbit mask ROM + 16 Mbit flash |
+| Wave ROM | 4× 4 MB mask ROM | 128 Mbit + 64 Mbit mask ROM (IC7 `μPD23C128040LGY` + IC39 `MX23C6410RC`) |
+| Program ROM | (on CPU bus) | 16 Mbit mask ROM **or** 16 Mbit flash (IC6/IC5, exclusive) |
 | DAC | NEC `μPD63200GS-E2` (per channel) | Burr-Brown/TI `PCM1716E` |
 
 Key points, each now sourced:
@@ -151,6 +160,13 @@ Key points, each now sourced:
   Roland DSP codebase"* argument in §4 concrete: the silicon (and therefore its microcode/algorithms)
   was shared across the Sound Canvas and JV/XV products, so a software port of it naturally carries
   algorithms that no single product exposes.
+- **No CPU has direct access to the wave ROMs — in any generation.** The SC-8820 block diagram wires
+  IC7/IC39 solely to the XP6 tone generator (the CPU bus carries only the program mask/flash ROM,
+  work DRAM, sub-CPU, effects DSP, and the XP6 itself), and even the built-in Device Test reads the
+  wave ROM *through* the XP chip. Consequently the wave data has no CPU-endianness to be "in" — its
+  word order is a private contract between the mask data and the XP6 — and the endian-swap evidence
+  in §4 applies to CPU-visible firmware data only, not the wave ROM, which SC-VA plausibly embeds
+  as the verbatim mask byte stream. Full discussion in [`HARDWARE_ROMS.md`](HARDWARE_ROMS.md) §5.
 - **Big-endian → little-endian.** The Hitachi H8 and SH families are big-endian; x86-64 is
   little-endian, so a genuine port must flip byte order — matching the single offline endian-swap noted
   in §4. Wikipedia's H8 Family article independently lists the **Roland SC-55 and JV880** among H8-based
