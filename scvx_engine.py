@@ -41,7 +41,8 @@ import scvx_partials as P
 SR    = 32000
 CONST = 7.450580596923828e-09          # predictor -> [-1,1] (the codec's output scale)
 BASE  = {0: 0x92700, 1: 0x1092730}     # ROM base file-offset per bank
-DLL   = open(r"C:/Program Files/Roland VS/SOUND Canvas VA/SCCore.dll", "rb").read()
+DLL   = open(os.environ.get("SCVX_DLL",
+                            r"C:/Program Files/Roland VS/SOUND Canvas VA/SCCore.dll"), "rb").read()
 
 # ---- static synth curve tables (exported from SCCore.dll .rdata) ----
 _T   = os.path.join(os.path.dirname(__file__), "tables")
