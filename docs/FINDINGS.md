@@ -2724,3 +2724,28 @@ Exactly **57 of 2363 tones** set bit 2 — the piano family, wall to wall: `Pian
 *Downstream note: the reimplementation models CC64 as a boolean with note-off replay, which is
 exact for the other 2306 tones; the missing refinement is routing the raw pedal value into the
 release-rate scale on the 57 half-damper tones.*
+
+## CC66 sostenuto — captured-note bitmap and deferred release `[confirmed]`
+
+The sostenuto handler (`0x1800661a0`, another table-only function recovered from the image) is a
+textbook sostenuto, binary-only — it reads nothing but bit 6 of the value, so there is no
+"half-sostenuto". Parts receive it through Rx mask `0x880` in `part+0x3d6`, which alongside hold's
+`0x820` and expression's `0x810` pins the Rx-switch bits: `0x800` = Rx.CONTROL, `0x80` =
+Rx.SOSTENUTO, `0x20` = Rx.HOLD-1, `0x10` = Rx.EXPRESSION.
+
+- **Pedal down:** for every *sounding* note-group (state byte `node+0x30` == 1) on the part's list
+  (`part+0x270`, chained at `+0x20`): set the note's bit in a **128-bit captured-note bitmap at
+  `part+0x260`** (8×u16, indexed by `node+0x36`, the note number) and set the capture flag,
+  `node+0x34` bit 0.
+- **Note-off while captured:** `part_notes_note_off` moves the group's state 1 → 2 as usual but
+  marks the voices released (`voice+0x16d = 1`) **only when the capture flag is clear** — a
+  captured note's release is deferred, exactly like the damper's but per-note.
+- **Pedal up:** clear each group's capture flag; for groups already in state 2 (note-off arrived
+  during capture), set `voice+0x16d = 1` on the whole voice chain — the standard release
+  engagement, which therefore composes with everything above it: the release rates take the
+  *damper* value in `part+0x462` at that moment (half-pedal scaling included), a still-down CC64
+  keeps the note sustaining regardless, and a key-off (0xff) layer fires. Finally the bitmap at
+  `part+0x260/0x268` is zeroed wholesale.
+
+Nothing sostenuto-specific reaches the envelopes: capture only gates *when* `voice+0x16d` is set,
+and everything downstream is the already-documented release machinery.
