@@ -2849,3 +2849,50 @@ observable tick already shows one step of decay applied.
 in, so tracing it shows a portamento note apparently starting in tune. The glide reaches the phase
 increment (`voice+0xb8`) via the working accumulator; `voice+0x8c` is the offset itself. Two hours
 of "portamento is not implemented in SC-VA" came from reading the wrong field.
+
+## The "random detune" is random *pan* — and `g_pitch_split_*` is the pan law `[confirmed]`
+
+An earlier pass recorded `voice+0xf4/0xf6` as a randomised **pitch** pair fed from
+`g_pitch_split_coarse/fine`, consumer unknown. Following the consumer settles it: they are the
+voice's **output-bus sends**, and the tables are the **pan law**. Both names were wrong.
+
+**The consumer.** `voice_block_process` copies four voice words — `+0xf4`, `+0xf6`, `+0xf0`,
+`+0xf2` — into four per-voice arrays, adding the voice's base bus number (`voice+0x06`) to the
+first and that number **+1** to the second. `voice_compute_mod_rates` then splits each word:
+
+```
+level = (word >> 6) / 1024.0     (floats at 0x181a1d930/1da30/1db30/1dc30)
+bus   =  word & 0x3f             (ints   at 0x181a6e4b0/6e5b0/6e6b0/6e7b0)
+```
+
+and `voice_output_accumulate` mixes the voice's block into `g_output_bus_accum[bus]` scaled by
+`level`. So each voice has **four (bus, level) sends**, and the `+0`/`+1` pair on a shared base is
+the dry stereo pair — left and right are adjacent buses, which is why the two words are written
+together and why one table read forwards and the other backwards.
+
+**The tables are one pan curve read from both ends.** `g_pitch_split_coarse` (`0x1819a2fa0`) and
+`g_pitch_split_fine` (`0x1819a3020`) are 0x80 apart, and the code indexes the second
+*negatively* — `fine[−i]` — so both views walk the same 128 bytes in opposite directions:
+
+| position | 0 | 32 | 64 | 96 | 127 |
+|---|---|---|---|---|---|
+| forward (right) | 0 | 35 | 75 | 109 | 127 |
+| backward (left) | 127 | 109 | 75 | 35 | 0 |
+
+Symmetric, 75/75 at centre. Rename to `g_pan_curve` (`fine` is simply its far end).
+
+**The randomisation is GS RND pan, and it is narrower than it looks.** `tvf_env_prep` resolves the
+position as `part+0x3dd + (partial pan − 0x40)` (plus the drum key's own pan), clamped to 0..0x7f
+— and takes the random branch when the pan byte is **zero**, drawing `prng_lfsr() >> 9` for a fresh
+position per note. Two sources can be zero, and one famously cannot:
+
+- **Drum key pan zero → random.** The NRPN `1Ch` path stores the value verbatim, so a kit key can
+  hold zero. Confirmed: the plane reads 0 after the NRPN, and `tvf_env_prep` branches on it.
+- **Part panpot zero → random**, but **CC#10 cannot produce it**: the CC10 handler
+  (`0x180065f90`) is `value == 0 ? 1 : value`, so the wheel's zero is stored as one. Measured —
+  CC#10 = 0 gives position 1 (hard left, `L=0x7f R=0x00`) on every strike, not a new position each
+  time. Only the GS SysEx panpot writes a true zero. That matches the GS spec, where the panpot's
+  RND value is reachable by SysEx and CC#10 is a plain 1..127 control.
+
+The random source is `prng_lfsr` — the same generator as the pitch start jitter and the random LFO
+waveforms, already documented with its `0xEFA6`/`0x9C23` reset seeds.

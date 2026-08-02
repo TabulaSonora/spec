@@ -320,7 +320,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1800600c0` | `pitch_env_apply_stage` | actually the `block[0x1a]` random start-pitch jitter (see FINDINGS "TVP runtime machine") |
 | `180060150` | `partial_apply_pitch_env_rates` | seg0 rate word +0x62; seg1-3 times +0x204/6/8; release rate +0x7a (doubles as enable) |
 | `180060390` | `voice_volume_apply` |  |
-| `180060560` | `pitch_env_rand_init` | randomize partial-group pitch-env via prng+pitch split tables |
+| `180060560` | `voice_pan_random` | GS RND pan: prng>>9 -> pan curve -> L/R bus sends across the partial group |
 | `180060620` | `tvf_env_prep` |  |
 | `1800607e0` | `env_rate_scale` |  |
 | `180060880` | `env_level_scale` |  |
@@ -384,6 +384,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180066040` | `cc5_portamento_time` | part+0x463 (glide step index); arms part+0x08 bit2 when already on |
 | `180065fe0` | `cc65_portamento_switch` | part+0x08 bits 1\|2 on/off, Rx gate 0x840 |
 | `180065ef0` | `cc84_portamento_control` | part+0x24d = source key, consumed by one note |
+| `180065f90` | `cc10_pan` | part+0x3dd = value, but **0 is stored as 1** so CC10 cannot select RND |
 | `180065e50` | `cc64_hold_damper` | writes part+0x462: raw value on half-damper tones (hdr byte 0xd bit2), else 0/0x7f; Rx gate 0x820 |
 | `180065eb0` | `cc11_expression` | writes part+0x464 (Rx gates 0x810) |
 | `1800661a0` | `cc66_sostenuto` | binary; captures sounding notes into bitmap part+0x260 + node flag +0x34 bit0; pedal-up releases state-2 groups |
@@ -865,8 +866,8 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1819a0550` | `g_rx_flag_bitmask_tbl` | u16 bitmasks for part Rx-flag 0x3d6 |
 | `1819a0830` | `g_chorus_macro_table` | chorus-type match table |
 | `1819a2890` | `g_tvf_env_level_curve` | abs(level-0x40) TVF env level curve |
-| `1819a2fa0` | `g_pitch_split_coarse` | coarse byte of pitch-env value table |
-| `1819a3020` | `g_pitch_split_fine` | fine byte of pitch-env value table |
+| `1819a2fa0` | `g_pan_curve` | 128-byte pan law; read forward for the right gain |
+| `1819a3020` | `g_pan_curve_end` | far end of `g_pan_curve`; indexed negatively for the left gain |
 | `1819a7a00` | `g_tvf_env_startphase` | TVF env start-phase table[0..10] |
 | `1819a9d80` | `g_bit_mask_lut` | 1<<(i&0x1f) shared bitmask helper |
 | `1819f28b0` | `g_prog_to_col` | program -> map column (0xff=none) |

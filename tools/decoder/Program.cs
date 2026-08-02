@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -207,6 +207,36 @@ unsafe
                 long p=vct+(long)v*0x220;
                 Console.Write($" v{v} pitch={*(int*)(p+0x6c)} glide={*(int*)(p+0x8c)} inc=0x{*(uint*)(p+0xb8):X}"); }
             Console.WriteLine();
+        }
+        return;
+    }
+    // panprobe mode: strike a note several times at a given CC10 and print each voice's resolved pan
+    //   position (voice+0xf8) with the packed L/R bus sends (voice+0xf4/0xf6). GS panpot 0 is RND,
+    //   so this shows whether the engine redraws per note.
+    //   args: dll panprobe <prog> <note> <cc10> <strikes>
+    if (args.Length > 1 && args[1] == "panprobe")
+    {
+        int pgn=int.Parse(args[2]); int ntn=int.Parse(args[3]);
+        int pan=int.Parse(args[4]); int strikes=args.Length>5?int.Parse(args[5]):6;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbn=b+0x1a1b5b8;
+        var getVCn=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcn=getVCn(0);
+        var ln=new float[512]; var rn=new float[512];
+        void CCn(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        GsReset(); flush(); fixed(float* pl=ln,pr=rn) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCn(7,127);CCn(10,pan);CCn(91,0);CCn(93,0);
+        shortIn((uint)(0xC0|(pgn<<8)),0); flush();
+        for(int k=0;k<strikes;k++){
+            shortIn((uint)(0x90|(ntn<<8)|(100<<16)),0); flush();
+            fixed(float* pl=ln,pr=rn) for(int i=0;i<2;i++) process(pl,pr,320);
+            Console.Write($"strike {k}:");
+            for(int v=0;v<64;v++){ if((*(byte*)(fbn+v*0x50)&1)==0) continue;
+                long p=vcn+(long)v*0x220;
+                Console.Write($" v{v} pos={*(short*)(p+0xf8)} L=0x{*(ushort*)(p+0xf4):X4} R=0x{*(ushort*)(p+0xf6):X4}"); }
+            Console.WriteLine();
+            shortIn((uint)(0x80|(ntn<<8)),0); flush();
+            fixed(float* pl=ln,pr=rn) for(int i=0;i<40;i++) process(pl,pr,320);
         }
         return;
     }
