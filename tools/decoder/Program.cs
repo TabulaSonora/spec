@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -87,7 +87,10 @@ unsafe
     //   every active voice, with an optional mid-note note-off. Built to answer whether a voice whose
     //   envelope hold clock is armed (partial block byte 0x00 - the delayed-layer / key-off-layer
     //   mechanism) advances its wave while it waits, or starts the sample fresh when the clock fires.
-    //   args: dll postrace <prog> <note> <holdSec> [vel] [bank] [map] [offFrac*1000]
+    //   args: dll postrace <prog> <note> <holdSec> [vel] [bank] [map] [offFrac*1000] [ch] [nrpnMsb nrpnLsb nrpnVal]
+    //   The optional channel selects the drum part; the optional NRPN triple is sent before the
+    //   note (e.g. 24 <note> 76 = drum pitch coarse +12), so per-map parameter scaling can be
+    //   measured straight off the sampler position rate.
     if (args.Length > 1 && args[1] == "postrace")
     {
         int SRp=32000; int pgp=int.Parse(args[2]); int ntp=int.Parse(args[3]);
@@ -96,20 +99,25 @@ unsafe
         int bkp=args.Length>6?int.Parse(args[6]):0;
         int mpp=args.Length>7?int.Parse(args[7]):0;
         int offFracP=args.Length>8?int.Parse(args[8]):int.MaxValue;
+        int chp=args.Length>9?int.Parse(args[9]):0;
         setSR((float)SRp); setBS(512); activate((float)SRp,512); setThr();
         long fbp=b+0x1a1b5b8, ssp=b+0x1a1b570;
         var lp2=new float[512]; var rp2=new float[512];
         GsReset(); if(mpp>=1&&mpp<=4) for(int c=0;c<16;c++) ToneMap0(c,mpp); flush();
         fixed(float* pl=lp2,pr=rp2) for(int i=0;i<8;i++) process(pl,pr,512);
-        void CCq(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        void CCq(int c,int v)=>shortIn((uint)((0xB0|chp)|(c<<8)|(v<<16)),0);
         CCq(0,bkp);CCq(32,0);CCq(7,127);CCq(10,64);CCq(91,0);CCq(93,0);
-        shortIn((uint)(0xC0|(pgp<<8)),0); flush();
-        shortIn((uint)(0x90|(ntp<<8)|(vlp<<16)),0); flush();
+        shortIn((uint)((0xC0|chp)|(pgp<<8)),0); flush();
+        if(args.Length>12){
+            CCq(99,int.Parse(args[10])); CCq(98,int.Parse(args[11])); CCq(6,int.Parse(args[12]));
+            flush(); fixed(float* pl=lp2,pr=rp2) process(pl,pr,512);
+        }
+        shortIn((uint)((0x90|chp)|(ntp<<8)|(vlp<<16)),0); flush();
         int totalP=(int)(hsp*SRp), posP=0;
         int offAtP = offFracP==int.MaxValue?int.MaxValue:(int)(offFracP/1000.0*totalP);
         bool offSentP=false;
         while(posP<totalP){
-            if(!offSentP && posP>=offAtP){ shortIn((uint)(0x80|(ntp<<8)),0); flush(); offSentP=true;
+            if(!offSentP && posP>=offAtP){ shortIn((uint)((0x80|chp)|(ntp<<8)),0); flush(); offSentP=true;
                 Console.WriteLine($"--- note-off @ {posP*1000.0/SRp:0}ms"); }
             fixed(float* pl=lp2,pr=rp2) process(pl,pr,320); posP+=320;
             Console.Write($"{posP*1000.0/SRp,6:0}ms:");
@@ -118,6 +126,52 @@ unsafe
                 Console.Write($"  v{v} pos={*(int*)(st+0x28)}/{*(int*)(st+0x2c)}"); }
             Console.WriteLine();
         }
+        return;
+    }
+    // drumprobe mode: read a drum part's live per-note parameter planes before and after an NRPN, to
+    //   see what the handler actually stores and whether the tone map changes the scaling. The part
+    //   is reached from a sounding voice (voice+0x128), its per-note map from part+0x18; plane 0x180
+    //   is drum pitch coarse, 0x100 level, 0x280 pan. Also prints the Rx word (part+0x3d6) and the
+    //   part flags (part+0x12) that gate the NRPN handler.
+    //   args: dll drumprobe <note> <map> <nrpnMsb> <nrpnVal> [prog]
+    if (args.Length > 1 && args[1] == "drumprobe")
+    {
+        int ntd=int.Parse(args[2]); int mpd=int.Parse(args[3]);
+        int msbd=int.Parse(args[4]); int vald=int.Parse(args[5]);
+        int pgd=args.Length>6?int.Parse(args[6]):0;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbd=b+0x1a1b5b8;
+        var getVCd=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcd=getVCd(0);
+        var ld=new float[512]; var rd=new float[512];
+        void CCd(int c,int v)=>shortIn((uint)((0xB0|9)|(c<<8)|(v<<16)),0);
+        GsReset(); if(mpd>=1&&mpd<=4) for(int c=0;c<16;c++) ToneMap0(c,mpd); flush();
+        fixed(float* pl=ld,pr=rd) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCd(7,127);CCd(10,64);CCd(91,0);CCd(93,0);
+        shortIn((uint)((0xC0|9)|(pgd<<8)),0); flush();
+        fixed(float* pl=ld,pr=rd) process(pl,pr,512);
+
+        long PartOf(){ for(int v=0;v<64;v++){ if((*(byte*)(fbd+v*0x50)&1)!=0) return *(long*)(vcd+(long)v*0x220+0x128); } return 0; }
+        void Strike(){ shortIn((uint)((0x90|9)|(ntd<<8)|(110<<16)),0); flush();
+                       fixed(float* pl=ld,pr=rd) for(int i=0;i<3;i++) process(pl,pr,256); }
+        void Dump(string tag){
+            long part=PartOf();
+            if(part==0){ Console.WriteLine($"{tag}: no sounding voice"); return; }
+            long map=*(long*)(part+0x18);
+            Console.WriteLine($"{tag}: part=0x{part:X} rx=0x{*(ushort*)(part+0x3d6):X4} flags=0x{*(byte*)(part+0x12):X2} hdr0d=0x{*(byte*)(part+0x24c):X2}"
+                +$" bank={*(byte*)(part+0x44d)}/{*(byte*)(part+0x44e)} prog={*(byte*)(part+0x3d5)}"
+                +$" | pitch[{ntd}]={*(sbyte*)(map+0x180+ntd)} level={*(byte*)(map+0x100+ntd)} pan={*(byte*)(map+0x280+ntd)}");
+        }
+
+        Strike(); Dump("before");
+        CCd(99,msbd); CCd(98,ntd); CCd(6,vald); flush();
+        fixed(float* pl=ld,pr=rd) process(pl,pr,512);
+        Dump("after ");
+        Strike();
+        // The voice's own absolute pitch after the NRPN, which is what the ratio is built from.
+        for(int v=0;v<64;v++){ if((*(byte*)(fbd+v*0x50)&1)==0) continue;
+            long p=vcd+(long)v*0x220;
+            Console.WriteLine($"  voice{v}: pitch64={*(int*)(p+0x64)} pitch6c={*(int*)(p+0x6c)} inc=0x{*(uint*)(p+0xb8):X}"); }
         return;
     }
     // ampramp mode: read the per-voice GAIN WORD (the amp value voice_ctrl_ramp_a hands the sampler,

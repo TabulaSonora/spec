@@ -2750,3 +2750,55 @@ Rx.SOSTENUTO, `0x20` = Rx.HOLD-1, `0x10` = Rx.EXPRESSION.
 
 Nothing sostenuto-specific reaches the envelopes: capture only gates *when* `voice+0x16d` is set,
 and everything downstream is the already-documented release machinery.
+
+## Drum pitch NRPN "range doubling" is per-tone key-follow, not an SC-55 mode `[confirmed]`
+
+A long-standing observation is that the drum-pitch NRPN (`18h`, *Drum Instrument Pitch Coarse*)
+covers **twice as many semitones in SC-55 mode**. Measured against the DLL under Wine, the effect
+is real and reproducible — and its cause is not the tone map.
+
+**Measurement** (`scdec drumprobe <note> <map> 24 <value> [prog]`, new mode: strikes the note,
+sends the NRPN, restrikes, and reads the part's live per-note planes plus each voice's absolute
+pitch `voice+0x64`). Note 38, NRPN value `0x4C` = plane +12:
+
+| map | prog 0 (Standard) | prog 24 (Electronic) |
+|---|---|---|
+| 1 — SC-55   | 60000 → **72000** (+12 st) | 60000 → **72000** (+12 st) |
+| 2 — SC-88   | 60000 → 66000 (+6 st) | 60000 → **72000** (+12 st) |
+| 3 — SC-88Pro| 60000 → 66000 (+6 st) | 60000 → **72000** (+12 st) |
+| 4 — SC-8820 | 60000 → 66000 (+6 st) | 60000 → **72000** (+12 st) |
+
+Linear in the value throughout (+4 → +4000/+2000 mst, +32 → +32000/+16000), and the stored plane
+byte is identical in every case (60 → 72), so nothing about the *handler* differs.
+
+**The Electronic kit doubles the range in every map**, which rules out a mode switch. Resolving the
+kit each cell actually used and reading the tone behind note 38 settles it:
+
+| map | kit | tone | `block[0x13]` pitch key-follow |
+|---|---|---|---|
+| 1 | Fat Snare | 2330 | `0x4a` = **100%** |
+| 1, 2, 3, 4 (prog 24) | Elec. Snare | 1840 | `0x4a` = **100%** |
+| 2 | Std.1 Snare1 | 1821 | `0x45` = 50% |
+| 3 | Standard SN1 | 1826 | `0x45` = 50% |
+| 4 | 85St Snare2 | 1776 | `0x45` = 50% |
+
+Perfect correlation, with no exceptions in the set. **The NRPN sets the note's *key*, and the tone's
+own pitch key-follow decides how much pitch a key step buys** — the same `block[0x13]` ladder
+already documented for melodic notes (0x40 = 0%, 0x4a = 100%, 10% per step, via
+`multisample_key_zone`). A 100%-follow tone moves a full semitone per plane unit; a 50%-follow tone
+moves half of one. SC-55 mode "has twice the range" only because the SC-55 kits happen to use
+100%-follow snares where the later standard kits use 50%-follow ones.
+
+**There is no map-dependent scaling in the CC/NRPN handlers at all.** The recovered handlers
+(`cc64_hold_damper`, `cc66_sostenuto`, `cc67_soft_pedal`, `cc11_expression`, `nrpn_apply`) contain
+no mode or tone-map conditional; the only map involvement anywhere near this path is kit
+*selection* — `nrpn_apply` case `0x18` reads the kit's default plane value through the
+bank-row/program-column LUTs, adds `value − 0x40`, clamps to 0..0x7f, and stores it in the part's
+per-note map at `+0x180`. The map picks the kit; the kit picks the tone; the tone carries the
+key-follow.
+
+**Consequence for a reimplementation:** modelling drum coarse pitch as a fixed half-semitone per
+unit (`2^((plane−60)/24)`) is right only for 50%-follow tones. The general rule is the melodic one —
+take the plane value as the key and run the ordinary base-pitch chain (`keyfollow_key` +
+`g_kf_pitch`) with the partial's own key-follow byte. That reproduces both columns above exactly:
+100% gives `plane*1000`, 50% gives centre + half the distance (60 → 66 for plane 72).
