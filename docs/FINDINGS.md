@@ -2802,3 +2802,50 @@ unit (`2^((plane−60)/24)`) is right only for 50%-follow tones. The general rul
 take the plane value as the key and run the ordinary base-pitch chain (`keyfollow_key` +
 `g_kf_pitch`) with the partial's own key-follow byte. That reproduces both columns above exactly:
 100% gives `plane*1000`, 50% gives centre + half the distance (60 → 66 for plane 72).
+
+## Portamento — the glide term, measured `[confirmed]`
+
+The pitch sum carries a fourth term besides base, envelope and LFO: a **portamento glide offset** at
+`voice+0x8c`, added inside the same `[0, 0x1f018]` clamp and walked to zero at a fixed rate. New
+`scdec portatrace` mode traces it per control tick.
+
+**Controllers** (all recovered from the CC dispatch table; Rx gate `0x840` = CONTROL + PORTAMENTO):
+
+| CC | handler | effect |
+|---|---|---|
+| 5 — portamento time | `0x180066040` | `part+0x463 = value`; also sets the armed bit (`part+0x08` bit 2) if portamento is already on |
+| 65 — portamento on/off | `0x180065fe0` | ≥ 0x40 sets `part+0x08` bits 1 and 2; below clears both |
+| 84 — portamento control | `0x180065ef0` | `part+0x24d = value` — the source key for exactly one note (Rx gate `0x800` only) |
+
+**The glide.** At note-on the offset is `sourcePitch − thisNote'sBasePitch`, so the voice sounds at
+the source and climbs (or falls) into tune. Each control tick it moves toward zero by
+`g_porta_step[part+0x463]`, a 128-entry u16 table at `0x1819a7800` — new
+`tables/porta_step_7800.bin`. The glide is therefore **linear in pitch, not in frequency**: constant
+milli-semitones per tick, so an octave takes the same time wherever it starts. Measured against the
+DLL at three time bytes, exact:
+
+| CC5 time | table | measured decay per tick |
+|---|---|---|
+| 32 | 928 | −23109 → −22181 = **928** |
+| 64 | 231 | −23806 → −23575 = **231** |
+| 96 | 57 | −23980 → −23923 = **57** |
+
+Time 0 is 65535 (instant) and 127 is 1 mst/tick — two minutes per octave. The initial offset also
+checks out: gliding from key 48 into a note whose base pitch is 72037 gives −24037, and the first
+observable tick already shows one step of decay applied.
+
+**Which source key, and when it arms.** Two paths, and they differ:
+
+- **CC84** supplies the key outright (`voice+0x162`), the glide departs from a flat
+  `key × 1000`, and it fires **even in poly with other notes ringing** — measured. The engine
+  consumes the byte at note-on and resets it to `0xff`, so it glides exactly one note.
+- **CC65** is the sustained mode, and it only arms when the part has **no live note groups**
+  (`part+0x270 == 0`). Measured: the same two notes struck over a still-ringing first note produce
+  **no glide at all**, while in mono mode they glide. Mono short-circuits the test rather than
+  re-reading it after the voice flush, so a part that has just chased its own voices away still
+  counts as quiet.
+
+**Note `voice+0x6c` does not include the glide** — that field is written before the glide is folded
+in, so tracing it shows a portamento note apparently starting in tune. The glide reaches the phase
+increment (`voice+0xb8`) via the working accumulator; `voice+0x8c` is the offset itself. Two hours
+of "portamento is not implemented in SC-VA" came from reading the wrong field.

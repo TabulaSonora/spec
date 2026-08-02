@@ -525,6 +525,19 @@
       "purpose": "pan position -> L/R gain"
     },
     {
+      "name": "porta_step_7800.bin",
+      "symbol": "g_porta_step",
+      "subsystem": "PITCH",
+      "dtype": "u16",
+      "shape": "128",
+      "size": 256,
+      "file_offset": "0x19a6800",
+      "va": "0x1819a7800",
+      "section_adjust": "0x1000",
+      "match": "full",
+      "purpose": "portamento glide step per control tick, by CC5 time byte (0=instant, 127=1 mst/tick)"
+    },
+    {
       "name": "ramp_divider_a03e00.bin",
       "symbol": "g_ramp_divider",
       "subsystem": "CTRL",

@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -172,6 +172,42 @@ unsafe
         for(int v=0;v<64;v++){ if((*(byte*)(fbd+v*0x50)&1)==0) continue;
             long p=vcd+(long)v*0x220;
             Console.WriteLine($"  voice{v}: pitch64={*(int*)(p+0x64)} pitch6c={*(int*)(p+0x6c)} inc=0x{*(uint*)(p+0xb8):X}"); }
+        return;
+    }
+    // portatrace mode: per-control-tick absolute voice pitch (voice+0x6c) across a portamento glide,
+    //   to measure the step-per-tick the engine applies for a CC5 time byte. Plays note A, then note
+    //   B with portamento on, and prints the pitch each tick.
+    //   args: dll portatrace <prog> <noteA> <noteB> <time> <ticks> [cc84from]
+    if (args.Length > 1 && args[1] == "portatrace")
+    {
+        int SRt=32000; int pgt=int.Parse(args[2]); int nA=int.Parse(args[3]); int nB=int.Parse(args[4]);
+        int timet=int.Parse(args[5]); int nticks=int.Parse(args[6]);
+        int cc84=args.Length>7?int.Parse(args[7]):-1;
+        setSR((float)SRt); setBS(512); activate((float)SRt,512); setThr();
+        long fbt=b+0x1a1b5b8;
+        var getVCt=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vct=getVCt(0);
+        var lt=new float[512]; var rt=new float[512];
+        void CCt(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        GsReset(); flush(); fixed(float* pl=lt,pr=rt) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCt(7,127);CCt(10,64);CCt(91,0);CCt(93,0);
+        shortIn((uint)(0xC0|(pgt<<8)),0); flush();
+        CCt(5,timet);
+        if(args.Length>8 && int.Parse(args[8])!=0) CCt(126,1);   // mono mode
+        if(cc84<0) CCt(65,127);
+        shortIn((uint)(0x90|(nA<<8)|(100<<16)),0); flush();
+        fixed(float* pl=lt,pr=rt) for(int i=0;i<25;i++) process(pl,pr,320);
+        shortIn((uint)(0x80|(nA<<8)),0); flush();
+        if(cc84>=0) CCt(84,cc84);
+        shortIn((uint)(0x90|(nB<<8)|(100<<16)),0); flush();
+        for(int t=0;t<nticks;t++){
+            fixed(float* pl=lt,pr=rt) process(pl,pr,320);
+            Console.Write($"{t,3}:");
+            for(int v=0;v<64;v++){ if((*(byte*)(fbt+v*0x50)&1)==0) continue;
+                long p=vct+(long)v*0x220;
+                Console.Write($" v{v} pitch={*(int*)(p+0x6c)} glide={*(int*)(p+0x8c)} inc=0x{*(uint*)(p+0xb8):X}"); }
+            Console.WriteLine();
+        }
         return;
     }
     // ampramp mode: read the per-voice GAIN WORD (the amp value voice_ctrl_ramp_a hands the sampler,

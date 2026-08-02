@@ -381,6 +381,9 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180065730` | `modmatrix_apply_bipolar` | ctrl amount x 11 depths (pitch/TVF/TVA scaled) |
 | `180065bd0` | `modmatrix_apply_pitch1` | single-dest pitch bipolar mod-depth apply |
 | `180065c70` | `cc67_soft_pedal` | binary; Rx gate 0x900, sets/clears bit 3 of part+0x08 |
+| `180066040` | `cc5_portamento_time` | part+0x463 (glide step index); arms part+0x08 bit2 when already on |
+| `180065fe0` | `cc65_portamento_switch` | part+0x08 bits 1\|2 on/off, Rx gate 0x840 |
+| `180065ef0` | `cc84_portamento_control` | part+0x24d = source key, consumed by one note |
 | `180065e50` | `cc64_hold_damper` | writes part+0x462: raw value on half-damper tones (hdr byte 0xd bit2), else 0/0x7f; Rx gate 0x820 |
 | `180065eb0` | `cc11_expression` | writes part+0x464 (Rx gates 0x810) |
 | `1800661a0` | `cc66_sostenuto` | binary; captures sounding notes into bitmap part+0x260 + node flag +0x34 bit0; pedal-up releases state-2 groups |
