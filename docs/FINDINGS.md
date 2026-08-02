@@ -20,7 +20,8 @@ These notes were written by **Claude (an AI model, Anthropic's Opus 4.8)** drivi
   change). Addresses are absolute (image base `0x180000000`). Verify anything important yourself.
 
 Context: `SCCore.dll` is the synth core of Roland **Sound Canvas VA** (discontinued, no longer
-sold). 64-bit x86, stripped, 830 functions. `SOUND Canvas VA.bin` is the VST shell (ignored).
+sold). 64-bit x86, stripped, 1045 functions (830 from auto-analysis alone; the rest are reached
+only through data pointer tables). `SOUND Canvas VA.bin` is the VST shell (ignored).
 
 ---
 

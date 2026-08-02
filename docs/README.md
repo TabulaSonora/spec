@@ -12,7 +12,7 @@ preservation / interoperability effort on a discontinued product.
 | [GLOSSARY.md](GLOSSARY.md) | Roland/GS terminology and the SC-VA-specific numbers, cross-referenced to FINDINGS. Confidence tags carried through. |
 | [PROVENANCE.md](PROVENANCE.md) | Where `SCCore.dll` came from — evidence that it is a whole-stack **port** of the SC-88/88Pro/8820 hardware firmware + tone-generator ASIC + effects DSP, with the original 24 MB wave ROM embedded intact. |
 | [HARDWARE_ROMS.md](HARDWARE_ROMS.md) | The SC-8820's two physical wave mask ROMs (IC7/IC39), the per-chip reference images in `mine/`, the chip↔block map (the DLL's +0x30 discontinuity = the chip boundary), and why the wave ROM has no CPU byte order to be swapped from. |
-| [SYMBOLS.md](SYMBOLS.md) | The symbol map — recovered function and data-label names for `SCCore.dll`, organized by subsystem (voice allocator, effects DSP, EFX bank, synth core, GS SysEx state machine, MIDI ingest/render, display, CRT). 739 named functions. |
+| [SYMBOLS.md](SYMBOLS.md) | The symbol map — recovered function and data-label names for `SCCore.dll`, organized by subsystem (voice allocator, effects DSP, EFX bank, synth core, GS SysEx state machine, MIDI ingest/render, display, CRT). 749 named functions of 1045. |
 
 ## The reimplementation (repo root)
 

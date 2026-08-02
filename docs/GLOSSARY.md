@@ -383,7 +383,8 @@ by `(i >> 4) & 1`.
 ## Reverse-engineering
 
 **Ghidra** — The NSA's open-source software reverse-engineering suite. This project drove Ghidra
-12.1.2 in **headless** mode against the stripped 64-bit `SCCore.dll` (830 functions), applying
+12.1.2 in **headless** mode against the stripped 64-bit `SCCore.dll` (1045 functions, after
+`DefineTableFunctions.java` recovers the table-dispatched ones auto-analysis cannot reach), applying
 function/label renames via scripts (`RenameSynth`, `RenameEnvEngine`, `RenameLfo`) in `tools/ghidra_scripts`.
 
 **Decompilation** — Ghidra's reconstruction of C-like source from machine code, dumped here to

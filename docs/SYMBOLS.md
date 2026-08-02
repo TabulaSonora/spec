@@ -8,7 +8,9 @@ Addresses are virtual (image base `0x180000000`). `.text` file offset = VA − 0
 Names are best-effort from dataflow/caller analysis; treat single-purpose leaf names as high
 confidence and large dispatch/effect routines as structurally-certain-but-approximate.
 
-Coverage: **739 named functions**, **86 still `FUN_`** (low-value one-byte SysEx field writers).
+Coverage: **749 named functions** of 1045. The unnamed remainder is low-value one-byte SysEx
+field writers plus the table-dispatched functions recovered by `DefineTableFunctions.java` that
+have not been analysed yet — those decompile correctly, they simply carry `FUN_` names.
 
 ## Contents
 - [`00000`–`04000` — Voice / partial allocator + voice stealer](#voice--partial-allocator--voice-stealer)
@@ -378,8 +380,8 @@ Coverage: **739 named functions**, **86 still `FUN_`** (low-value one-byte SysEx
 | `180065400` | `modmatrix_apply_linear` | ctrl amount x 11 assign depths (linear) -> dests |
 | `180065730` | `modmatrix_apply_bipolar` | ctrl amount x 11 depths (pitch/TVF/TVA scaled) |
 | `180065bd0` | `modmatrix_apply_pitch1` | single-dest pitch bipolar mod-depth apply |
-| `180065c70` | `cc67_soft_pedal` | CC dispatch table 0x18199fb30 slot 67 (recovered from image; absent from decompile) |
-| `180065e50` | `cc64_hold_damper` | writes part+0x462: raw value on half-damper tones (hdr byte 0xd bit2), else 0/0x7f |
+| `180065c70` | `cc67_soft_pedal` | binary; Rx gate 0x900, sets/clears bit 3 of part+0x08 |
+| `180065e50` | `cc64_hold_damper` | writes part+0x462: raw value on half-damper tones (hdr byte 0xd bit2), else 0/0x7f; Rx gate 0x820 |
 | `180065eb0` | `cc11_expression` | writes part+0x464 (Rx gates 0x810) |
 | `1800661a0` | `cc66_sostenuto` | binary; captures sounding notes into bitmap part+0x260 + node flag +0x34 bit0; pedal-up releases state-2 groups |
 | `180065cd0` | `caseD_7b` |  |
@@ -621,6 +623,12 @@ Coverage: **739 named functions**, **86 still `FUN_`** (low-value one-byte SysEx
 | `1800831c0` | `voice_pitch_keyfollow` | apply key-follow bend delta |
 | `180083270` | `voice_pitch_block_update` | per-block pitch env ramp + keyfollow |
 | `180083680` | `pitch_env_ramp_segment` | 32-bit pitch-env segment ramp clamp 0x1f018 |
+| `180083790` | `pitch_env_stage3_load` | stage 3: target <- voice+0x218 (unbiased base), time voice+0x208 |
+| `180083800` | `pitch_env_stage2_load` | stage 2: target <- voice+0x214, time voice+0x206 |
+| `180083870` | `pitch_env_stage1_load` | stage 1: start <- prior target, target <- voice+0x210, rate from stored ms |
+| `1800838e0` | `tva_env_stage1_load` | TVA twin: target <- voice+0x1d2, time voice+0x1c6 |
+| `180083960` | `tva_env_stage2_load` | TVA twin: target <- voice+0x1d4, time voice+0x1c8 |
+| `1800839e0` | `tva_env_stage3_load` | TVA twin: target <- voice+0x1d6, time voice+0x1ca |
 | `180083a70` | `env_ramp_segment` |  |
 | `180083be0` | `voice_pan_smooth` | slew pan/send toward target |
 | `180083db0` | `voice_expr_smooth` | slew expression/level via curve tbls |
