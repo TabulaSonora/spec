@@ -2,8 +2,12 @@
 
 ## Honesty preamble (read this first)
 
-These notes were written by **Claude (an AI model, Anthropic's Opus 4.8)** driving Ghidra
-12.1.2 in headless mode. Treat them accordingly:
+These notes were written by **Claude, an AI model, driving Ghidra 12.1.2 in headless mode** —
+begun by Anthropic's Opus 4.8 (including its 1M-context variant) and continued by Claude Fable 5,
+which recovered the TVP runtime machine, the hold clock, the damper and sostenuto pedals, the
+table-dispatched functions Ghidra could not reach, drum NRPN key-follow, portamento, random pan,
+and the 32-part finding. The git history records which model wrote which finding. Treat them
+accordingly:
 
 - **This is decompiler output plus inference, not ground truth.** Ghidra reconstructs C from
   machine code; variable names, types, and control flow are *approximations*. The original
@@ -12,8 +16,13 @@ These notes were written by **Claude (an AI model, Anthropic's Opus 4.8)** drivi
   `render_block` / `sampler_pcm` / `g_interp_coef_table` from behavioral evidence. They are
   hypotheses that fit the code I read — they are not authoritative and some may be wrong.
 - **I can be confidently wrong.** Where I say "this is X," it means the evidence strongly
-  suggested X to me, not that I verified it against documentation, audio output, or a debugger.
-  I have not run the binary. I have not A/B-tested any hypothesis against real audio.
+  suggested X to me — which is not the same as having verified it.
+- **Not everything here rests on the same kind of evidence.** The earliest findings are pure
+  static reading: no binary run, no hypothesis A/B-tested against real audio. Later ones are
+  measured against the *running* engine through the `scdec` harness in `tools/decoder` — envelope
+  and filter traces, live LFO dumps per control tick, effect coefficient harvests, and whole-song
+  A/B renders, executed under Wine where no Windows host was to hand. Where a finding says it was
+  measured, it was; where it does not, it was reasoned.
 - **Confidence is tagged** per finding: `[confirmed]` = the code plainly does this;
   `[likely]` = strong inference; `[guess]` = plausible but thin evidence.
 - **Provenance:** all line numbers refer to `SCCore.decompiled.c` (regenerated whenever names
