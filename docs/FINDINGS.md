@@ -243,6 +243,52 @@ Traced from the export `TG_ShortMidiIn`. The path is a multi-stage queue → par
     by voice (`g_voice_wave_ctrl` etc.). The SoA layout is *why* `render_block` processes voices
     in **groups of 4** (SIMD-friendly), which I noted earlier without knowing the cause.
 
+## Ports: the module has 32 parts, and one AND hides half of them `[confirmed]`
+
+Step 3 above throws away the field that says which port an event was meant for. That single
+instruction is the whole reason the module looks like a 16-part device.
+
+**The packet.** `TG_PMidiIn` @ `0x1800892d0` does not take a bare MIDI message — it takes a
+**USB-MIDI Event Packet**: `byte0 = (cable << 4) | class`, with the MIDI message in bytes 1–3. The
+cable (port) number rides inside every packet. There is no port-select call and nothing latches the
+cable between messages, so a host that wants port B sets the nibble on each packet it sends.
+`TG_ShortMidiIn` builds the same packet shape with the nibble hardwired to `0`, which is why a host
+restricted to that export can only ever reach port A.
+
+**The mask.** `midi_drain_ready_to_ports` @ `0x18008ab90` ANDs byte 0 with `0x0f` before handing the
+event to `midi_port_enqueue`, clearing the cable nibble. Every event therefore enqueues onto port A.
+
+**What the nibble would have done.** It is used, in three places, if it survives:
+
+| Consumer | Use |
+|---|---|
+| `midi_dispatch_flagged_ports` @ `0x180080450`, `port_apply_default_cc_block` @ `0x180080c90` | dispatch through a 16-entry function-pointer table at `port_struct+0x30`, indexed by `byte0 >> 4` — a per-event lookup |
+| `midi_event_dispatch_record` @ `0x180080a90` | selects a per-cable parser context at `+0xb8 + cable*0x28`, remaps the cable through the table at `+0x20`, stamps the result into the event's byte 2 → `g_midi_channel` |
+| `sysex_key_based_inst_ctrl` @ `0x18007d190`, `sysex_scale_octave_tuning` @ `0x18007d030` | part lookup is 5-bit: `(g_midi_channel & 0xf0) + channel` |
+
+**32 parts, allocated unconditionally.** `g_part_count` @ `0x181a1e704` is initialised to `0x20`, not
+`0x10`. The part struct stride is `0x488`, and the second part-array getter @ `0x18005c2c0` returns
+`part_base + 0x4880` — exactly sixteen parts on from the first. Nothing is conditional on a model or
+a mode flag: the module builds 32 parts every time and then makes half of them unreachable.
+
+SysEx part addressing follows the same rule. `sysex_select_param_map` @ `0x18006b4a0` picks between
+the two part arrays on `(g_midi_channel & 0xf0) == 0x00` versus `== 0x10`, so a GS `40 1n` block
+address is *port-relative* — it means whichever bank the message arrived on.
+
+**The patch site.** VA `0x18008abf0`, file offset `0x00089ff0`, bytes `41 80 e0 0f` (`and r8b,0Fh`).
+Scanning the whole 27 MB image finds exactly one occurrence, so there is no ambiguity about which
+instruction is meant.
+
+- [SCWrap](https://github.com/MCModuleStudio/SCWrap) NOPs all four bytes, which uncaps the nibble to
+  all 16 cables — four times more ports than there are parts to back them.
+- **Tabula Sonora instead widens the immediate to `0x1f`** (file offset `0x00089ff3`, `0f` → `1f`),
+  keeping the class nibble plus the low bit of the cable. That admits cables 0 and 1 — the two ports
+  the 32 parts actually back — and folds cables 2–15 onto those two by their low bit rather than
+  letting them index parts that do not exist.
+
+This is the behaviour both Tabula Sonora engines implement: a port argument on every MIDI entry
+point, masked to `0x1f`, with parts addressed as `port × 16 + channel`.
+
 ## The sample data (wave ROM) — embedded in SCCore.dll `[confirmed]`
 
 The waveform ROM is **inside `SCCore.dll` itself**, in the `.rdata` section. The DLL is 27 MB on

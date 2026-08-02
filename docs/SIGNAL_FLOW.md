@@ -136,6 +136,17 @@ controllers (CC, bend, aftertouch, RPN/NRPN) into part state and the mod matrix,
 SysEx into the GS DT1/RQ1 handlers (which also select reverb/chorus/delay macros and the
 insertion-EFX type — i.e. SysEx configures stage 5).
 
+Events carry a **port** as well as a channel. The queue does not move MIDI bytes; it moves
+USB-MIDI Event Packets, whose first byte is `(cable << 4) | class` with the message in the
+remaining three. That cable nibble is the port, and it rides in every packet — there is no
+port-select call and nothing latches it between messages. `TG_PMidiIn` is the only export
+that can set it; `TG_ShortMidiIn` builds the same packet with the nibble fixed at zero.
+
+The module has **32 parts**, addressed as `port × 16 + channel`, and allocates all of them
+unconditionally. But `midi_drain_ready_to_ports` clears the cable nibble on the way to the
+FIFO, so in stock form every event lands on port A and parts 17–32 are unreachable. See
+[`FINDINGS.md`](FINDINGS.md) for what the nibble drives and how the cap is lifted.
+
 ### 2 · Tone resolution and voice allocation
 
 A note-on resolves `(map, bank, program)` through a 3-level LUT to a tone number —

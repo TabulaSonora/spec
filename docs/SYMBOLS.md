@@ -886,11 +886,12 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `181a1dde0` | `g_cur_partial_params` | 0x6e-stride partial param base |
 | `181a1debe` | `g_sysex_mode` | 0x11=RQ1/dump build, 0x12=DT1 write |
 | `181a1e292` | `g_active_sound_map` | SC-55/88/88Pro map id |
+| `181a1e704` | `g_part_count` | parts allocated at init; 0x20, not 0x10 |
 | `181a1f5a8` | `g_tva_base_level` | scratch TVA base level |
 | `181a20288` | `g_modmatrix_dirty_mask` | per-dest dirty bitmask from modmatrix helpers |
 | `181a21290` | `g_part_note_velmap` | per-part 128-byte note-velocity table (0xff=inactive) |
 | `181a22291` | `g_midi_note` | current MIDI note number |
-| `181a22292` | `g_midi_channel` | current MIDI channel |
+| `181a22292` | `g_midi_channel` | current MIDI channel; high nibble is the port (0x00/0x10) |
 | `181a222a0` | `g_part_array_base` | base of part structs stride 0x488 |
 | `181a222b8` | `g_sysex_write_cursor` | DataSet1 write target pointer |
 | `181a2251c` | `g_sysex_addr_idx` | sysex running address/index counter |
