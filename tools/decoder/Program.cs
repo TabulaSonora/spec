@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -126,6 +126,49 @@ unsafe
                 Console.Write($"  v{v} pos={*(int*)(st+0x28)}/{*(int*)(st+0x2c)}"); }
             Console.WriteLine();
         }
+        return;
+    }
+    // svfcoef mode: read the coefficients the SVF is actually handed, rather than the voice fields
+    //   they are derived from. g_svf_f_coef (181a1cb70) and g_svf_q_coef (181a1d1f0) are the
+    //   per-voice float scratch the filter loop reads; the voice's own +0xcc / +0xdc are only the
+    //   ramp *targets*, and the conversion between them is exactly what a reimplementation has to
+    //   guess. Strikes one drum note and prints both, per control tick, beside the raw fields.
+    //   args: dll svfcoef <prog> <note> <vel> <sec> [cc74]
+    if (args.Length > 1 && args[1] == "svfcoef")
+    {
+        int SRs=32000; int pgs=int.Parse(args[2]); int nts=int.Parse(args[3]);
+        int vls=int.Parse(args[4]);
+        double secs=double.Parse(args[5], System.Globalization.CultureInfo.InvariantCulture);
+        int cut74=args.Length>6?int.Parse(args[6]):-1;
+        setSR((float)SRs); setBS(512); activate((float)SRs,512); setThr();
+        long fbs=b+0x1a1b5b8;
+        var getVCs=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcs=getVCs(0);
+        float* fcoef=(float*)(b+(0x181a1cb70L-0x180000000L));
+        float* qcoef=(float*)(b+(0x181a1d1f0L-0x180000000L));
+        var ls=new float[512]; var rs=new float[512];
+        GsReset(); flush(); fixed(float* pl=ls,pr=rs) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCs(int c,int v)=>shortIn((uint)((0xB0|9)|(c<<8)|(v<<16)),0);
+        CCs(7,127); CCs(10,64); CCs(91,0); CCs(93,0);
+        if(cut74>=0) CCs(74,cut74);
+        shortIn((uint)(0xC9|(pgs<<8)),0); flush();
+        Console.WriteLine("t_ms,voice,f_coef,q_coef,cc_cutoff,dc_qraw,ee_resobyte,f5_type");
+        shortIn((uint)((0x90|9)|(nts<<8)|(vls<<16)),0); flush();
+        int ntk=(int)(secs*100);
+        for(int t=0;t<ntk;t++){
+            fixed(float* pl=ls,pr=rs) process(pl,pr,320);
+            for(int v=0;v<64;v++){
+                if((*(byte*)(fbs+v*0x50)&1)==0) continue;
+                long pv=vcs+(long)v*0x220;
+                // SoA layout: four lanes per group of four voices, groups stride 0x10 floats.
+                int lane=v&3, grp=v>>2;
+                Console.WriteLine($"{t*10},{v},{fcoef[grp*16+lane]:0.000000},{qcoef[grp*16+lane]:0.000000},"
+                                 +$"{*(int*)(pv+0xcc)},{*(int*)(pv+0xdc)},{*(byte*)(pv+0xee)},{*(byte*)(pv+0x1f5)}");
+                if(t>6) break;
+            }
+            if(t>6) break;
+        }
+        shortIn((uint)((0x80|9)|(nts<<8)),0); flush();
         return;
     }
     // drumprobe mode: read a drum part's live per-note parameter planes before and after an NRPN, to

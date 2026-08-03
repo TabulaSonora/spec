@@ -3485,3 +3485,69 @@ the clamp cannot fire.
 does not exist, so there is no unimplemented stage "that will matter for loud voices" — the loud-voice
 question raised there is closed, not deferred. Tone 1946 is unaffected either way: its `f` never
 approaches the ceiling, just as its amplitude never approached the cap.
+
+## The render dispatch, the alt renderer, and a retraction of the "overdamped regime" framing `[measured]`
+
+Reading the two filter runners closes them out and, in the process, undermines the localisation the
+tone-1946 entry proposed.
+
+**The dispatch is a tap test, not a quality test.** `voice_setup_sample_playback` packs a **2-bit tap
+code per voice** into `DAT_181a1d450 + 0x30*group + 4`, taken from the `& 0xC00` bits of the
+partial's `g_filter_type_coef` word: `0 = LP, 1 = HP, 2 = BP, 3 = notch`. `render_block` then picks
+
+```c
+if (tapcodes_for_group == 0) tvf_svf_render();   /* all four voices lowpass */
+else                         tvf_svf_render_alt();
+```
+
+so the 4-wide SIMD runner is the **all-lowpass fast path**, and any group holding a non-LP voice
+falls to `tvf_svf_render_alt`, which dispatches per voice to the scalar `svf_render_{lp,hp,bp,notch}`.
+The alt runner loops four times over 8 samples — 32 samples per call — advancing the coefficient
+index by `0x10` each time, so `f` and `q` are re-read from the SoA scratch **every 8 samples**.
+Both runners implement the same recurrence; neither has a branch on `q`.
+
+**New harness mode `svfcoef`** reads what the filter is actually handed — `g_svf_f_coef`
+(`181a1cb70`) and `g_svf_q_coef` (`181a1d1f0`) — rather than the `voice+0xcc`/`+0xdc` ramp targets
+they derive from. Everything below comes from it.
+
+**`f` ramps and we jump — a real difference, but not this one.** Struck at velocity 100, kit 11:
+
+| tick | 1944 CHH | 1946 OHH (DLL) | 1946 OHH (ours) | 1947 Crash |
+|---|---|---|---|---|
+| 0 | 0.926453 | 0.754517 | 0.754517 | 1.000000 |
+| 1 | 0.926453 | 0.721497 | **0.683167** | 1.000000 |
+| 2 | 0.926453 | 0.664917 | **0.654419** | 1.000000 |
+| 3+ | 0.926453 | 0.654419 | 0.654419 | 1.000000 |
+
+The two tones whose cutoff envelope is flat show no ramp at all; 1946's `f` glides to its target over
+about 30 ms where ours steps there in one control tick. Worth implementing — but it cannot be the
+defect, because **the correlation deficit is flat across the whole note**: in sliding 1500-sample
+windows, note 46 sits at 0.88, 0.86, 0.86 … 0.86 from 6 ms to 616 ms, while note 49 holds 1.0000
+throughout. Steady state is where our `f` and `q` match the DLL exactly, and steady state is where
+almost all of the note lives.
+
+**The cutoff sweep retracts the regime story.** Driving CC#74 (part TVF cutoff, `part+0x3e6`) through
+the same note on both engines:
+
+| CC#74 | f | f·q | poles | raw r |
+|---|---|---|---|---|
+| 40 | 0.166 | 0.315 | real, both positive | 0.932 |
+| 52 | 0.332 | 0.627 | real, both positive | 0.959 |
+| 64 | 0.654 | 1.237 | real, one **−0.348** | 0.859 |
+| 76, 88 | 0.755 | 1.427 | real, one **−0.651** | 0.858 |
+
+The earlier entry attributed the defect to the negative real pole. That does not survive: at CC#74 =
+40 and 52 there is **no** negative pole and the filter is nearly transparent, yet the renders still
+disagree at r = 0.93/0.96, far below the 0.9994+ its two neighbours reach. Meanwhile pushing the
+pole from −0.348 to −0.651 barely moves r at all. What is constant across the whole sweep is the
+**resonance byte, 121** — the cutoff moved, `q` did not. So "it crosses into the overdamped regime"
+described a correlate, not the cause, and the 19-partial enumeration built on that criterion should
+be treated as a list of candidates rather than a list of defects.
+
+**Where this actually points.** A fitted linear filter still reconciles the two renders, and the
+disagreement is already present in the first window with a nearly-transparent filter — which is much
+more consistent with the *signal entering* the filter differing than with the filter itself. The
+decisive measurement is now available cheaply: `svf_render_*` takes its input from `DAT_181a1c970`,
+so extending `svfcoef` to dump that buffer gives the DLL's **pre-filter** signal directly, to be
+compared against ours with the TVF bypassed. That settles upstream-vs-filter in one run, and it is
+the next thing to do rather than any further modelling of the filter.
