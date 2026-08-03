@@ -361,9 +361,33 @@ shape is not a dull hat — it is *different drums on some keys*: extra low-freq
 missing top-octave material together say the kit resolution for program 25 is landing on wrong
 per-key tones, or a wrong kit row entirely.
 
-`[open]` at the kit level: next probes are single drum keys through both engines (which key is
-wrong names itself), and a direct read of `drum_prog_map` (`[row*0x80+program] → kit index`,
-va `0x19f1eb0`) for program 25 on map 4 against what the reimplementation resolves.
+*Both probes ran, and both exonerate the kit.* The map read agrees: `drum_bank_row` gives internal
+bank codes 1–4 → rows 3,2,1,0, so map 4 is row 0, and `drum_prog_map[0][25] = 11` — the same index
+the reimplementation resolves, by the same two-level lookup. And seven representative keys of kit 25
+(35, 36, 38, 40, 42, 46, 49) played one at a time match within **0.16 dB** on six of them, with
+identical spectral-centroid proxies to three decimals — the same drums, at the same level, with the
+same brightness. Only key 46, the open hat, differs, at +1.23 dB with a brighter proxy.
+
+So the kit is right and the isolated-channel difference is not a *tone* difference. Rolling the
+keys exposes what it is:
+
+| Probe | hit 0 | hit 1 | hit 2 | hit 15 | tail |
+| --- | --- | --- | --- | --- | --- |
+| kick ×16 @ 100 ms | +0.29 | +0.31 | **−2.37** | +0.51 | −0.18 dB |
+| closed/open hat ×16 @ 120 ms | −0.03 | **+1.44** | +0.73 | **+1.84** | +1.08 dB |
+
+The first hit always matches. Later hits diverge, and the alternating-hat roll — the case where each
+hit lands on a note the previous one should have **choked**, since closed and open hat share a mute
+group — is consistently *louder* here, 1–2 dB, with the tail 1.08 dB long. **The reimplementation
+under-chokes**: a hit that the module cuts short keeps ringing, its residue summing with the
+following hit. On a real drum part at 2,233 notes that accumulates into exactly the observed shape —
+excess low-mid energy from overlapping bodies, deficient top octave because the hats it does sound
+are muddied rather than crisp.
+
+`[open]`, narrowed to mute-group/choke handling: the divergence is per-repeat rather than per-key,
+appears only when hits overlap, and is signed the way insufficient choking predicts. Note also that
+kick hit 2 goes the other way (−2.37 dB), so retrigger of the *same* key may over-choke where the
+mute group under-chokes; both belong to the same code path.
 
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
