@@ -232,9 +232,32 @@ The asymmetry is the sharpest clue. A correct implementation is symmetric about 
 apart at the two extremes says something in the wet path treats left and right differently. Nothing
 in a mono send should.
 
-The general point: a defect that only appears when two features combine will survive any amount of
-testing each feature alone, which is what the first several rounds of this investigation did. A grid
-over both costs ten renders and answers immediately.
+**Then subtracting the dry render from the wet one settled it, and overturned the paragraph above.**
+The send does not touch the dry path, so `render(send 127) − render(send 0)` is the chorus return on
+its own. Isolated that way:
+
+| Pan | DLL wet L / R | this engine L / R | balance |
+| --- | --- | --- | --- |
+| 0 | 415.9 / 414.7 | 363.5 / 362.5 | +0.03 dB both |
+| 64 | 415.7 / 415.0 | 363.5 / 362.6 | +0.01 dB both |
+| 127 | 415.7 / 415.0 | 363.3 / 362.7 | +0.01 dB both |
+
+The wet return is **perfectly pan-independent and perfectly centred in both engines**, to a tenth of
+a decibel across the whole pan range. So the send is not pan-dependent, the wet is not panned, and
+the conclusion drawn from the grid — that one of those must be true — was wrong. The grid measured
+*total* energy of dry plus wet; a centred wet summing with a dry that moves produces a pan-dependent
+total on its own, with nothing pan-dependent in the send at all.
+
+What the isolated wet does show is exact: it is **1.17 dB low, identically at every pan and in both
+channels**, and its waveform is *anti*-correlated at zero lag (−0.54) while correlating at **+0.74
+when shifted 424 samples — 13.25 ms**. The chorus return is late, or the reference's is early, by a
+fixed 13 milliseconds. A periodic signal offset by part of its period reads as anti-correlated,
+which is what the zero-lag figure was.
+
+The general point stands and gains a second half. A defect that only appears when two features
+combine survives any amount of testing each alone — but a metric that sums two signals will also
+manufacture apparent interactions between them. **Subtract to isolate before concluding.** One
+subtraction answered what ten grid renders had only mislabelled.
 
 Two lessons. **Localise before theorising**: one splitting script answered in one pass what four
 feature hypotheses could not, because it asked where the difference is rather than what it might be.
