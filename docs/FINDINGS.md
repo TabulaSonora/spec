@@ -345,8 +345,25 @@ it. Both renders were at the hardware's 64 voices with heavy stealing (~2,600 vo
 suspects divide into: a stealing-selection difference that preferentially drops high-pitched voices
 in the reimplementation, or a genuine high-frequency path difference (interpolator rolloff, a
 high-key pitch path, a noise-type partial) that only extreme material excites. Distinguishing them
-is cheap: re-render both sides unlimited — if the deficit survives without stealing, it is the
-signal path.
+is cheap: render the reimplementation unlimited (the DLL cannot be) — if the deficit survives with
+every note sounding, no stealing story can explain it.
+
+*Ran, and stealing is exonerated twice over*: unlimited differs from our own 64-voice render by
+≤0.35 dB in every band, and the 16 k deficit survives at −9.11 dB with every note sounding. (The
+steal-transient variant — DLL steal clicks adding HF — was already weak: bad_apple steals ~2,000
+voices and its top octave matches to +0.89 dB.)
+
+*Then channel isolation found it.* Soloing channel 9 — 2,233 drum notes on **kit program 25**, the
+TR-808-style kit — the DLL's channel *peaks* in the 11.3–16 kHz band (its loudest band; 808 hats
+are near-pure top-octave noise), and the reimplementation is **−7.2 dB there while up to +10 dB
+louder in the low bands** (+9.98 dB at 125 Hz, over material the DLL renders at −36.7 dB). That
+shape is not a dull hat — it is *different drums on some keys*: extra low-frequency material and
+missing top-octave material together say the kit resolution for program 25 is landing on wrong
+per-key tones, or a wrong kit row entirely.
+
+`[open]` at the kit level: next probes are single drum keys through both engines (which key is
+wrong names itself), and a direct read of `drum_prog_map` (`[row*0x80+program] → kit index`,
+va `0x19f1eb0`) for program 25 on map 4 against what the reimplementation resolves.
 
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
