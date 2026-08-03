@@ -153,8 +153,28 @@ once per note simply does not follow. That is a difference at the scale of notes
 whole file — the shape the flat curve was pointing at all along, arrived at by counting rather than
 by guessing which feature was missing.
 
-This file's 2.3 dB is not yet confirmed to be that, but it is now a testable claim rather than a
-third plausible story.
+That was wrong too — making the parameter continuous moved the file by 0.02 dB. Four hypotheses,
+four real differences correctly fixed or excluded, none of them the one that mattered.
+
+**Rendering each channel on its own found it in one step.** Split the file per channel, render both
+engines on each part, and compare:
+
+| Channel | Notes | Program | 250 ms | Level |
+| --- | --- | --- | --- | --- |
+| 9 (drums) | 6053 | — | 0.996 | −0.25 dB |
+| 12 | 1696 | 28 | 0.967 | −1.12 dB |
+| 7 | 1357 | 38 | 0.988 | **−4.43 dB** |
+
+The busiest channel by far is fine. Two melodic channels carry the whole deficit, and — this is the
+informative part — their **correlations are high**. 0.988 at a quarter-second means the notes, the
+timing and the envelope shapes are right; only the absolute level is wrong. A wrong *instrument*
+would have hurt correlation as well, so this is not patch resolution picking the wrong sound. It is
+the right sound at the wrong gain.
+
+Two lessons. **Localise before theorising**: one splitting script answered in one pass what four
+feature hypotheses could not, because it asked where the difference is rather than what it might be.
+And **read correlation and level together** — high correlation with a large level error is a
+different fault from low correlation with a right level, and only the pair distinguishes them.
 
 So read the curve before reading any single number. A rising curve with a right level is a lead
 about detail; a flat curve with a wrong level is something at the scale of notes. Then go and find
