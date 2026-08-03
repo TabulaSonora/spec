@@ -3966,3 +3966,77 @@ bend, portamento — not just this drum. It deserves its own pass with corpus re
 being bolted on here. It also explains why the port has matched so well everywhere else: most pitch
 movement is slow enough that the intra-block glide is negligible, and it only bites when the pitch
 moves far inside one block, as it does here — 6.671 semitones in 10 ms.
+
+## Yamaha SysEx faults the DLL, and the corpus, measured against the oracle `[confirmed]`
+
+**Why `th07_19_user_gm.mid` takes the reference down.** Rendering it through the harness ends in an
+access violation, `0xC0000005`. The file is not malformed: 21 tracks, all within bounds, 350k
+events, every SysEx well formed with no zero-length message and no `F7` continuation — so neither
+the parser nor the harness's `fixed`-pointer path is at fault. What it carries is **582 SysEx
+messages, every one manufacturer `0x43` — Yamaha**, including a 39-byte `43 10 4c 06 00 00` XG
+display-letter block with "YAMAHA" in ASCII. It is an XG-flavoured file.
+
+This is a known defect of the core rather than a discovery: **SCWrap already hooked its wrapper to
+filter Yamaha bulk dumps for exactly this reason.** The harness now drops any SysEx whose
+manufacturer byte is `0x43` before it reaches `TG_LongMidiIn`, which is the same remedy, and the
+file then renders. Both engines agree on it exactly — 1992.7 s and 173,183 notes, frame counts
+within 23 of each other — so it is usable as a stress case now that the core survives it.
+
+Worth stating plainly for anyone driving the DLL: **a Roland core must be fed only Roland SysEx.**
+Passing another manufacturer's is not merely ignored.
+
+## The corpus against the oracle, after the pitch ramp
+
+Every song rendered through the DLL and compared with `compare_envelope.py`:
+
+| file | env r @250 ms | level | verdict |
+|---|---|---|---|
+| canyon | +0.9455 | −0.12 dB | **pass**, every octave band inside ±1.3 dB |
+| sc50nn | +0.9434 | −0.48 dB | **pass**, every band inside ±1.9 dB |
+| panwet | +0.9995 | +0.39 dB | level and envelope pass; 500 Hz/1 k/4 k bands out by 3–4 dB |
+| transcendental | +0.9869 | −3.09 dB | envelope excellent, level out; 16 k band −3.0 dB |
+| bad_apple | +0.8277 | −5.61 dB | both out, though every octave band agrees inside 0.6 dB |
+| test_poly_bend | +0.9845 | −0.65 dB | **expected**: polyphonic aftertouch is unimplemented |
+
+`test_poly_bend` is not a defect to chase — the file exercises poly aftertouch, which this port does
+not implement, and its 500 Hz band is 16.8 dB down for that reason.
+
+The two large failures share a signature worth noting: **transcendental and bad_apple are the two
+files whose oracle render peaks at exactly 1.00000**, i.e. the reference clips them, and they are
+the two whose *level* is far out while their per-octave balance is nearly perfect — bad_apple's
+eight bands all agree inside 0.6 dB while the overall level is 5.6 dB down. A level error with a
+flat spectrum is a gain or headroom difference, not a timbre one, and clipping in the reference is
+the obvious candidate. That is the next thing to measure, and it is a different question from
+anything in this investigation.
+
+**The pitch ramp is neutral at song level**, which is the expected result: it changes a render only
+where pitch moves far inside one 10 ms block. Before and after, against the oracle:
+
+| file | level | envelope r |
+|---|---|---|
+| canyon | −0.12 → −0.12 | 0.9455 → 0.9455 |
+| sc50nn | −0.48 → −0.48 | 0.9434 → 0.9434 |
+| transcendental | −3.09 → −3.09 | 0.9869 → 0.9869 |
+| bad_apple | −5.62 → −5.61 | 0.8279 → 0.8277 |
+| panwet | +0.39 → +0.39 | 0.9995 → 0.9995 |
+
+So it costs nothing where it does not apply, and on the single notes where it does it took drum tone
+1946 from r 0.859 to 0.99999 and from +1.11 dB to +0.03 dB.
+
+## Fixtures now come from the oracle, and are tolerance gates by necessity
+
+`tools/dump_note_renders_oracle.py` and `tools/dump_song_renders_oracle.py` (in NativeTS) generate
+`note_renders.json` and `song_renders.json` from **the DLL**, replacing the generators that recorded
+the archived C# port. That port predates the unaligned-loop decode and the pitch ramp, so its
+digests encode behaviour both engines have moved past and a disagreement with it settles nothing.
+
+They cannot be digest gates. This port is not bit-exact with the reference and does not aim to be —
+the two differ by float rounding, by an uninitialised ring the reference reads on a recycled voice,
+and by effect LFO phase, the last of which alone drops whole-song sample correlation to about 0.18
+while every octave band agrees to a tenth of a dB. What the fixtures record is what a difference
+must respect: frame count exactly, and peak, RMS, per-octave level and a coarse RMS envelope within
+tolerance. The oracle audio is kept beside them so a failure can be measured rather than only
+counted. Both are Roland-derived and gitignored, like the tables.
+
+A new harness mode `notebatch` renders a whole sweep of single notes in one process — wine start-up
+otherwise dominates — writing raw interleaved float32 so nothing is rounded on the way out.

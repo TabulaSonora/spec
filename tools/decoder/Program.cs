@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -256,6 +256,72 @@ unsafe
         shortIn((uint)((0x80|9)|(nti<<8)),0); flush();
         File.WriteAllText(outi, sb.ToString());
         Console.WriteLine($"svfin done: {outi}");
+        return;
+    }
+    // notebatch mode: render many single notes through the ORACLE in one process, so a fixture can
+    //   be generated from the DLL rather than from any reimplementation. Reads a case file of
+    //   "program note velocity hold map" lines and writes one raw interleaved float32 stereo file
+    //   per case into <outdir>, named case<NNNN>.f32. Raw float rather than WAV because the digest
+    //   the port checks is taken over interleaved float32 pairs, so this is the exact byte sequence
+    //   with nothing to round.
+    //
+    //   Frames are (hold + tail) * 32000 to match render_note's own accounting, and the render is
+    //   driven in 320-sample control ticks: the core renders audio in 32-sample units but only
+    //   takes events every 10 ms, so 320 is the grid on which a note-off means what it says.
+    //   args: dll notebatch <cases.txt> <outdir> [tailSeconds]
+    if (args.Length > 1 && args[1] == "notebatch")
+    {
+        const int SRn = 32000;
+        string casePath = args[2];
+        string outDir = args[3];
+        double tailN = args.Length > 4
+            ? double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture) : 1.8;
+        Directory.CreateDirectory(outDir);
+        var lines = File.ReadAllLines(casePath);
+        setSR((float)SRn); setBS(512); activate((float)SRn, 512); setThr();
+        var ln = new float[512]; var rn = new float[512];
+        int index = 0, rendered = 0;
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            index++;
+            if (line.Length == 0 || line[0] == '#') continue;
+            var f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (f.Length < 5) { Console.Error.WriteLine($"line {index}: need 5 fields"); Environment.Exit(2); }
+            int pg = int.Parse(f[0]), nt = int.Parse(f[1]), vl = int.Parse(f[2]);
+            double hs = double.Parse(f[3], System.Globalization.CultureInfo.InvariantCulture);
+            int mp = int.Parse(f[4]);
+
+            // A full reset between cases: a fixture case must not depend on what preceded it.
+            GsReset();
+            if (mp >= 1 && mp <= 4) for (int c = 0; c < 16; c++) ToneMap0(c, mp);
+            flush();
+            fixed (float* pl = ln, pr = rn) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+            void CCn(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+            CCn(0, 0); CCn(32, 0); CCn(7, 127); CCn(10, 64); CCn(91, 0); CCn(93, 0);
+            shortIn((uint)(0xC0 | (pg << 8)), 0); flush();
+
+            int total = (int)((hs + tailN) * SRn);
+            int offAt = (int)(hs * SRn);
+            var interleaved = new float[total * 2];
+            shortIn((uint)(0x90 | (nt << 8) | (vl << 16)), 0); flush();
+            int pos = 0; bool sent = false;
+            while (pos < total)
+            {
+                if (!sent && pos >= offAt) { shortIn((uint)(0x80 | (nt << 8)), 0); flush(); sent = true; }
+                int nf = Math.Min(320, total - pos);
+                fixed (float* pl = ln, pr = rn) process(pl, pr, (uint)nf);
+                for (int i = 0; i < nf; i++) { interleaved[(pos + i) * 2] = ln[i]; interleaved[(pos + i) * 2 + 1] = rn[i]; }
+                pos += nf;
+            }
+            shortIn((uint)(0x80 | (nt << 8)), 0); flush();
+
+            var bytes = new byte[interleaved.Length * 4];
+            Buffer.BlockCopy(interleaved, 0, bytes, 0, bytes.Length);
+            File.WriteAllBytes(Path.Combine(outDir, $"case{rendered:D4}.f32"), bytes);
+            rendered++;
+        }
+        Console.WriteLine($"notebatch done: {rendered} cases -> {outDir}");
         return;
     }
     // drumprobe mode: read a drum part's live per-note parameter planes before and after an NRPN, to
@@ -1060,7 +1126,18 @@ unsafe
             while (ei < events.Count && events[ei].At < pos + blk)
             {
                 var e = events[ei++];
-                if (e.Bytes != null) { fixed (byte* mp = e.Bytes) longIn(mp, 0); }
+                // Yamaha SysEx is dropped before it reaches the core, which is what SCWrap's
+                // wrapper hook does for the same reason: XG bulk dumps sometimes fault SCCore.dll
+                // outright. th07_19_user_gm.mid is one such file -- 582 SysEx messages, all
+                // manufacturer 0x43, including a 39-byte `43 10 4c 06 00 00` XG display-letter
+                // block -- and feeding them unfiltered takes the DLL down with an access violation
+                // at 0xC0000005. Filtering here keeps a Roland engine fed only Roland data and lets
+                // an XG-flavoured file render rather than kill the run. Not a workaround for a
+                // harness bug: the messages are well formed and the parser handles them correctly.
+                if (e.Bytes != null && !(e.Bytes.Length > 1 && e.Bytes[1] == 0x43))
+                {
+                    fixed (byte* mp = e.Bytes) longIn(mp, 0);
+                }
                 else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), 0);
             }
             flush();
