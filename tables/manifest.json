@@ -577,6 +577,19 @@
       "purpose": "per-destination ramp-divider selector bits"
     },
     {
+      "name": "svf_fceil_986860.bin",
+      "symbol": "g_svf_f_ceil",
+      "subsystem": "TVF",
+      "dtype": "f32",
+      "shape": "1024 (idx = q_raw>>8; 32..1016 reachable)",
+      "size": 4096,
+      "file_offset": "0x1985860",
+      "va": "0x181986860",
+      "section_adjust": "0x1000",
+      "match": "full",
+      "purpose": "Chamberlin stability ceiling on the SVF f-coefficient, by q"
+    },
+    {
       "name": "tone_a.bin",
       "symbol": "g_tone_table",
       "subsystem": "DIR",

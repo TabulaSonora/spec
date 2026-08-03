@@ -3374,6 +3374,11 @@ For a steady note both sit at their targets, which we already match to the integ
 `f >= 2.0`, and the resonance-indexed cutoff ceiling caps `f` at **1.381** across every resonance
 byte at a fully-open cutoff, so the wrap is unreachable. Recorded, not fixed.
 
+> **Corrected below.** The stage this section turns up is real, but what it clamps is the filter's
+> `f` coefficient, not the voice amplitude — the decompiler's fourth parameter was resolved from a
+> stale register. Everything about the *table* here holds; everything about *what it applies to*
+> does not. See "The `g_svf_makeup_gain_tbl` clamp is a stability ceiling on `f`".
+
 **What the read did turn up is a stage we do not implement at all.**
 `voice_ctrl_ramp_d` clamps the per-sample voice amplitude against a resonance-indexed table:
 
@@ -3403,3 +3408,80 @@ linear filter does reconcile the two renders (r 0.859 → 0.9998), the remaining
 stages *outside* the TVF that this tone reaches differently — `voice_render_dispatch`'s choice
 between `tvf_svf_render` (4-wide SIMD) and `tvf_svf_render_alt` (the 8-sample scalar taps), selected
 per four-voice group by `DAT_181a1d450+0x30*g+4`, is the next thing to read.
+
+## The `g_svf_makeup_gain_tbl` clamp is a stability ceiling on `f`, not a limiter on amplitude `[confirmed]`
+
+The previous section read `voice_ctrl_ramp_d`'s clamp as a ceiling on the per-sample voice
+amplitude. It is not. The pointer it clamps through is the **`f` coefficient array**, and the stage
+is a stability guard on the filter, not a limiter on the voice.
+
+**What the decompile got wrong.** `voice_ctrl_ramp_d` takes four arguments, but `render_block`'s
+call site appears to pass two, so the decompiler resolved the fourth from whatever a caller had
+left in `r9` — and named the result `amp`. In the instruction stream `render_block` does set it:
+immediately before the call it copies the pointer it has just handed `voice_ctrl_ramp_c` as that
+function's output — `g_svf_f_coef + lane*4` — into `r9`. So the two ramp functions are a pair:
+`ramp_c` writes `f` for the block's samples, `ramp_d` writes `q` for the same samples and, per
+sample, clamps the `f` `ramp_c` just wrote:
+
+```c
+f[n] = min(f[n], g_svf_makeup_gain_tbl[q_current >> 8]);
+```
+
+The clamp is a per-sample `minss` against the table, indexed by `q` as it *ramps* rather than by its
+target — so the ceiling tracks the damping sample by sample instead of being fixed for the block.
+
+**The curve is Chamberlin's stability bound.** Against `q = index * 256 / 131072` the table is
+
+```
+cap(q) = sqrt(q^2 + 4) - q
+```
+
+to within 0.002 over every reachable index — 2.000 at `q = 0`, 1.2361 at `q = 1` (table 1.2348),
+0.8330 at `q = 1.984` (table 0.8322). That is exactly the largest `f` at which the Chamberlin loop
+`low += f*band; high = in - (q*band + low); band += f*high` stays stable for that damping. The
+table is not a make-up gain, is not a gain at all, and its polarity — tighter as the filter gets
+*more* damped — is the polarity of a stability limit, which is what the name obscured. Nothing here
+was fitted: the closed form was recovered from the exported table and matches it, so the table can
+be replaced by the formula if that is ever preferable to shipping the offsets.
+
+**The clamp is inert across the engine's whole reachable range.** `f` is bounded by the
+resonance-indexed cutoff ceiling (`g_tvf_cutoff_ceil`), and that ceiling is *already* stricter than
+the stability bound everywhere:
+
+| reso byte | 4 | 32 | 53 | 64 | 100 | 121 | 127 |
+|---|---|---|---|---|---|---|---|
+| max `f` (cutoff fully open) | 1.381 | 1.185 | 1.059 | 1.000 | 0.833 | 0.754 | 0.734 |
+| stability cap | 1.937 | 1.560 | 1.335 | 1.235 | 0.975 | 0.861 | 0.832 |
+
+Sweeping all three `q` branches — the constant `rb << 11`, `g_tvf_q_lp` (type 0 at neutral
+resonance) and `g_tvf_q_t6` (type 6) — over every resonance byte and every 15-bit cutoff finds no
+point at which `f` reaches its cap. **It comes close, though.** The constant branch keeps at least
+11.8% headroom, but filter **type 6 at resonance byte 4** closes to **0.78%** — `f = 1.3814`
+against a cap of `1.3922` around cutoff 29116 — because there the cutoff ceiling is at its most
+permissive and `g_tvf_q_t6` supplies the damping. That corner is narrow but reachable: the library
+holds exactly **two** type-6 partials, both in tone 879 "Bag Sweep" (map 3/4, bank MSB 11, program
+95), and their partial resonance of 32 falls to the floor of 4 under CC#71 = 127.
+
+The engine's own state agrees, including at that corner. Across 939 `tvftrace` runs — all 128 GS
+programs at CC#71 0/64/127, 18 programs over the full CC#71 × CC#74 grid, and 150 runs on "Bag
+Sweep" itself across five keys and the same grid — **46,602 control ticks, none reached its cap**.
+The Bag Sweep runs reproduce the predicted worst case exactly: at key 24 with CC#71 = 110 and
+CC#74 = 112 the engine sits at `f = 1.3814` against a cap of `1.3922`, the same 0.78%.
+
+So Roland's cutoff ceiling is doing the stability work, and this clamp is the belt to its braces —
+with the braces down to their last 1% on type 6. What no static sweep can rule out is a *transient*
+crossing: `f` and `q` reach the filter through **independent** anti-zipper ramps, so during a
+resonance or cutoff move the two are not the mutually-consistent pair a steady-state sweep tests,
+and a change that raises `q` faster than it lowers `f` can cross a bound that neither endpoint
+crosses. That is presumably why the clamp is per-sample and inside the ramp function rather than
+computed once per block.
+
+It is implemented in NativeTS (`TvfChain::coefficients`, which returns both coefficients together
+because the engine couples them). It changes no render there: NativeTS recomputes `f` and `q` from
+the same cutoff each control tick and does not model the ramps, so its pair is always consistent and
+the clamp cannot fire.
+
+**Consequences for the earlier reading.** The amplitude limiter described in the previous section
+does not exist, so there is no unimplemented stage "that will matter for loud voices" — the loud-voice
+question raised there is closed, not deferred. Tone 1946 is unaffected either way: its `f` never
+approaches the ceiling, just as its amplitude never approached the cap.

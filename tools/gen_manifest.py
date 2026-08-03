@@ -46,12 +46,18 @@ META = {
  "tvf_q_lp_a7cd0.bin":("g_tvf_q_lp","u16","256","TVF","Q trim, filter type 0 at neutral reso"),
  "tvf_q_t6_a7fd0.bin":("g_tvf_q_t6","u16","256","TVF","Q trim, filter type 6"),
  "ramp_exp_986420.bin":("g_ramp_exp_tbl","i32","257","TVF","2^17*2^(i/256) exp decode for the SVF f-coefficient"),
+ # Labelled g_svf_makeup_gain_tbl from the decompile; it is neither a makeup nor a gain. The engine
+ # takes a MIN of it against the f-coefficient (voice_ctrl_ramp_d clamps ramp_c's output), and the
+ # curve is the Chamberlin stability bound sqrt(q^2+4)-q to within 0.002. See FINDINGS, "The
+ # g_svf_makeup_gain_tbl clamp is a stability ceiling on f".
+ "svf_fceil_986860.bin":("g_svf_f_ceil","f32","1024 (idx = q_raw>>8; 32..1016 reachable)","TVF","Chamberlin stability ceiling on the SVF f-coefficient, by q"),
  "curve_pitchenv_2578.bin":("g_pitch_env","u8/u16","856","PITCH","pitch env conversion region (incl DAT_1819a2890 sub-table)"),
  "curve_pitchbias_2890.bin":("g_pitch_bias","u8","128","PITCH","pitch env bias sub-table (DAT_1819a2890)"),
  "curve_pitchdepthvs_28d0.bin":("g_pitch_depth_vs","u16","64","PITCH","pitch env depth vs velocity"),
  "kf_pitchrate0_01f20.bin":("g_kf_pitchrate0","u8","128x128","PITCH","pitch env rate key-follow, segments (block 0x27/0x29)"),
  "kf_pitchrate1_01aa0.bin":("g_kf_pitchrate1","u8","128x128","PITCH","pitch env rate key-follow, release (block 0x27/0x2a)"),
  "kf_pitch_01b20.bin":("g_kf_pitch","s16","8x128 (row*0x80+key)","PITCH","pitch key-follow (row=(block[0x13]-0x40)>>2)"),
+ "porta_step_7800.bin":("g_porta_step","u16","128","PITCH","portamento glide step per control tick, by CC5 time byte (0=instant, 127=1 mst/tick)"),
  "lfo_wave_1740.bin":("g_lfo_wave","u8","128 used","LFO","half-sine LFO waveform (sel 0)"),
  "lfo_rate_2790.bin":("g_lfo_rate_tbl","u16","128","LFO","LFO1 rate byte -> 16-bit phase increment"),
  "lfo_cents_2690.bin":("g_lfo_cents_tbl","u16","128","LFO","LFO pitch depth byte -> cents"),
