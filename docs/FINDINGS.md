@@ -241,31 +241,36 @@ Macro parameters → registers → float coefficients, via:
 - `fx_param_apply` @ `0x180055e90` (was `fx_param_update`) — lighter previous-vs-current param
   delta handler. Both are invoked indirectly (dispatch table), so they show no direct callers.
 
-### The chorus tap base, and an unreconciled 424 samples `[open]`
+### The chorus tap: base confirmed live, my modulation arithmetic corrected `[open, narrowed]`
 
-The chorus macro row's delay byte becomes a tap base through
-`base = tap_base((delay * 3) - 0x8000)`, where a negative result is 12.12 fixed point rather than a
-sign-extended count. For the eight macros:
+The macro row's delay byte becomes a tap base through `base = tap_base((delay * 3) - 0x8000)`,
+12.12 fixed point. **The live engine confirms it**: `scdec chodump` of the GM default reads back
+`tap1 base=1966080` — 480 samples — exactly what the row computes, with `writeIn=1 tapOut=1
+fbCoef=0.0625` also matching. The static coefficients are not where any wet discrepancy lives.
 
-| Macro | delay byte | base (12.12) | samples | ms @ 32 kHz |
-| --- | --- | --- | --- | --- |
-| Chorus1 | 112 | 2752512 | 672 | 21.0 |
-| Chorus2 / Chorus3 | 80 | 1966080 | 480 | 15.0 |
-| Chorus4 | 64 | 1572864 | 384 | 12.0 |
-| Feedback / Flanger / ShortDelay | 127 | 3121152 | 762 | 23.8 |
+**Correction.** The previous revision of this section claimed the tap modulation was "±0.2 samples
+at full swing" and therefore irrelevant. That was wrong by a factor of 500: the depth multiplies
+the triangle *before* the 12.12 split — `((800 × |saw24|) >> 14)` reaches 409600, a **0–100 sample
+swing with mean +50** — so the effective tap delay is 480–580 samples, mean 530, sweeping over a
+2.73 s period (`inc=192` into 24-bit phase). I read the depth byte as if it were the final offset.
 
-A reimplementation handling that base as 12.12 (`offset >> 12` for the sample index, the low twelve
-bits interpolating) and defaulting to Chorus3 therefore reads its tap 480 samples back.
+That correction also demotes the "chorus is 13 ms late" reading. Cross-correlating two chorus
+returns whose LFOs free-run from different startup histories compares taps at *different points of
+a ±50-sample sweep*; over a 0.8 s window — a third of the LFO period — the apparent lag is a
+function of the phase difference, not of the base delay. The measured 424 samples is not a reliable
+estimate of anything. What survives of that measurement: the wet is **1.17 dB low**, identically at
+every pan and in both channels, and that is still unexplained.
 
-**Unreconciled:** subtracting a dry render from a wet one to isolate the chorus return (see
-COMPARING_RENDERS.md) shows that engine's wet correlating best with the DLL's at a **424-sample**
-offset, and sitting 1.17 dB low. 424 is neither the 480 base nor an obvious function of it, and the
-modulation depth (800 in 12.12, so ±0.2 samples at full swing on Chorus3) is far too small to
-account for 56 samples. So either the base is not what reaches the DLL's tap, or the two are not
-reading the same ring position for the same nominal delay.
-
-`[open]` — recorded because the numbers are specific and cheaply re-measurable, not because the
-cause is known.
+**The surviving structural lead is the R-companion stage.** The live dump shows it present and
+armed for the GM default — `R taps t0=AA80 t1=81C5 t2=81C5, c0=0.9921875, fbCoef=0.2421875,
+writeIn=1, tapOut=1` — while both the spec transcription and its ports model the L stage alone, on
+the recorded claim that the companion is "gated off" (`toR=0, revSend=0`). If `toR` gates only the
+L→R cross-feed and the R stage takes its own input from the send bus, the model is missing a wet
+contributor, which would show as a level deficit and a shifted correlation peak at once. **Against**
+this: the spec's own calibration RMS-matched the L-only model to the isolated live wet within
+±2.5% on the low-feedback types, which a contributing R stage should have broken. Those two
+observations cannot both be right, and resolving them is a measurement (`chodump` plus an isolated
+wet with the R taps' delays inspected), not an inference.
 
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
