@@ -241,6 +241,32 @@ Macro parameters → registers → float coefficients, via:
 - `fx_param_apply` @ `0x180055e90` (was `fx_param_update`) — lighter previous-vs-current param
   delta handler. Both are invoked indirectly (dispatch table), so they show no direct callers.
 
+### The chorus tap base, and an unreconciled 424 samples `[open]`
+
+The chorus macro row's delay byte becomes a tap base through
+`base = tap_base((delay * 3) - 0x8000)`, where a negative result is 12.12 fixed point rather than a
+sign-extended count. For the eight macros:
+
+| Macro | delay byte | base (12.12) | samples | ms @ 32 kHz |
+| --- | --- | --- | --- | --- |
+| Chorus1 | 112 | 2752512 | 672 | 21.0 |
+| Chorus2 / Chorus3 | 80 | 1966080 | 480 | 15.0 |
+| Chorus4 | 64 | 1572864 | 384 | 12.0 |
+| Feedback / Flanger / ShortDelay | 127 | 3121152 | 762 | 23.8 |
+
+A reimplementation handling that base as 12.12 (`offset >> 12` for the sample index, the low twelve
+bits interpolating) and defaulting to Chorus3 therefore reads its tap 480 samples back.
+
+**Unreconciled:** subtracting a dry render from a wet one to isolate the chorus return (see
+COMPARING_RENDERS.md) shows that engine's wet correlating best with the DLL's at a **424-sample**
+offset, and sitting 1.17 dB low. 424 is neither the 480 base nor an obvious function of it, and the
+modulation depth (800 in 12.12, so ±0.2 samples at full swing on Chorus3) is far too small to
+account for 56 samples. So either the base is not what reaches the DLL's tap, or the two are not
+reading the same ring position for the same nominal delay.
+
+`[open]` — recorded because the numbers are specific and cheaply re-measurable, not because the
+cause is known.
+
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
 A GS reverb or chorus **macro** does not select a preset that individual parameter edits then sit on
