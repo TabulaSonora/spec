@@ -37,6 +37,8 @@ This is a preservation / interoperability effort on a discontinued product.
    SC-88/88Pro/8820 hardware, original 24 MB wave ROM embedded intact) and the exact build this targets.
 4. **[docs/SYMBOLS.md](docs/SYMBOLS.md)** / **[docs/GLOSSARY.md](docs/GLOSSARY.md)** — symbol map and
    terminology.
+5. **[docs/COMPARING_RENDERS.md](docs/COMPARING_RENDERS.md)** — how to judge a reimplementation's
+   audio against the DLL's, and why comparing samples answers the wrong question.
 
 ## Getting it running
 
