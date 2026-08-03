@@ -3342,3 +3342,64 @@ overdamped branch of `FUN_180083f00`'s stage D in the disassembly, not another c
 **Unrelated defect found in the controls:** key 38 (tone 1843, 808 Snare 1) correlates at only
 **0.506** while showing no HF signature at all (+0.28 dB). That is a different fault from this one
 and is not explained by the filter regime.
+
+## Reading stage D's overdamped branch: the SVF loop is exonerated, `g_svf_makeup_gain_tbl` is not `[confirmed]`
+
+The previous entry named the disassembly as the next step rather than another curve fit. Reading it
+settles three things and leaves the original question open.
+
+**The filter loop is ours, exactly.** `svf_render_hp` (`18008d2d0`) is eight unrolled copies of
+
+```c
+fVar3 = fVar1 * f + low;   low = fVar3;            /* low += f*band            */
+fVar4 = in - (fVar1 * q + fVar3);                  /* high = in - (q*band+low) */
+band  = fVar4 * f + fVar1;                         /* band += f*high           */
+*out  = fVar4;
+```
+
+with `fVar1` the *pre-update* band and `fVar3` the *post-update* low — the same operand ages and the
+same parenthesisation `in - (q*band + low)` that `StateVariableFilter` already spells out. There is
+no overdamped branch here: the loop is unconditional, and it is arithmetically identical to ours. So
+the earlier warning against clamping `q` on the strength of a fit was right, and is now grounded:
+**nothing in the filter changes behaviour with `q`.**
+
+**Both coefficients check out for the tone in question.** `f` and `q` reach the filter through
+per-voice float slots `g_svf_f_coef` (`181a1cb70`) and `g_svf_q_coef` (`181a1d1f0`), written by
+`voice_ctrl_ramp_c` / `voice_ctrl_ramp_d` from ramp targets that settle to `voice+0xcc` / `+0xdc`.
+For a steady note both sit at their targets, which we already match to the integer.
+
+**One real difference, and it is unreachable.** `voice_ctrl_ramp_c` forms `f` as
+`(float)(short)(current >> 3) * 6.1035156e-05` — an int16 *truncation*, where
+`TvfChain::frequency_coefficient` saturates with `min(0x7FFF, value >> 3)`. The two diverge only at
+`f >= 2.0`, and the resonance-indexed cutoff ceiling caps `f` at **1.381** across every resonance
+byte at a fully-open cutoff, so the wrap is unreachable. Recorded, not fixed.
+
+**What the read did turn up is a stage we do not implement at all.**
+`voice_ctrl_ramp_d` clamps the per-sample voice amplitude against a resonance-indexed table:
+
+```c
+if (g_svf_makeup_gain_tbl[current >> 8] < amp[n]) amp[n] = g_svf_makeup_gain_tbl[current >> 8];
+```
+
+`g_svf_makeup_gain_tbl` @`0x181986860` is **1024 floats**, monotonic decreasing from 1.998 to
+0.828 (extract with `dumpmem 181986860 4096`). The index is exactly the **resonance byte × 8**
+(`(rb << 11) >> 8`), so only 32..1016 is reachable:
+
+| reso byte | 4 | 32 | 53 | 64 | 100 | 121 | 127 |
+|---|---|---|---|---|---|---|---|
+| q | 0.063 | 0.500 | 0.828 | 1.000 | 1.563 | 1.891 | 1.984 |
+| cap | 1.937 | 1.560 | 1.335 | 1.235 | 0.975 | 0.861 | 0.832 |
+
+It is a **min, not a multiply** — a ceiling on amplitude, not a gain — so it only bites on voices
+loud enough to reach it, and it is *tighter for more damped filters*, which is the opposite polarity
+to a resonance make-up gain despite the name. **It does not explain tone 1946**: that voice's
+amplitude peaks at 0.614 against a cap of 0.861, so the clamp never engages. It remains a genuine
+unimplemented stage that will matter for loud voices, and the law behind the curve is not identified
+— the table is exported rather than fitted.
+
+**So the tone 1946 divergence is still unexplained**, and it is now known *not* to be the filter
+loop, the tap, the operand ages, `f`, `q`, the ROM decode, the TVA or the pan law. Since a fitted
+linear filter does reconcile the two renders (r 0.859 → 0.9998), the remaining candidates are linear
+stages *outside* the TVF that this tone reaches differently — `voice_render_dispatch`'s choice
+between `tvf_svf_render` (4-wide SIMD) and `tvf_svf_render_alt` (the 8-sample scalar taps), selected
+per four-voice group by `DAT_181a1d450+0x30*g+4`, is the next thing to read.
