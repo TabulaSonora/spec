@@ -119,7 +119,25 @@ unsafe
         while(posP<totalP){
             if(!offSentP && posP>=offAtP){ shortIn((uint)((0x80|chp)|(ntp<<8)),0); flush(); offSentP=true;
                 Console.WriteLine($"--- note-off @ {posP*1000.0/SRp:0}ms"); }
-            fixed(float* pl=lp2,pr=rp2) process(pl,pr,320); posP+=320;
+            // Optional finer grid via TS_POSTRACE_BLOCK. The core's own audio chunk is 32 samples -- events are
+            // still only taken every 320 -- so stepping at 32 shows the sampler state evolve inside
+            // the first control tick instead of only at its boundary.
+            int blkP = int.TryParse(Environment.GetEnvironmentVariable("TS_POSTRACE_BLOCK"), out var _bp) ? _bp : 320;
+            for(int sub=0; sub<320; sub+=blkP){
+                fixed(float* pl=lp2,pr=rp2) process(pl,pr,(uint)blkP);
+                posP+=blkP;
+                if(blkP<320){
+                    Console.Write($"{posP,6} smp:");
+                    for(int v=0;v<64;v++){ if((*(byte*)(fbp+v*0x50)&1)==0) continue;
+                        long st3=ssp+(long)v*0x50;
+                        long pvv=((delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360))(0)+(long)v*0x220;
+                        Console.Write($"  v{v} pos={*(int*)(st3+0x28)} ph={*(ushort*)(st3+0x46)}"
+                                     +$" exact={*(int*)(st3+0x28) + *(ushort*)(st3+0x46)/65536.0:0.000000}"
+                                     +$" p64={*(int*)(pvv+0x64)} p6c={*(int*)(pvv+0x6c)} b8={*(int*)(pvv+0xb8)}"); }
+                    Console.WriteLine();
+                }
+            }
+            if(blkP<320){ if(posP>=totalP) break; else continue; }
             Console.Write($"{posP*1000.0/SRp,6:0}ms:");
             for(int v=0;v<64;v++){ if((*(byte*)(fbp+v*0x50)&1)==0) continue;
                 long st=ssp+(long)v*0x50;

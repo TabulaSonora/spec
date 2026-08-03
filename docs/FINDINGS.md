@@ -3746,3 +3746,46 @@ reproduces it exactly — and it is not a value held anywhere in the voice struc
 tones get zero. Next step is to trace the sampler state through the first control tick at 32-sample
 resolution and find where the phase is first written, since `dpcm_voice_init_fwd` demonstrably
 clears it.
+
+## Where the 0.693 phase is acquired: one chunk, and `voice+0x64` is the discriminator `[measured]`
+
+Tracing at the core's own 32-sample audio chunk (`TS_POSTRACE_BLOCK=32`; events still only land on
+the 320-sample tick) shows the phase is not initialised — it is *accumulated*, in exactly one chunk.
+
+| samples | note 42 (1944) | note 46 (1946) |
+|---|---|---|
+| 96 | pos 3, ph 0 | pos 3, ph 0 |
+| 128 | pos 35, ph 0 | pos 36, **ph 45448** |
+| 160 | pos 67, ph 0 | pos 68, ph 45448 |
+| … | +32 exactly | +32 exactly |
+
+Both voices begin **identically** — same chunk, `pos = 3`, `ph = 0`. Then across the single chunk
+from 96 to 128 note 46 advances **33.693481** samples where note 42 advances exactly 32. After that
+chunk both advance exactly 32 forever. So the whole defect is **1.693481 samples of excess read
+advance during the first sounding chunk**, which the phase then carries unchanged for the life of
+the note because the increment's fractional part is zero.
+
+**`voice+0x64` is what distinguishes them**, and it is constant from the first observation:
+
+| field | note 42 | note 46 |
+|---|---|---|
+| `+0x64` | 60000 | **66671** |
+| `+0x6c` | 60000 | 60000 |
+| `+0xb8` | 229376 | 238484 |
+
+Tone 1946 resolves **6671 milli-semitones — 6.671 semitones — above** its neighbours, while
+`+0x6c` (60000) matches them. Yet its steady-state sampler rate is exactly 1.0, the same as theirs.
+Something therefore cancels those 6.671 semitones in the rate, and both waves declare the same
+`root_key 60` and `fine_tune 1024`, so the cancellation is not in the wave descriptor — the
+**multisample** (931 against 929) is the remaining candidate, and a per-zone tuning there is
+something this port may not be reading at all.
+
+Note the excess does not follow `+0xb8`: `238484 / 229376 = 1.039708` would give 33.27 samples over
+the chunk, and the measured advance is 33.693481, i.e. a rate of 1.05292 for that chunk alone. So
+`+0xb8` is not the sampler increment either, and the increment that chunk was neither the steady 1.0
+nor the `+0xb8` quotient. `sampler_pcm` reads its increment from a *per-sample array*, so a
+one-chunk transient there is expressible and is what has to be found.
+
+**Next:** read the multisample record for 931 against 929 for a tuning field that accounts for 6671
+milli-semitones, and find who fills the sampler's per-sample increment array for the first chunk.
+Both are narrow questions now, and the defect is fully bounded: one chunk, 1.693481 samples.
