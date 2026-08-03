@@ -129,14 +129,23 @@ The second is **flat**: 0.81 at 20 ms and 0.81 at a quarter-second, with the lev
 disagreement that does not shrink as the window widens is not beating; it is at the scale of notes.
 Something is wrong with the sound itself.
 
-And it was. That file sets `40 01 33` and `40 01 3A` — the individual **reverb level** and **chorus
-level** — where the engine being measured implements only the reverb and chorus *macros* and drops
-single-parameter edits. Its wet levels were wrong for the whole file, which is a constant offset in
-the mix: exactly a flat curve and a level error.
+Looking at what that file asks for turned up a real omission — it sets `40 01 33` and `40 01 3A`,
+the individual **reverb level** and **chorus level**, which the engine implemented only as macros
+and dropped as single edits. That looked like the whole answer.
+
+**It was not.** Implementing them moved the level from −2.50 dB to −2.29 and the correlations by
+about 0.005. The file sets each of those addresses exactly *once*, so a single edit was always going
+to be worth a fraction of a dB, and the shape of the failure had been read as confirmation of the
+first plausible cause found.
+
+The lesson is the useful part. A flat curve does say the disagreement is at the scale of notes
+rather than of cycles, and that is worth acting on — but it does not say *which* thing, and a
+missing feature that the file genuinely uses is not thereby the cause. Measure the fix; a hypothesis
+that survives only because it sounded right is not evidence. This file's 2.3 dB remains unexplained.
 
 So read the curve before reading any single number. A rising curve with a right level is a lead
-about detail; a flat curve with a wrong level is a missing feature, and it will usually name itself
-if you go and look at what the file asks for that the engine ignores.
+about detail; a flat curve with a wrong level is something at the scale of notes. Then go and find
+it, and confirm by the number moving.
 
 ## A note on where the number comes from
 
