@@ -3916,3 +3916,53 @@ gating how often it advances, and the exponential conversion `TvfChain::frequenc
 already implements. Where the initial `cur` of 238484 comes from — why this tone starts 9108 sharp
 and its neighbours start on target — is the last unknown, and `voice+0x64` (66671 against 60000) is
 still the obvious suspect.
+
+## Closed: the pitch ramp interpolates the pitch ENVELOPE across each control block `[confirmed]`
+
+Following the ramp's `from` back: `voice_setup_sample_playback` passes `DAT_181a71660[v]` and
+`DAT_181a70d60[v]` to `voice_set_ramp_target_0`, `voice_start` fills those from `voice+0xb8` and
+`voice+0xbc`, and **`voice_pitch_block_init` (`0x180082e10`) computes both** — `+0xb8` *before* the
+block's pitch-envelope step and LFO, `+0xbc` *after*:
+
+```c
+*(uint *)(param_1 + 0xb8) = pitch_now;      /* from: pitch entering the block */
+pitch_env_ramp_segment(param_1 + 0x5c);     /* step the pitch envelope        */
+lfo_pitch_accumulate(param_1);              /* fold in LFO / bend             */
+voice_pitch_keyfollow(param_1);
+*(uint *)(param_1 + 0xbc) = pitch_after;    /* to:   pitch leaving the block  */
+```
+
+So **the pitch ramp exists to glide the sampler increment across a control block**, from the pitch
+the block started at to the pitch it ended at. It is not a note-on artefact; it is how the engine
+avoids stepping the pitch once per 10 ms.
+
+**The ramp domain decoded.** Both endpoints are formed as `0x38000 + (milli_semitones << 9) / 0x177`
+(`0x177` = 375). `0x38000` = 229376 is unity — exactly the target both matching notes sit at — and
+one octave is `(12000 << 9) / 375 =` **16384** units, the same octave size `g_ramp_exp_tbl` uses for
+the TVF's `f`. The two consumers share a domain.
+
+**And it accounts for tone 1946 exactly.** Its measured `from − to` is 9108 ramp units:
+
+```
+9108 x 375 / 512 = 6670.9 milli-semitones,   against voice+0x64 - 60000 = 6671
+```
+
+So tone 1946 carries a **pitch envelope that drops 6.671 semitones inside the first control block**.
+The engine glides the read rate down from 1.467880 to 1.0 across that block, gaining 1.693481
+samples; we apply the block's pitch as a single value and gain nothing. Every step of the chain is
+now measured rather than inferred:
+
+> pitch envelope drops 6.671 st in block 0 → engine ramps the sampler increment across the block →
+> read position gains 1.693481 samples → frozen into phase 45448 → interpolator row 88 instead of
+> row 0 → a fixed linear filter difference → +1.1 dB and bright.
+
+**What the port is missing is the ramp, not the envelope.** `PartialVoice` already has
+`pitch_envelope_` and ticks it in `control()`, but `control()` runs once per 320-sample block and
+`ratio_` is then constant for all 320 samples. The engine instead interpolates between the block's
+entry and exit pitch, at the 8-sample granularity `ramp_env_step_eval` writes.
+
+That is a real fix and a broad one: it changes every note whose pitch moves — envelopes, vibrato,
+bend, portamento — not just this drum. It deserves its own pass with corpus revalidation rather than
+being bolted on here. It also explains why the port has matched so well everywhere else: most pitch
+movement is slow enough that the intra-block glide is negligible, and it only bites when the pitch
+moves far inside one block, as it does here — 6.671 semitones in 10 ms.
