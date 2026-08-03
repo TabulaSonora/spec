@@ -3671,13 +3671,18 @@ variants are *not* a 1:1 or no-interpolation path — `sampler_pcm_alt` is byte-
 four-tap FIR on every sample:
 
 ```c
-row = (phase16 >> 9) * 0x10;                       /* 128 rows of four floats  */
-out = ( g_interp_coef_table[row+0] * s[0]
-      + g_interp_coef_table[row+1] * s[1]
-      + g_interp_coef_table[row+2] * s[2]
-      + g_interp_coef_table[row+3] * s[3] ) * gain;
+/* Verbatim from the decompile: `off` is a BYTE offset, not a float index. The taps are read at
+   base+0, +4, +8, +0xc, so the row stride 0x10 is sixteen bytes -- one row of four floats. */
+off = (phase16 >> 9) * 0x10;                        /* 128 rows, 0x10 bytes each */
+out = ( *(float *)(0x181a0f210 + off + 0x0) * s[0]
+      + *(float *)(0x181a0f210 + off + 0x4) * s[1]
+      + *(float *)(0x181a0f210 + off + 0x8) * s[2]
+      + *(float *)(0x181a0f210 + off + 0xc) * s[3] ) * gain;
 phase16 += increment;                               /* 16.16, integer part advances the read */
 ```
+
+As a float index that is `(phase16 >> 9) * 4`, which is what `Interpolator::sample` computes with
+`phase * tap_count` — the two agree, and only the units differ.
 
 There is no branch on the increment anywhere in the loop, so a voice at ratio exactly 1.0 still pays
 row 0 — which is `[0.174, 0.653, 0.173, 1e-5]`, a mild lowpass and *not* a passthrough. That
