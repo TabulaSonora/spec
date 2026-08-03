@@ -71,7 +71,21 @@ Three ways to get a meaningless number from a correct engine:
 
 ## What this does not measure
 
-Level and envelope agreement say nothing about spectrum. Two renders can track each other's
+**Pitch.** This is the sharpest limit and it is easy to forget, because the metric looks so healthy
+while missing it. An RMS envelope is a measure of *amplitude over time*: play the right note at the
+right moment with the wrong pitch and the envelope barely moves. Measured case — `test_poly_bend.mid`
+against an engine that does not implement polyphonic aftertouch at all, so the DLL bends the note a
+whole octave and the candidate does not:
+
+| Window | 4 ms | 20 ms | 250 ms | 1 s |
+| --- | --- | --- | --- | --- |
+| r | 0.575 | 0.921 | 0.990 | **0.998** |
+
+A twelve-semitone error, and the one-second envelope calls it a 0.998 match. Only the 4 ms window
+and the level notice anything, and they notice it faintly. **A file whose point is pitch has to be
+judged some other way** — by the pitch track, or by spectrum, or by ear.
+
+Level and envelope agreement say nothing about spectrum either. Two renders can track each other's
 loudness perfectly with one of them dull — the filter-envelope velocity response was found exactly
 that way, sitting a third of an octave too open for a whole note while measuring +3.5 dB at 4–8 kHz.
 A per-band comparison is the companion measurement and is not described here.
