@@ -3612,3 +3612,48 @@ it: resonance byte 121 was a coincidence of which tone happened to sit in region
 partials listed earlier have no bearing on this. The discriminator is the wave's **ROM region**, and
 the affected set should be re-derived as "every wave whose descriptor puts it in a bank-0 region ≥ 12
 (and separately, every wave whose `loop` is not 32-aligned)".
+
+## Bank A is the 16 MB chip; the wave codec starts mid-block by design `[confirmed]`
+
+Two corrections to the previous entry, one of which retracts its main claim.
+
+**There was never a region-mapping bug.** The previous entry read waves 4010 (bank 0 region 12) and
+2092 (region 14) as running off the end of a bank declared to hold twelve regions. Measuring the
+bases settles it: bank A starts at file offset `0x92700` and bank B at `0x1092730`, **`0x1000030`
+apart** — 16 MB plus bank B's own 0x30 header. So regions 12–15 land at `0xc92700`–`0xf92700`, well
+inside bank A and nowhere near bank B, and `bank_a_base + region * 1 MB` is right for every region a
+four-bit field can name. The 12/12 split was an assumption inherited from the manifest, which
+declares both banks alike; the chip layout is a 16 MB part and an 8 MB part, which is what
+`bank_a_region_count = 16` and `bank_b_region_count = 8` now say. Nothing about addressing changed.
+
+**Unaligned data starts are normal, and the decoder must handle them rather than round them away.**
+`1660 of 4259` descriptors — **39%** — put the data start partway into a 32-sample exponent block,
+with phase 2 alone accounting for 928. That is not malformed. The codec carries no absolute value
+per block, only differences, so a seek may land mid-block and a wave may end mid-block; all the
+decoder owes it is to index the exponents by **absolute** sample position. `WaveRom::read_streams`
+was instead rounding down with `loop & ~0x1F`, which began integrating up to 31 samples early — and
+because the predictor is a pure integrator with no leak and **nothing downstream blocks DC**, those
+extra deltas displaced the whole wave for its entire length instead of adding a moment of lead-in.
+Fixed: the exact start and the block phase are carried through to the decode.
+
+**Honest about what that fix is worth.** It is *measurably inert* against the DLL everywhere it
+could be checked — the largest correlation shift across drum keys and five unaligned melodic
+programs is 2e-4. It rests on the format's semantics, not on a measured improvement. What does
+cross-check it is `tools/dump_predictors.py`, an independent Python oracle of the documented
+formula, which agrees with the C++ decode across all 3703 waves and 25.6 M samples once both were
+corrected the same way.
+
+**So tone 1946 is still open, and the region theory is dead.** Its +0.28-sample constant offset is
+not alignment (its `loop` is already 32-aligned) and not addressing. What the voice fields do show
+is that it plays at **ratio 1.039708** (`voice+0xb8` 238484 against `+0xbc` 229376) where its two
+matching neighbours sit at exactly 1.0 — so it is the one case here where the interpolator is
+actually running, and a difference in phase origin can show at all. That ratio is not in the wave
+descriptor: 4008 and 4010 carry identical tuning bytes (`00 04 3c`, fine 1024, root 60). Where the
+1.0397 comes from is the next question. Note also that a non-unity ratio is *not* sufficient on its
+own — key 50 runs at 1.0014 and matches at 0.998 — and that key 38 sits at exactly 1.0 and is still
+badly wrong at 0.506, which remains its own unexplained defect.
+
+**Driving the core, for future harness work:** it renders audio in **32-sample** units but only
+takes MIDI events every **10 ms**. Capturing at 32 gives complete pre-filter coverage, but event
+placement is still quantised to the 320-sample control tick, so nothing is gained by feeding events
+on a finer grid.
