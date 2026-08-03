@@ -3789,3 +3789,38 @@ one-chunk transient there is expressible and is what has to be found.
 **Next:** read the multisample record for 931 against 929 for a tuning field that accounts for 6671
 milli-semitones, and find who fills the sampler's per-sample increment array for the first chunk.
 Both are narrow questions now, and the defect is fully bounded: one chunk, 1.693481 samples.
+
+## Multisamples 929, 931 and 465 carry no tuning — the record differs only by name and wave `[confirmed]`
+
+The previous entry named the multisample as the remaining candidate for cancelling tone 1946's
+6671 milli-semitones. **It is not there.** Diffing the three 0x8C-byte records byte for byte, the
+only differences outside the 12-byte ASCII name are at **`+0x2c`/`+0x2d`** — the wave number:
+
+| multisample | name | wave |
+|---|---|---|
+| 929 | `808CH` | 4008 |
+| 931 | `TR-808 OHH` | 4010 |
+| 465 | `808CY` | 2818 |
+
+Everything else is identical across all three: the key-zone bounds at `0x0c..0x2b` are `0x7f`
+throughout (one zone covering the whole range), the remaining wave slots `0x2e..0x6b` are `0xff`
+(absent), `+0x6c` is `0x7f`, and the rest is zero. There is **no tune, no key centre and no
+per-zone pitch field** in the record at all — it is a name, a set of zone bounds, and a wave list.
+
+So the 6.671 semitones are not cancelled in the multisample, and they are not in the wave
+descriptor either: 4008 and 4010 carry byte-identical tuning (`fine_tune 0x0400`, `root_key 0x3c`),
+differing only in region and in their three address fields. Two of the three places a per-wave
+tuning could live are now excluded.
+
+**Which sharpens the question rather than answering it.** The engine plays both waves at a
+steady-state rate of exactly 1.0 while their `voice+0x64` differ by 6671, so either `+0x64` is not
+an input to the sampler rate at all — `+0x6c`, which matches at 60000, is the better candidate for
+what actually drives it — or something outside the descriptor and the multisample compensates. Note
+also that `+0xb8` cannot be the increment: its quotient 1.039708 predicts 33.27 samples across the
+first chunk where 33.693481 were measured, and it predicts 1.0397 in steady state where exactly
+1.0 was measured.
+
+**The remaining lead is the increment array itself.** `sampler_pcm` reads a fresh increment per
+sample from `param_3 + param_5`, so the one-chunk excess is expressible there and nowhere in the
+static data. Finding who fills that array for a voice's first chunk is now the whole problem, and it
+is a single writer to identify rather than another field to hunt for.
