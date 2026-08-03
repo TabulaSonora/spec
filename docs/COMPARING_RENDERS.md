@@ -188,6 +188,31 @@ merely quieter in the mono sum, so it is not an artefact of mixing down. A pan t
 it moves off centre is a pan *law* symptom, and this engine's law was verified against a controller
 sweep to 3e-05 — which means the law is likely right and the value reaching it is not.
 
+Probing that one part with two-second files narrowed it further, and produced a result worth
+keeping whatever the cause turns out to be:
+
+| Probe (program 38, one note) | Total against the DLL |
+| --- | --- |
+| pan 64, no sends | −0.16 dB |
+| pan 94, no sends | +0.35 dB |
+| pan 64, chorus send 127 | −0.80 dB |
+| pan 64, reverb send 127 | −0.22 dB |
+| pan 94, chorus 127, reverb 40 | **−2.81 dB** |
+
+Read down that table rather than at any one row. The dry path is right, at either pan. The **reverb**
+send is right — its deficit never rises above the dry baseline at any send level, and its tail is a
+constant +1 dB. The **chorus** send is not: the deficit grows with the send, from −0.16 at zero to
+−0.80 at full.
+
+But chorus alone is 0.8 dB and the combination is 2.8. Pan is right on its own and sends are right
+or nearly so on their own, and together they are three times worse than the sum. That is an
+*interaction*, and it is the thing to isolate next — most likely how the send feed relates to pan,
+since this engine feeds its sends from a pre-pan mono signal and a difference there would be
+invisible until both are used at once.
+
+The general point: a defect that only appears when two features combine will survive any amount of
+testing each feature alone, which is what the first several rounds of this investigation did.
+
 Two lessons. **Localise before theorising**: one splitting script answered in one pass what four
 feature hypotheses could not, because it asked where the difference is rather than what it might be.
 And **read correlation and level together** — high correlation with a large level error is a
