@@ -3657,3 +3657,47 @@ badly wrong at 0.506, which remains its own unexplained defect.
 takes MIDI events every **10 ms**. Capturing at 32 gives complete pre-filter coverage, but event
 placement is still quantised to the 320-sample control tick, so nothing is gained by feeding events
 on a finer grid.
+
+## The sampler always interpolates, and its phase is a 16-bit accumulator starting at zero `[confirmed]`
+
+Checked because tone 1946 is the one wave here playing at a non-unity ratio, which raised the
+question of whether the engine takes a shortcut at 1:1 that we do not. **It does not.**
+
+`voice_render_dispatch` (`18003f720`) selects one of six samplers from `voice+0x48`: bits 1–2 give
+the format (`0` PCM, `2` DPCM, `4` fmt4) and **bit 5 (`0x20`) selects the `_alt` family**. The `_alt`
+variants are *not* a 1:1 or no-interpolation path — `sampler_pcm_alt` is byte-for-byte
+`sampler_pcm` except that it calls `sample_fetch_loop_wrap_reverse` instead of
+`sample_fetch_loop_wrap`. **Bit 5 is reverse playback.** Every one of the six runs the same
+four-tap FIR on every sample:
+
+```c
+row = (phase16 >> 9) * 0x10;                       /* 128 rows of four floats  */
+out = ( g_interp_coef_table[row+0] * s[0]
+      + g_interp_coef_table[row+1] * s[1]
+      + g_interp_coef_table[row+2] * s[2]
+      + g_interp_coef_table[row+3] * s[3] ) * gain;
+phase16 += increment;                               /* 16.16, integer part advances the read */
+```
+
+There is no branch on the increment anywhere in the loop, so a voice at ratio exactly 1.0 still pays
+row 0 — which is `[0.174, 0.653, 0.173, 1e-5]`, a mild lowpass and *not* a passthrough. That
+matches what we already do, and it is why the ratio-1.0 drum keys reproduce the engine's filter
+input at **r = 1.00000** rather than merely closely: had either side skipped the kernel, they could
+not.
+
+Two details worth having:
+
+* **The phase is a 16-bit fraction** at `sampler_state+0x46`, and the coefficient row is its top
+  seven bits (`phase >> 9`). The increment is a 32-bit 16.16 value read *per sample* from an array,
+  which is how pitch modulation moves inside a block.
+* **It is initialised to zero.** `dpcm_voice_init_fwd` clears `0x40..0x47` with a single eight-byte
+  store, and the phase sits inside that. So the engine starts every voice at phase 0, exactly as we
+  do.
+
+**That weakens the phase-origin explanation for tone 1946.** Both sides start at phase 0 and, with
+matching ratios, should stay in lockstep — yet its pre-filter signal is a constant +0.28 samples
+from ours with no drift. Since the engine's accumulator is quantised to 1/65536 and its row index to
+one of 128 while ours is a double, neither difference is anywhere near a quarter of a sample. The
+fitted fractional delay is therefore more likely *modelling* something else than describing a real
+delay, and the next step is to compare the two read positions directly rather than to keep fitting
+shifts to the output.
