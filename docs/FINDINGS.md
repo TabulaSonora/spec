@@ -241,6 +241,49 @@ Macro parameters → registers → float coefficients, via:
 - `fx_param_apply` @ `0x180055e90` (was `fx_param_update`) — lighter previous-vs-current param
   delta handler. Both are invoked indirectly (dispatch table), so they show no direct callers.
 
+### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
+
+A GS reverb or chorus **macro** does not select a preset that individual parameter edits then sit on
+top of. It loads a row of bytes, and that row *is* the parameter block — the individual addresses
+`40 01 31`–`37` and `40 01 39`–`40` write into the same bytes the macro filled in. So a single
+parameter edit needs no separate mechanism: overwrite the byte and recompute from the row.
+
+Reverb, 7 bytes from `g_reverb_preset_tbl`:
+
+| Byte | GS address | Parameter |
+| --- | --- | --- |
+| `[0]` | `40 01 31` | character |
+| `[1]` | `40 01 32` | pre-LPF |
+| `[2]` | `40 01 33` | **level** |
+| `[3]` | `40 01 34` | time |
+| `[4]` | `40 01 35` | delay feedback |
+| `[5]` | `40 01 36` | (send to chorus) |
+| `[6]` | `40 01 37` | pre-delay |
+
+Chorus, 8 bytes:
+
+| Byte | GS address | Parameter |
+| --- | --- | --- |
+| `[0]` | `40 01 39` | pre-LPF |
+| `[1]` | `40 01 3A` | **level** |
+| `[2]` | `40 01 3B` | feedback |
+| `[3]` | `40 01 3C` | delay |
+| `[4]` | `40 01 3D` | rate |
+| `[5]` | `40 01 3E` | depth |
+| `[6]` | `40 01 3F` | send to reverb |
+| `[7]` | `40 01 40` | send to delay |
+
+Note that the coefficient computation reads `[0]`, `[1]`, `[3]`, `[4]` and `[6]` of the reverb row
+and **not** `[2]`. Reverb level is not a coefficient — it does not shape the network, it scales what
+comes out of it — so an implementation that recomputes the network from an edited row still has to
+apply level separately. The same holds for chorus `[1]`.
+
+Why this matters in practice: a file that sets `40 01 33` or `40 01 3A` and is answered with macro
+defaults has the wrong wet level for its whole duration. That is a constant offset in the mix, and
+it shows up in a render comparison as a **flat** correlation curve with a level error rather than as
+anything localised — see COMPARING_RENDERS.md, where a commercial file diverges by 2.50 dB for
+exactly this reason.
+
 ### The four-band EQ computes nothing `[confirmed]`
 
 `40 02` is not a filter design, it is an index. `fx_eq_band_preset_apply` @ `0x1800407d0` reads two
