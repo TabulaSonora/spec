@@ -260,10 +260,16 @@ unsafe
     }
     // notebatch mode: render many single notes through the ORACLE in one process, so a fixture can
     //   be generated from the DLL rather than from any reimplementation. Reads a case file of
-    //   "program note velocity hold map" lines and writes one raw interleaved float32 stereo file
-    //   per case into <outdir>, named case<NNNN>.f32. Raw float rather than WAV because the digest
-    //   the port checks is taken over interleaved float32 pairs, so this is the exact byte sequence
-    //   with nothing to round.
+    //   "program note velocity hold map [channel]" lines and writes one raw interleaved float32
+    //   stereo file per case into <outdir>, named case<NNNN>.f32. Raw float rather than WAV because
+    //   the digest the port checks is taken over interleaved float32 pairs, so this is the exact
+    //   byte sequence with nothing to round.
+    //
+    //   The channel field is optional and defaults to 0, so a case file written before it existed
+    //   still means what it did. Its reason for existing is channel 9: a program change there
+    //   selects a drum kit rather than a tone, and the melodic sweep could not reach the kits at
+    //   all -- which left the bass drum, the one thing in a GS arrangement with real energy below
+    //   90 Hz, outside everything the note gate could see.
     //
     //   Frames are (hold + tail) * 32000 to match render_note's own accounting, and the render is
     //   driven in 320-sample control ticks: the core renders audio in 32-sample units but only
@@ -291,30 +297,31 @@ unsafe
             int pg = int.Parse(f[0]), nt = int.Parse(f[1]), vl = int.Parse(f[2]);
             double hs = double.Parse(f[3], System.Globalization.CultureInfo.InvariantCulture);
             int mp = int.Parse(f[4]);
+            int ch = f.Length > 5 ? int.Parse(f[5]) & 15 : 0;
 
             // A full reset between cases: a fixture case must not depend on what preceded it.
             GsReset();
             if (mp >= 1 && mp <= 4) for (int c = 0; c < 16; c++) ToneMap0(c, mp);
             flush();
             fixed (float* pl = ln, pr = rn) for (int i = 0; i < 8; i++) process(pl, pr, 512);
-            void CCn(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+            void CCn(int c, int v) => shortIn((uint)((0xB0 | ch) | (c << 8) | (v << 16)), 0);
             CCn(0, 0); CCn(32, 0); CCn(7, 127); CCn(10, 64); CCn(91, 0); CCn(93, 0);
-            shortIn((uint)(0xC0 | (pg << 8)), 0); flush();
+            shortIn((uint)((0xC0 | ch) | (pg << 8)), 0); flush();
 
             int total = (int)((hs + tailN) * SRn);
             int offAt = (int)(hs * SRn);
             var interleaved = new float[total * 2];
-            shortIn((uint)(0x90 | (nt << 8) | (vl << 16)), 0); flush();
+            shortIn((uint)((0x90 | ch) | (nt << 8) | (vl << 16)), 0); flush();
             int pos = 0; bool sent = false;
             while (pos < total)
             {
-                if (!sent && pos >= offAt) { shortIn((uint)(0x80 | (nt << 8)), 0); flush(); sent = true; }
+                if (!sent && pos >= offAt) { shortIn((uint)((0x80 | ch) | (nt << 8)), 0); flush(); sent = true; }
                 int nf = Math.Min(320, total - pos);
                 fixed (float* pl = ln, pr = rn) process(pl, pr, (uint)nf);
                 for (int i = 0; i < nf; i++) { interleaved[(pos + i) * 2] = ln[i]; interleaved[(pos + i) * 2 + 1] = rn[i]; }
                 pos += nf;
             }
-            shortIn((uint)(0x80 | (nt << 8)), 0); flush();
+            shortIn((uint)((0x80 | ch) | (nt << 8)), 0); flush();
 
             var bytes = new byte[interleaved.Length * 4];
             Buffer.BlockCopy(interleaved, 0, bytes, 0, bytes.Length);
