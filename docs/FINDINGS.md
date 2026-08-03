@@ -3273,3 +3273,72 @@ position per note. Two sources can be zero, and one famously cannot:
 
 The random source is `prng_lfsr` — the same generator as the pitch start jitter and the random LFO
 waveforms, already documented with its `0xEFA6`/`0x9C23` reset seeds.
+
+## Tone 1946 is not a layering problem — the SVF diverges in the overdamped regime `[localised]`
+
+The previous entry left "tone 1946 renders about 1.2 dB loud" with the next probe named as its
+partial structure: velocity zones, partial count, whether a layer sounds that should not. **It has
+none of those.** Tone 1946 "TR-808 OHH" holds a *single* partial in slot 0, one multisample (931 →
+wave 4010), velocity window `[0..127]`, one static zone. There is no second layer to sound
+spuriously and no zone boundary to cross. That hypothesis is dead.
+
+What distinguishes it from its siblings is **resonance**. Of the seven tones in kit 11, five sit at
+the neutral byte 0x40; only the two hats do not, and 1946 is the outlier:
+
+| key | tone | reso byte | type | tap | level error |
+|---|---|---|---|---|---|
+| 42 | 1944 TR-808 CHH | 53 | 1 | HP | −0.05 dB |
+| 46 | **1946 TR-808 OHH** | **121** | 1 | HP | **+1.11 dB** |
+| 49 | 1947 808 Crash | 64 | 0 | LP | −0.18 dB |
+
+**Everything the engine computes for it is already exact.** Read live from the DLL (`drumnote` with
+a voice dump), tick by tick: resonance byte 121, filter type 1, runtime cutoff `+0xcc` = 235764,
+q raw `+0xdc` = 247808. Our `resonance_byte`, `cutoff_units` and `damping_coefficient` reproduce all
+four *to the integer* — and the wave is `root_key 60 / native_pitch 60`, so playback is 1:1 and no
+interpolation is involved at all.
+
+**The residual is purely linear.** Fitting a 129-tap filter from our render to the DLL's lifts the
+correlation from **r = 0.859 to r = 0.9998**, residual −33.4 dB. A linear filter cannot repair a
+decode error, a gain error or a pan error, so the ROM delta/predictor decode, the TVA chain and the
+pan law are all *confirmed correct* for this tone; the difference is a filter response and nothing
+else. The shape is HF-only — flat within 0.05 dB from 2.4 to 8 kHz, then rising to **+5.3 dB at
+Nyquist**, which is where the +1.11 dB of broadband level comes from.
+
+**The mechanism is the pole regime.** At `f = 0.654, q = 1.891` the Chamberlin state matrix
+(`trace = 2 − fq − f²`, `det = 1 − fq`) has **real** poles, `+0.682` and **`−0.348`** — and a
+negative real pole sits at Nyquist and lifts the top octave by +11 dB. Every sibling stays complex:
+1944 is complex-conjugate, and 1947 lands exactly on `f = q = 1` (both poles at the origin). Tone
+1946 is the only one in the kit that crosses into the overdamped regime, and it is the only one that
+is wrong.
+
+**Library-wide this is rare and enumerable.** Sweeping every defined tone at its static cutoff, only
+**19 of 3352 filtered partials (0.57%)** reach a negative real pole: tones 322, 323, 521, 794, 870,
+879, 963, 1075, 1105, 1885, 1946, 1964, 1970, 2097, 2224, 2225, 2344, 2349, 2352.
+
+**Predictive check, and its one apparent miss.** Kit 11 reaches three of those tones. Rendering them
+against the DLL, with five unaffected keys as controls:
+
+| key | tone | in regime | r | HF excess 12–16 k |
+|---|---|---|---|---|
+| 46 | 1946 TR-808 OHH (HP) | yes | 0.859 | **+2.72 dB** |
+| 102 | 521 Bim Hit (LP) | yes | 0.977 | **+1.37 dB** |
+| 4 | 1885 TR-606 BD1 (LP) | yes | 1.0000 | +0.07 dB |
+| 36/42/49/50 | controls | no | ≥ 0.997 | ≤ +0.04 dB |
+
+Bim Hit confirms it on a **lowpass** tap, so this is the regime and not the HP tap. TR-606 BD1 is in
+the regime and still perfect — because it is a kick with no energy near Nyquist for the error to
+appear in. The criterion predicts *where the error can occur*; the tone's own HF content decides
+whether it is measurable.
+
+**What is not yet settled is the DLL's actual law up there.** The tap order and `f` are confirmed
+from the disassembly (`svf_render_hp` saves `high` before the `*f`; `f = 2^(C/16384 − 15)`), and
+both match us. Refitting `q` alone recovers most of the gap — **q = 1.29 takes r from 0.859 to
+0.981** — and that value sits just under **1.346**, the q at which these poles go real, which is
+suggestive of a clamp that keeps the filter underdamped. But a free-form filter reaches 0.9998 where
+the best two-parameter fit stalls at 0.985, so the true law is *not* simply "a different q", and no
+change should be made to `StateVariableFilter` on the strength of that fit. The next step is the
+overdamped branch of `FUN_180083f00`'s stage D in the disassembly, not another curve fit.
+
+**Unrelated defect found in the controls:** key 38 (tone 1843, 808 Snare 1) correlates at only
+**0.506** while showing no HF signature at all (+0.28 dB). That is a different fault from this one
+and is not explained by the filter regime.
