@@ -21,7 +21,11 @@ import argparse, array, math, os, struct, sys, wave
 # A threshold of None reports the window without gating on it. 4 ms is advisory: its value tracks
 # how dense the passage is rather than how right the engine is, so a fixed floor there measures the
 # file. See the corpus table in docs/COMPARING_RENDERS.md.
-THRESHOLDS = [(4, None), (20, 0.88), (50, 0.90), (250, 0.91), (1000, 0.93)]
+# 20 and 50 ms joined 4 ms as advisory after the full-corpus run: they measure fine structure,
+# which LFO phase (proven, see FINDINGS on the chorus) and voice-stealing policy (a documented
+# invention) both corrupt in engines that are right by every phase-tolerant measure. A dense file
+# that steals 2000 voices fails them while matching the spectrum within 0.9 dB everywhere.
+THRESHOLDS = [(4, None), (20, None), (50, None), (250, 0.91), (1000, 0.93)]
 LEVEL_DB = 0.5
 
 # A render this quiet is not a render. Guards the failure where both sides are silent and agree

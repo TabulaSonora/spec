@@ -326,6 +326,28 @@ Incidentally measured: the DLL's dry onset lands 153 samples after the reimpleme
 same nominal event time — its input queue costs ~5 ms of fixed latency. Irrelevant once measured
 onset-relative, but worth knowing before reading any absolute-time comparison.
 
+### A top-octave deficit on one file `[open]`
+
+The full-corpus spectrum gate's first novel catch. `transcendental.mid` (a chiptune-style
+transcription, the corpus's loudest top octave) measures **−9.24 dB in the 11.3–16 kHz band**
+against the DLL, while every other band on that file is within 1.1 dB and every other *file*
+matches its top octave within 0.9 dB:
+
+| File | ref 16 k band | diff |
+| --- | --- | --- |
+| canyon | −15.0 dB | −0.00 |
+| sc50nn | −16.5 dB | −0.11 |
+| bad_apple | −21.6 dB | +0.89 |
+| **transcendental** | **−7.8 dB** | **−9.24** |
+
+So the loss only shows where the top octave carries real energy, which is why nothing else caught
+it. Both renders were at the hardware's 64 voices with heavy stealing (~2,600 voices), so the
+suspects divide into: a stealing-selection difference that preferentially drops high-pitched voices
+in the reimplementation, or a genuine high-frequency path difference (interpolator rolloff, a
+high-key pitch path, a noise-type partial) that only extreme material excites. Distinguishing them
+is cheap: re-render both sides unlimited — if the deficit survives without stealing, it is the
+signal path.
+
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
 A GS reverb or chorus **macro** does not select a preset that individual parameter edits then sit on

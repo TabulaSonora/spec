@@ -107,6 +107,12 @@ to the wrong octave puts its energy in the wrong bands. This is why the tool gat
 Level and envelope agreement say nothing about spectrum either. Two renders can track each other's
 loudness perfectly with one of them dull — the filter-envelope velocity response was found exactly
 that way, sitting a third of an octave too open for a whole note while measuring +3.5 dB at 4–8 kHz.
+After the full-corpus run the 20 and 50 ms correlation windows joined 4 ms as advisory: they
+measure fine structure, which LFO phase and voice-stealing policy both corrupt in engines that are
+right by every phase-tolerant measure — a dense file that steals two thousand voices fails them
+while matching the spectrum within 0.9 dB in every band. The gated set is 250 ms and 1 s
+correlation, level, PSNR and spectrum.
+
 `tools/compare_envelope.py` therefore also gates on a Welch-averaged **octave-band spectrum**
 (±2 dB per band above a −45 dB floor, shift-invariant so phase and delay cannot bias it) and a
 **delay-corrected envelope PSNR** at 250 ms (≥ 20 dB, after a bounded ±32 ms alignment search that
