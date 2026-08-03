@@ -250,9 +250,11 @@ total on its own, with nothing pan-dependent in the send at all.
 
 What the isolated wet does show is exact: it is **1.17 dB low, identically at every pan and in both
 channels**, and its waveform is *anti*-correlated at zero lag (−0.54) while correlating at **+0.74
-when shifted 424 samples — 13.25 ms**. The chorus return is late, or the reference's is early, by a
-fixed 13 milliseconds. A periodic signal offset by part of its period reads as anti-correlated,
-which is what the zero-lag figure was.
+when shifted 424 samples**. A later re-examination against the live engine dumps (see FINDINGS)
+demoted the lag reading: the chorus tap sweeps ±50 samples on a 2.73 s LFO whose phase free-runs
+from engine start, so two engines' returns compare at different points of the sweep and the
+correlation peak measures their *phase difference*, not the base delay. The level deficit is the
+finding; the 424 is an artefact of correlating two independently-modulated delays.
 
 The general point stands and gains a second half. A defect that only appears when two features
 combine survives any amount of testing each alone — but a metric that sums two signals will also
