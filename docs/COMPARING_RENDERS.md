@@ -253,8 +253,12 @@ channels**, and its waveform is *anti*-correlated at zero lag (−0.54) while co
 when shifted 424 samples**. A later re-examination against the live engine dumps (see FINDINGS)
 demoted the lag reading: the chorus tap sweeps ±50 samples on a 2.73 s LFO whose phase free-runs
 from engine start, so two engines' returns compare at different points of the sweep and the
-correlation peak measures their *phase difference*, not the base delay. The level deficit is the
-finding; the 424 is an artefact of correlating two independently-modulated delays.
+correlation peak measures their *phase difference*, not the base delay. And a phase-matched sweep
+then dissolved the level reading too: at the matched phase the wet agrees to 0.04 dB, so the
+"1.17 dB deficit" was the phase offset as well. A free-running modulated delay makes even the
+*level* of a windowed wet measurement phase-dependent — a constant per-file bias of up to ±1.5 dB
+of the wet that no averaging removes. Chorus-heavy material cannot be level-compared across engines
+until the LFO phase is pinned.
 
 The general point stands and gains a second half. A defect that only appears when two features
 combine survives any amount of testing each alone — but a metric that sums two signals will also

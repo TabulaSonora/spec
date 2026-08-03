@@ -279,11 +279,33 @@ spec's ±2.5% L-only calibration both survive; the dump showing the stage armed 
 tapOut=1`) must mean `toR=0` gates its input, and an armed-but-starved stage dumps plausible
 coefficients while producing nothing.
 
-What remains open is only the level: the wet arrives in the right place at the wrong size, and the
-window ratios (1.19×–1.39×, not constant) say it is not a single misread gain. With base, depths,
-feedback and gains all matching the live dump, the remaining suspects are the send-bus feed itself
-and the input conditioner — or the ratio variation is only the two LFOs' phase difference sampling
-the sweep differently, which one render with a phase-matched start would settle.
+**The phase-matched render settled the rest: there is no chorus level defect either.** `[confirmed]`
+Both engines advance the LFO at 192/sample from engine start, so shifting our note later in our own
+stream sweeps our LFO phase-at-onset across the DLL's. Sweeping that shift over the full
+87,381-sample period and measuring the isolated wet each time:
+
+| Shift | wet-vs-wet r | overall wet level |
+| --- | --- | --- |
+| 8000 (control) | 0.35 | −1.17 dB |
+| 20800 | 0.73 | — |
+| 39200 | 0.80 | −0.15 dB |
+| **40000** | **0.82** | **−0.04 dB** |
+| 41600 | 0.77 | +0.26 dB |
+
+The level difference crosses zero exactly at the correlation peak — the signature of pure phase
+mismatch, not of any gain error. **The "1.17 dB deficit" was the phase offset too.** With the static
+coefficients matching the live dump, the tap structure matching at onset, and the level matching to
+0.04 dB at matched phase, the chorus implementation has no measurable defect at all.
+
+Two consequences worth more than the finding. First, the methodological one: a free-running LFO
+makes the chorus wet's *level* a function of the phase offset between the engines — up to ±1.5 dB
+of the wet in windowed measurements — so **every whole-file comparison of chorus-heavy material
+carries a phase-dependent bias** that no amount of averaging removes, because the offset is
+constant per file. Tier-2 digests over chorus material are impossible until the harness pins the
+phase. Second, the open engineering item: the optimum shift was 40,000 samples where warm-up plus
+queue latency predicts 3,225 — so the DLL's LFO does **not** start at phase zero at activate, and
+the ~36,800-sample discrepancy is unaccounted init state. Pinning it (a phase dump at song start)
+is what would let the harness phase-match deterministically instead of by sweep.
 
 Incidentally measured: the DLL's dry onset lands 153 samples after the reimplementation's for the
 same nominal event time — its input queue costs ~5 ms of fixed latency. Irrelevant once measured
