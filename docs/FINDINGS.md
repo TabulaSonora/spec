@@ -285,6 +285,39 @@ differ completely.
 than on a measurement, which is a weaker footing than most findings here. One render of a file that
 sets `40 02` and no part EQ would settle it.
 
+### The control matrix's destination scaling `[confirmed — partial]`
+
+`part_mod_depth_recalc` @ `0x180081410` is where the six sources' outputs become one modulation per
+destination. For each destination it sums the **five** channel-level source blocks — mod wheel
+(`part+0x2a8`), bend (`0x2c0`), channel aftertouch (`0x2d8`), CC1 (`0x370`) and CC2 (`0x388`), each
+an 11-short block — stores the raw sum, then clamps and scales it:
+
+| Destination | Clamp | Scale | Result at |
+| --- | --- | --- | --- |
+| pitch | `0xbe8` (3048) | `(x << 3) * 0xfbf8 >> 16` | `part+0x3ba` |
+| TVF cutoff | 4000 | `(x << 3) * 0xc49c >> 16` | `part+0x3bc` |
+| amplitude | 4000 | `(x << 4) * 0x820d >> 16` | `part+0x3be` |
+| LFO1 rate | 4000 | `(x * 2) * 0xd1b8 >> 16` | `part+0x3c0` |
+| LFO2 rate | 4000 | `(x * 2) * 0xd1b8 >> 16` | `part+0x3c8` |
+| LFO2 TVA depth | `0xfc0` (4032) | `(x << 4) * 0x8105 >> 16` | `part+0x3cc` |
+
+The two LFO rates share a clamp and a scale, which is what you would expect of the same parameter
+on two LFOs, and is a small check that the block offsets were read correctly.
+
+**Polyphonic aftertouch is not in the sum.** Only five blocks are added, and PAf's is not one of
+them — it has a separate per-note path, which stands to reason since a channel-level accumulator
+cannot hold a per-note value.
+
+Two clamps are worth noting for what they say about units. Pitch's `0xbe8` is 3048, which is exactly
+`127 * 24` — the largest `amount * (depth - 0x40)` can reach, so the clamp is the parameter's own
+full-scale rather than an arbitrary rail. And the scale then puts full scale at ~24000, fixing the
+unit as **milli-semitones**. LFO2 TVA's `0xfc0` is 4032, the same rail `mod_wheel_depth` uses.
+
+`[unverified]` for the four not listed — LFO1 pitch, LFO1 TVF, LFO2 pitch, LFO2 TVF. Their branches
+were not read, and guessing them from the pattern is exactly the inference this document keeps
+warning about. Anyone wiring them should extract them the same way rather than assuming they follow
+the rates.
+
 ### Where EQ'd parts go `[confirmed]`
 
 The voice bus-assign sends a part's **dry** signal to bus `0x33` (51) when `part+0x450` is set and
