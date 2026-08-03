@@ -261,16 +261,33 @@ function of the phase difference, not of the base delay. The measured 424 sample
 estimate of anything. What survives of that measurement: the wet is **1.17 dB low**, identically at
 every pan and in both channels, and that is still unexplained.
 
-**The surviving structural lead is the R-companion stage.** The live dump shows it present and
-armed for the GM default — `R taps t0=AA80 t1=81C5 t2=81C5, c0=0.9921875, fbCoef=0.2421875,
-writeIn=1, tapOut=1` — while both the spec transcription and its ports model the L stage alone, on
-the recorded claim that the companion is "gated off" (`toR=0, revSend=0`). If `toR` gates only the
-L→R cross-feed and the R stage takes its own input from the send bus, the model is missing a wet
-contributor, which would show as a level deficit and a shifted correlation peak at once. **Against**
-this: the spec's own calibration RMS-matched the L-only model to the isolated live wet within
-±2.5% on the low-feedback types, which a contributing R stage should have broken. Those two
-observations cannot both be right, and resolving them is a measurement (`chodump` plus an isolated
-wet with the R taps' delays inspected), not an inference.
+**The R-companion stage measured: it contributes nothing.** `[confirmed]` The two stages have
+disjoint signatures — the L tap's delay is 480–580 samples, the R stage's dump taps decode to
+~8–11 — so the wet's onset betrays which taps exist. Isolating the wet by subtraction around a
+note's attack transient (the one non-periodic feature; a sustained tone's pitch period defeats any
+lag scan):
+
+| Window after dry onset | DLL wet RMS | reimpl. wet RMS |
+| --- | --- | --- |
+| 0–440 samples | **0.0–0.1** (noise) | 0.0 |
+| 440–600 | 237.2 | 179.5 |
+| 600–900 | 348.6 | 251.4 |
+
+The DLL's wet is silent until the L tap's arrival window, in both engines alike. A live R stage
+would have placed energy within 60 samples of onset; there is none. The "gated off" claim and the
+spec's ±2.5% L-only calibration both survive; the dump showing the stage armed (`writeIn=1,
+tapOut=1`) must mean `toR=0` gates its input, and an armed-but-starved stage dumps plausible
+coefficients while producing nothing.
+
+What remains open is only the level: the wet arrives in the right place at the wrong size, and the
+window ratios (1.19×–1.39×, not constant) say it is not a single misread gain. With base, depths,
+feedback and gains all matching the live dump, the remaining suspects are the send-bus feed itself
+and the input conditioner — or the ratio variation is only the two LFOs' phase difference sampling
+the sweep differently, which one render with a phase-matched start would settle.
+
+Incidentally measured: the DLL's dry onset lands 153 samples after the reimplementation's for the
+same nominal event time — its input queue costs ~5 ms of fixed latency. Irrelevant once measured
+onset-relative, but worth knowing before reading any absolute-time comparison.
 
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
