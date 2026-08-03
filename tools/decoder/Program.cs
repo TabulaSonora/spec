@@ -123,8 +123,19 @@ unsafe
             Console.Write($"{posP*1000.0/SRp,6:0}ms:");
             for(int v=0;v<64;v++){ if((*(byte*)(fbp+v*0x50)&1)==0) continue;
                 long st=ssp+(long)v*0x50;
-                Console.Write($"  v{v} pos={*(int*)(st+0x28)}/{*(int*)(st+0x2c)}"); }
+                // +0x46 is the sampler's 16-bit phase fraction (the interpolator row is its top
+                // seven bits), so pos + phase/65536 is the full fixed-point read position.
+                Console.Write($"  v{v} pos={*(int*)(st+0x28)}/{*(int*)(st+0x2c)}"
+                             +$" ph={*(ushort*)(st+0x46)}"
+                             +$" exact={*(int*)(st+0x28) + *(ushort*)(st+0x46)/65536.0:0.000000}"); }
             Console.WriteLine();
+            if(posP==320){   // first tick: dump the whole 0x50-byte sampler state per active voice
+                for(int v=0;v<64;v++){ if((*(byte*)(fbp+v*0x50)&1)==0) continue;
+                    long st2=ssp+(long)v*0x50;
+                    Console.Write($"    v{v} sampler_state:");
+                    for(int i=0;i<0x50;i++) Console.Write($" {*(byte*)(st2+i):x2}");
+                    Console.WriteLine(); }
+            }
         }
         return;
     }
@@ -203,14 +214,19 @@ unsafe
                 shortIn((uint)((0x80|9)|(nti<<8)),0);
                 shortIn((uint)((0x90|9)|(nti<<8)|(vli<<16)),0); flush();
             }
-            fixed(float* pl=li,pr=ri) process(pl,pr,320);
-            bool any=false;
-            for(int v=0;v<64;v++) if((*(byte*)(fbi+v*0x50)&1)!=0){ any=true; break; }
-            if(!any) continue;
-            for(int n=0;n<32;n++){
-                float fin =*(float*)(inBuf + n*0x10);          // group 0, lane 0
-                float fout=*(float*)(outBuf+ n*4);             // voice 0, contiguous
-                sb.Append($"{t},{n},{t*320+288+n},{fin:0.00000000},{fout:0.00000000}\n");
+            int blk=args.Length>8?int.Parse(args[8]):320;   // 32 = the core's own chunk: full coverage
+            for(int sub=0; sub<320; sub+=blk){
+                fixed(float* pl=li,pr=ri) process(pl,pr,(uint)blk);
+                bool any=false;
+                for(int v=0;v<64;v++) if((*(byte*)(fbi+v*0x50)&1)!=0){ any=true; break; }
+                if(!any) continue;
+                int shown=Math.Min(32,blk);
+                for(int n=0;n<shown;n++){
+                    float fin =*(float*)(inBuf + n*0x10);      // group 0, lane 0
+                    float fout=*(float*)(outBuf+ n*4);         // voice 0, contiguous
+                    int abs = blk>=320 ? t*320+288+n : t*320+sub+n;
+                    sb.Append($"{t},{n},{abs},{fin:0.00000000},{fout:0.00000000}\n");
+                }
             }
         }
         shortIn((uint)((0x80|9)|(nti<<8)),0); flush();

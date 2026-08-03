@@ -3706,3 +3706,43 @@ one of 128 while ours is a double, neither difference is anywhere near a quarter
 fitted fractional delay is therefore more likely *modelling* something else than describing a real
 delay, and the next step is to compare the two read positions directly rather than to keep fitting
 shifts to the output.
+
+## The read positions, compared directly: it is a constant fractional phase `[confirmed]`
+
+`postrace` now prints the sampler's fractional phase beside its integer position, so the two engines'
+read positions can be set side by side instead of inferred from the audio. Kit 11, velocity 100,
+per 10 ms control tick:
+
+| note | tone | `+0x28` position | `+0x46` phase | full position | advance per tick |
+|---|---|---|---|---|---|
+| 42 | 1944 CHH | 227, 547, 867, … | **0** | 227.000000 | exactly 320 |
+| 46 | 1946 OHH | 228, 548, 868, … | **45448** | 228.693481 | exactly 320 |
+| 49 | 1947 Crash | 227, 547, 867, … | **0** | 227.000000 | exactly 320 |
+
+**Every voice advances exactly 320 samples per 320-sample tick — the playback ratio is 1.0 for all
+three, tone 1946 included.** That retracts last entry's reading of `voice+0xb8`/`+0xbc` as a ratio:
+they are 3.638977 and 3.500000 in 16.16, a pitch-domain pair, and the sampler increment is not
+derived from their quotient. Tone 1946 is *not* pitched.
+
+**The entire difference is a constant phase of `45448 / 65536 = 0.693481` samples.** It is set at
+note-on, never changes — the increment's fractional part is zero — and its two neighbours sit at
+exactly 0. Tone 1946's integer position is also one ahead, so its full read position runs
+**1.693481 samples** ahead of its neighbours' at every tick.
+
+**That is the defect, exactly.** We start every voice at phase 0 and therefore always take
+interpolator row 0; the engine takes row `45448 >> 9 = 88` for this wave, on every sample, forever.
+Rows 0 and 88 are different four-tap filters, so the two renders differ by a fixed linear filter —
+which is precisely what the earlier work kept measuring without being able to name: the 129-tap FIR
+that reconciled them at r = 0.9998, the correction flat to 10 kHz and 5 dB down at Nyquist, the flat
+0.86 correlation from the first window, and its indifference to the cutoff sweep. The fitted
+"+0.28-sample delay" was that row difference, not a delay.
+
+Every earlier explanation is now retired: not the filter, not the overdamped regime, not the
+resonance byte, not the ROM region, not the loop alignment, not the playback ratio.
+
+**What is left is where 0.693481 comes from.** It is deterministic — the same key re-struck
+reproduces it exactly — and it is not a value held anywhere in the voice struct. Note that it is
+*not* simply a per-wave constant either: it is a *sub-sample start offset*, and the neighbouring
+tones get zero. Next step is to trace the sampler state through the first control tick at 32-sample
+resolution and find where the phase is first written, since `dpcm_voice_init_fwd` demonstrably
+clears it.
