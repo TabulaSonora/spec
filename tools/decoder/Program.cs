@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "sysexstress" || args[1] == "sysexreplay");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -286,6 +286,45 @@ unsafe
     //   Segments 0 and the release store a per-tick *step*, 0xa0000/duration, rather than the
     //   duration -- segments 1 to 3 store the duration and their loaders divide it later. Both are
     //   printed so the two are never confused.
+    // onsetprobe mode: how long after a note-on the module's first sample departs from idle.
+    //   Every case in the note fixture answers 128 samples exactly, and that number needs pinning
+    //   before it can be modelled: 128 samples is both "4 ms at 32 kHz" and "four of the core's
+    //   32-sample render blocks", and those two predict different things anywhere else. So the
+    //   probe sweeps the sample rate and the size of the chunk the note is rendered in.
+    //   args: dll onsetprobe <prog> <note> <rate> <chunk> [prerender]
+    if (args.Length > 1 && args[1] == "onsetprobe")
+    {
+        int pgo = int.Parse(args[2]), nto = int.Parse(args[3]);
+        int rateo = args.Length > 4 ? int.Parse(args[4]) : 32000;
+        int chunko = args.Length > 5 ? int.Parse(args[5]) : 320;
+        // Frames rendered between the *program change* and the note-on. The first run of this probe
+        // rendered 32 here without meaning anything by it and got an onset 32 samples earlier than
+        // the note fixture's, which is the whole question: whether the delay belongs to the note-on
+        // or to the program change in front of it.
+        int preo = args.Length > 6 ? int.Parse(args[6]) : 0;
+        setSR((float)rateo); setBS(512); activate((float)rateo, 512); setThr();
+        var lo2 = new float[4096]; var ro2 = new float[4096];
+        void CCo(int c, int v) => shortIn((uint)(0xB0 | (c << 8) | (v << 16)), 0);
+        GsReset(); flush();
+        fixed (float* pl = lo2, pr = ro2) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        // The idle level the core sits at with nothing sounding; the onset is the first departure
+        // from it, which is independent of how fast the note's attack happens to be.
+        float idle = lo2[511];
+        CCo(0, 0); CCo(32, 0); CCo(7, 127); CCo(10, 64); CCo(91, 0); CCo(93, 0);
+        shortIn((uint)(0xC0 | (pgo << 8)), 0); flush();
+        if (preo > 0) { fixed (float* pl = lo2, pr = ro2) process(pl, pr, (uint)preo); }
+        shortIn((uint)(0x90 | (nto << 8) | (100 << 16)), 0); flush();
+        int seen = -1, at = 0;
+        while (seen < 0 && at < rateo)
+        {
+            fixed (float* pl = lo2, pr = ro2) process(pl, pr, (uint)chunko);
+            for (int i = 0; i < chunko; i++)
+                if (Math.Abs(lo2[i] - idle) > 1e-7f) { seen = at + i; break; }
+            at += chunko;
+        }
+        Console.WriteLine($"rate={rateo} chunk={chunko} pre={preo} idle={idle:G6} onset={seen}");
+        return;
+    }
     //   args: dll tvatrace <prog> <note> <vel> <map> [channel]
     if (args.Length > 1 && args[1] == "tvatrace")
     {
