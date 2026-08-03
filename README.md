@@ -39,6 +39,7 @@ This is a preservation / interoperability effort on a discontinued product.
    terminology.
 5. **[docs/COMPARING_RENDERS.md](docs/COMPARING_RENDERS.md)** — how to judge a reimplementation's
    audio against the DLL's, and why comparing samples answers the wrong question.
+   `tools/compare_envelope.py` implements it.
 
 ## Getting it running
 
