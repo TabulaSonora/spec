@@ -141,7 +141,20 @@ first plausible cause found.
 The lesson is the useful part. A flat curve does say the disagreement is at the scale of notes
 rather than of cycles, and that is worth acting on — but it does not say *which* thing, and a
 missing feature that the file genuinely uses is not thereby the cause. Measure the fix; a hypothesis
-that survives only because it sounded right is not evidence. This file's 2.3 dB remains unexplained.
+that survives only because it sounded right is not evidence. A second hypothesis — that the file's heavy NRPN use was uncovered — also failed, and failed
+usefully. Of its 289 NRPN edits, 285 are parameters the engine does implement (`01 20` TVF cutoff
+×268, `01 21` resonance, `01 63`/`64`/`66` envelope) and the remaining handful are drum overrides it
+also implements. Coverage was not the gap.
+
+What the count exposed instead is *when* they are read. The engine latches those parameters at
+**note-on**, while the module applies them continuously: a filter swept 268 times across five
+minutes moves the sound of notes that are already sounding, and an engine that samples the value
+once per note simply does not follow. That is a difference at the scale of notes, sustained for the
+whole file — the shape the flat curve was pointing at all along, arrived at by counting rather than
+by guessing which feature was missing.
+
+This file's 2.3 dB is not yet confirmed to be that, but it is now a testable claim rather than a
+third plausible story.
 
 So read the curve before reading any single number. A rising curve with a right level is a lead
 about detail; a flat curve with a wrong level is something at the scale of notes. Then go and find
