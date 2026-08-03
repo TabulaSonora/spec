@@ -842,8 +842,23 @@ unsafe
         // same thing on both sides.
         const int BlockFrames = 320;
 
-        byte[] smf = File.ReadAllBytes(midiPath);
-        var events = Smf.Parse(smf, SR, out double songSeconds);
+        byte[] smf;
+        System.Collections.Generic.List<SmfEvent> events;
+        double songSeconds;
+        try
+        {
+            smf = File.ReadAllBytes(midiPath);
+            events = Smf.Parse(smf, SR, out songSeconds);
+        }
+        catch (Exception ex)
+        {
+            // Report and exit rather than throwing. An unhandled exception here pops a crash
+            // dialog under wine, which is a poor way to learn that a generated probe is malformed
+            // -- and generated probes are how this harness is mostly driven.
+            Console.Error.WriteLine($"cannot read {midiPath}: {ex.Message}");
+            Environment.Exit(2);
+            return;
+        }
         Console.WriteLine($"{Path.GetFileName(midiPath)}: {events.Count} events, {songSeconds:F2} s");
 
         setSR((float)SR); setBS(512); activate((float)SR, 512); setThr();
@@ -1549,6 +1564,10 @@ static class Smf
                 if (p >= end) break;
 
                 if (d[p] >= 0x80) status = d[p++];
+                if (status == 0 || p > end)
+                    throw new InvalidDataException(
+                        $"track {t} is malformed at byte {p}: running status with none set, or a "
+                        + "length running past the track end");
                 if (status == 0xFF)
                 {
                     int type = d[p++];
@@ -1605,12 +1624,14 @@ static class Smf
 
     static int ReadVar(byte[] d, ref int p)
     {
-        int v = 0;
+        int v = 0, guard = 0;
         while (p < d.Length)
         {
             int b = d[p++];
             v = (v << 7) | (b & 0x7F);
             if ((b & 0x80) == 0) break;
+            if (++guard > 4)
+                throw new InvalidDataException($"variable-length quantity at byte {p} never ends");
         }
         return v;
     }
