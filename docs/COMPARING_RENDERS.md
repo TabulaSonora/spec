@@ -171,6 +171,23 @@ timing and the envelope shapes are right; only the absolute level is wrong. A wr
 would have hurt correlation as well, so this is not patch resolution picking the wrong sound. It is
 the right sound at the wrong gain.
 
+Narrowing further put it on one part and one number. Channel 7's deficit is **constant at −4.4 dB
+from the moment it enters** — independent of what it plays, so a static gain rather than anything
+musical — while every one of its 1357 notes sounds and none is stolen. A *single* note of the same
+program at the same volume matches the DLL to +0.33 dB, so it is not the patch's level either.
+
+What differs is the stereo placement, and with it the total energy:
+
+| | L | R | balance | total |
+| --- | --- | --- | --- | --- |
+| DLL | 752.8 | 941.3 | −1.94 dB | 1205 |
+| this engine | 341.4 | 591.8 | −4.78 dB | 683 |
+
+The part is panned right in both, further right here, and **4.9 dB quieter in total power** — not
+merely quieter in the mono sum, so it is not an artefact of mixing down. A pan that loses energy as
+it moves off centre is a pan *law* symptom, and this engine's law was verified against a controller
+sweep to 3e-05 — which means the law is likely right and the value reaching it is not.
+
 Two lessons. **Localise before theorising**: one splitting script answered in one pass what four
 feature hypotheses could not, because it asked where the difference is rather than what it might be.
 And **read correlation and level together** — high correlation with a large level error is a
