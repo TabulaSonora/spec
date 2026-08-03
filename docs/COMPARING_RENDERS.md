@@ -100,13 +100,19 @@ whole octave and the candidate does not:
 | r | 0.575 | 0.921 | 0.990 | **0.998** |
 
 A twelve-semitone error, and the one-second envelope calls it a 0.998 match. Only the 4 ms window
-and the level notice anything, and they notice it faintly. **A file whose point is pitch has to be
-judged some other way** — by the pitch track, or by spectrum, or by ear.
+and the level notice anything, and they notice it faintly. **The octave-band spectrum is what
+catches it**: the same pair measures −16.9 dB at 500 Hz and −10.4 dB at 2 kHz, because a note bent
+to the wrong octave puts its energy in the wrong bands. This is why the tool gates on both.
 
 Level and envelope agreement say nothing about spectrum either. Two renders can track each other's
 loudness perfectly with one of them dull — the filter-envelope velocity response was found exactly
 that way, sitting a third of an octave too open for a whole note while measuring +3.5 dB at 4–8 kHz.
-A per-band comparison is the companion measurement and is not described here.
+`tools/compare_envelope.py` therefore also gates on a Welch-averaged **octave-band spectrum**
+(±2 dB per band above a −45 dB floor, shift-invariant so phase and delay cannot bias it) and a
+**delay-corrected envelope PSNR** at 250 ms (≥ 20 dB, after a bounded ±32 ms alignment search that
+absorbs fixed offsets like the DLL's ~5 ms event-queue latency). Thresholds are calibrated on the
+corpus — one known-good pair and two known-bad — and recorded in the tool beside their provenance;
+they are expected to move as the corpus grows.
 
 Nor does any of this establish bit-exactness. Where two implementations are *supposed* to be
 identical — the static tables, the sample codec, the pitch and LFO tick streams — compare them
