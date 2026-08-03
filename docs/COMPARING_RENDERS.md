@@ -210,8 +210,31 @@ or nearly so on their own, and together they are three times worse than the sum.
 since this engine feeds its sends from a pre-pan mono signal and a difference there would be
 invisible until both are used at once.
 
+A pan × send grid on the same probe separated them completely:
+
+| Pan | send 0 | send 127 | difference the send makes |
+| --- | --- | --- | --- |
+| 0 (hard left) | −0.16 dB | +1.35 dB | **+1.51** |
+| 32 | −0.16 dB | +0.42 dB | +0.58 |
+| 64 (centre) | −0.16 dB | −1.20 dB | −1.03 |
+| 94 | −0.16 dB | −2.29 dB | −2.12 |
+| 127 (hard right) | −0.16 dB | −2.64 dB | −2.48 |
+
+**The dry path is exactly right.** −0.16 dB at every pan, to two decimal places, five positions
+across the range. Pan is not the problem and neither is the patch.
+
+**The send path's error is a monotonic function of pan** — from +1.51 dB at hard left to −2.48 dB at
+hard right, passing through zero somewhere left of centre. A send fed from a pre-pan mono signal
+cannot do that: its wet output should be identical at every pan, leaving only the dry to move. So
+either the send feed is not pan-independent, or the wet return is panned when it should not be.
+
+The asymmetry is the sharpest clue. A correct implementation is symmetric about centre; being 4 dB
+apart at the two extremes says something in the wet path treats left and right differently. Nothing
+in a mono send should.
+
 The general point: a defect that only appears when two features combine will survive any amount of
-testing each feature alone, which is what the first several rounds of this investigation did.
+testing each feature alone, which is what the first several rounds of this investigation did. A grid
+over both costs ten renders and answers immediately.
 
 Two lessons. **Localise before theorising**: one splitting script answered in one pass what four
 feature hypotheses could not, because it asked where the difference is rather than what it might be.
