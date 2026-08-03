@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -169,6 +169,53 @@ unsafe
             if(t>6) break;
         }
         shortIn((uint)((0x80|9)|(nts<<8)),0); flush();
+        return;
+    }
+    // svfin mode: dump the buffer the SVF reads its input from, so a reimplementation can compare
+    //   its *pre-filter* signal against the engine's instead of inferring the filter from the mix.
+    //   svf_render_* takes input from DAT_181a1c970 as SoA [sample][lane] -- sample stride 0x10
+    //   bytes, lane at +lane*4 -- and writes 32 samples per call to DAT_181a1d230 + voice*0x80,
+    //   contiguous. The engine's internal audio chunk is therefore 32 samples, ten to a 320-sample
+    //   control tick, so reading the buffers after a 320-frame Process yields the LAST chunk of that
+    //   tick: absolute samples [tick*320 + 288, tick*320 + 320).
+    //   Writes a CSV of tick,index,abs_sample,in,out. args: dll svfin <prog> <note> <vel> <sec> <out.csv>
+    if (args.Length > 1 && args[1] == "svfin")
+    {
+        int SRi=32000; int pgi=int.Parse(args[2]); int nti=int.Parse(args[3]);
+        int vli=int.Parse(args[4]);
+        double seci=double.Parse(args[5], System.Globalization.CultureInfo.InvariantCulture);
+        string outi=args.Length>6?args[6]:"svfin.csv";
+        setSR((float)SRi); setBS(512); activate((float)SRi,512); setThr();
+        long fbi=b+0x1a1b5b8;
+        byte* inBuf =(byte*)(b+(0x181a1c970L-0x180000000L));
+        byte* outBuf=(byte*)(b+(0x181a1d230L-0x180000000L));
+        var li=new float[512]; var ri=new float[512];
+        GsReset(); flush(); fixed(float* pl=li,pr=ri) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCi(int c,int v)=>shortIn((uint)((0xB0|9)|(c<<8)|(v<<16)),0);
+        CCi(7,127); CCi(10,64); CCi(91,0); CCi(93,0);
+        shortIn((uint)(0xC9|(pgi<<8)),0); flush();
+        var sb=new System.Text.StringBuilder("tick,index,abs_sample,in,out\n");
+        shortIn((uint)((0x90|9)|(nti<<8)|(vli<<16)),0); flush();
+        int tk=(int)(seci*100);
+        int restrike=args.Length>7?int.Parse(args[7]):0;   // re-strike every N ticks, 0 = once
+        for(int t=0;t<tk;t++){
+            if(restrike>0 && t>0 && t%restrike==0){
+                shortIn((uint)((0x80|9)|(nti<<8)),0);
+                shortIn((uint)((0x90|9)|(nti<<8)|(vli<<16)),0); flush();
+            }
+            fixed(float* pl=li,pr=ri) process(pl,pr,320);
+            bool any=false;
+            for(int v=0;v<64;v++) if((*(byte*)(fbi+v*0x50)&1)!=0){ any=true; break; }
+            if(!any) continue;
+            for(int n=0;n<32;n++){
+                float fin =*(float*)(inBuf + n*0x10);          // group 0, lane 0
+                float fout=*(float*)(outBuf+ n*4);             // voice 0, contiguous
+                sb.Append($"{t},{n},{t*320+288+n},{fin:0.00000000},{fout:0.00000000}\n");
+            }
+        }
+        shortIn((uint)((0x80|9)|(nti<<8)),0); flush();
+        File.WriteAllText(outi, sb.ToString());
+        Console.WriteLine($"svfin done: {outi}");
         return;
     }
     // drumprobe mode: read a drum part's live per-note parameter planes before and after an NRPN, to

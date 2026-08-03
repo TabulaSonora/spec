@@ -3551,3 +3551,64 @@ decisive measurement is now available cheaply: `svf_render_*` takes its input fr
 so extending `svfcoef` to dump that buffer gives the DLL's **pre-filter** signal directly, to be
 compared against ours with the TVF bypassed. That settles upstream-vs-filter in one run, and it is
 the next thing to do rather than any further modelling of the filter.
+
+## The tone 1946 defect is in the WAVE DECODE, not the filter — and it splits on the ROM region `[confirmed]`
+
+Dumping the buffer the SVF reads from settles this completely and retires two of my own hypotheses.
+
+**New harness mode `svfin`** dumps `DAT_181a1c970`, the filter's *input* scratch, alongside its
+output at `DAT_181a1d230`. Both are SoA — input `[sample][lane]`, sample stride 0x10 bytes, lane at
+`+lane*4`; output contiguous 32 floats per voice at `+voice*0x80`. The runner does 32 samples per
+call, so **the engine's internal audio chunk is 32 samples**, ten to a 320-sample control tick, and
+reading after a 320-frame `Process` yields the last chunk: absolute samples `[t*320+288, t*320+320)`.
+
+**The filter is exonerated outright.** Driving our `StateVariableFilter` recurrence with the DLL's
+*own* input buffer and its own `f`/`q` reproduces the DLL's output buffer to a mean relative error of
+**1.1e-5 … 1.3e-4** — float32 round-off. Whatever is wrong, it is not the filter.
+
+**The pre-filter signals disagree, and only for some waves.** Rendering with our TVF bypassed and
+comparing our sampler output against the DLL's filter input, per 32-sample window:
+
+| tone | wave | bank | region | `loop` mod 32 | pre-filter match |
+|---|---|---|---|---|---|
+| 1947 808 Crash | 2818 | 0 | 5 | 0 | **r = 1.00000** |
+| 1944 TR-808 CHH | 4008 | 1 | 3 | 0 | **r = 1.00000** |
+| 1946 TR-808 OHH | 4010 | 0 | **12** | 0 | r = 0.88 |
+| 521 Bim Hit | 2092 | 0 | **14** | **2** | r = 0.81, falling |
+
+The two that disagree are exactly the two whose wave sits in a **bank-0 region at or past 12** —
+beyond `WaveRom::bank_a_region_count`, which declares bank A to hold twelve regions, 0..11.
+`region_base` computes `bank_a_base + region*1MB` with no bound, so those reads run past the end of
+the declared bank. All three unaffected waves are in range.
+
+**Tone 1946: a constant fractional offset.** Its deficit is a **fixed +0.28-sample** shift of our
+signal against the engine's, flat over the whole note — fitting it per tick gives +0.26 … +0.29 from
+sample 288 to sample 19488, a drift of 6e-7, i.e. none. Applying that shift takes the per-window
+correlation from **0.879 to 0.99+**. It is deterministic, not per-note jitter: re-striking the same
+key, strike 3 reproduces strike 1 at r = 1.0000 with zero shift.
+
+That single fact explains every earlier observation at once. A constant fractional offset *is* a
+linear filter, which is why a fitted FIR reconciled the two renders at r = 0.9998; a linear
+interpolation at a fractional phase is lowpass, which is why the correction was flat to 10 kHz and
+5 dB down at Nyquist and why we render **hot** up there; and it is present from the first sample and
+independent of the filter, which is why the deficit was flat at 0.86 across the note and survived
+the cutoff sweep.
+
+**Tone 521: a progressive divergence instead.** Bim Hit does *not* show a constant offset — its
+windows run 0.81, 0.80, 0.57, −0.13, −0.43, degrading to noise, and no sub-sample shift rescues it.
+It is also the only one of the five whose `loop` is **not 32-aligned** (896066, mod 32 = 2), and
+`WaveRom::read_streams` truncates with `aligned_loop = loop & ~0x1F`.
+
+**Hypothesis for that one, not yet confirmed:** the shift-exponent stream is one byte per 32 samples,
+so truncating the start by 2 samples misaligns every exponent block against the deltas it scales.
+Because the decoder is a *pure delta accumulator* — `predictor_ = wadd(predictor_, step)`, with no DC
+blocker anywhere in the engine — a single wrongly-scaled block does not merely colour 32 samples, it
+displaces the running predictor permanently, which is exactly the progressive signature seen. This
+also predicts the codec's known gradual DC drift is load-bearing: there is nothing downstream to
+remove an accumulated offset, so decode errors are cumulative rather than local.
+
+**Two retractions.** The "overdamped regime" attribution is dead, and so is the enumeration built on
+it: resonance byte 121 was a coincidence of which tone happened to sit in region 12, and the 19
+partials listed earlier have no bearing on this. The discriminator is the wave's **ROM region**, and
+the affected set should be re-derived as "every wave whose descriptor puts it in a bank-0 region ≥ 12
+(and separately, every wave whose `loop` is not 32-aligned)".
