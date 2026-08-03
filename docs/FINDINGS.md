@@ -4040,3 +4040,42 @@ counted. Both are Roland-derived and gitignored, like the tables.
 
 A new harness mode `notebatch` renders a whole sweep of single notes in one process — wine start-up
 otherwise dominates — writing raw interleaved float32 so nothing is rounded on the way out.
+
+## The XG fault, bisected: an unchecked part index, and the file is the one at fault `[confirmed]`
+
+The earlier entry blamed Yamaha SysEx as a class, on the strength of SCWrap having filtered it and
+of `th07_19_user_gm.mid` carrying 582 such messages. That was the right suspect and the wrong
+diagnosis. Bisecting it gives a **two-message reproducer**:
+
+```
+F0 43 10 4C 00 00 7E 00 F7      XG System On
+F0 43 10 4C 08 20 03 50 F7      XG Multi Part, part 0x20, parameter 3
+```
+
+Either one alone is harmless. Together they kill the process with `0xC0000005`. **So SCCore.dll
+does implement XG**: the System On arms the path, and a Multi Part write is then honoured.
+
+Neither a message count nor a message length reproduces it — 1024 undrained messages and a single
+4096-byte one both survive, for Roland and Yamaha alike — so it is not a FIFO or buffer overflow.
+Sweeping the part index with the path armed puts the boundary exactly:
+
+| part index | 0x00–0x1f | 0x20 and above |
+|---|---|---|
+| result | accepted | **`0xC0000005`** |
+
+**`0x00..0x1f` is thirty-two parts, which is exactly what this synth has.** So the accepted range is
+right and the message is not: part `0x20` is a thirty-third part that does not exist, and
+`th07_19_user_gm.mid` genuinely asks for one. The core's own defect is narrower than it first looked
+— it indexes its part table without bounds-checking, so a malformed file walks off the end instead
+of being ignored.
+
+The harness now drops exactly that class rather than all Yamaha SysEx, which is narrower than
+SCWrap's hook and keeps whatever XG behaviour the core really has. `th07_19_user_gm.mid` then
+renders, and both engines agree on it: 1992.7 s, 173,183 notes, frame counts within 23.
+
+**If this port ever implements XG, two things follow.** Support the full **32 parts** — the synth
+has them, `ToneGenerator::part_count` already reflects that, and an XG implementation that stopped
+at 16 would be the one thing here that is actually wrong. And **bounds-check the part index**,
+ignoring `0x20` and above rather than reproducing the fault. There is nothing to be gained by
+copying a missing bounds check, and a note left dangling about it would only invite someone to
+reproduce it faithfully later.

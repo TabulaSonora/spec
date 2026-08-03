@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "sysexstress" || args[1] == "sysexreplay");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -322,6 +322,73 @@ unsafe
             rendered++;
         }
         Console.WriteLine($"notebatch done: {rendered} cases -> {outDir}");
+        return;
+    }
+    // sysexstress mode: send N SysEx messages of S data bytes back to back WITHOUT rendering
+    //   between them, then render, and report survival. Separates the three candidate causes of the
+    //   fault th07_19_user_gm.mid triggers: too many messages queued before the core drains them
+    //   (a FIFO entry overflow), one message too long (a byte-buffer overflow), or something
+    //   specific to the manufacturer. `vendor` picks 0x41 Roland or 0x43 Yamaha so the last can be
+    //   ruled in or out against the other two.
+    //   args: dll sysexstress <count> <dataBytes> <vendorHex> [flushEvery]
+    if (args.Length > 1 && args[1] == "sysexstress")
+    {
+        int count = int.Parse(args[2]);
+        int size = int.Parse(args[3]);
+        byte vendor = Convert.ToByte(args[4], 16);
+        int flushEvery = args.Length > 5 ? int.Parse(args[5]) : 0;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        var ls = new float[512]; var rs = new float[512];
+        GsReset(); flush();
+        fixed (float* pl = ls, pr = rs) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+
+        var msg = new byte[size + 3];
+        msg[0] = 0xF0; msg[1] = vendor; msg[2] = 0x10;
+        for (int i = 3; i < size + 2; i++) msg[i] = 0x00;
+        msg[size + 2] = 0xF7;
+
+        for (int n = 0; n < count; n++)
+        {
+            fixed (byte* mp = msg) longIn(mp, 0);
+            if (flushEvery > 0 && (n + 1) % flushEvery == 0)
+            {
+                flush();
+                fixed (float* pl = ls, pr = rs) process(pl, pr, 320);
+            }
+        }
+        flush();
+        fixed (float* pl = ls, pr = rs) for (int i = 0; i < 4; i++) process(pl, pr, 320);
+        Console.WriteLine($"survived: {count} x {size}B vendor 0x{vendor:x2} flushEvery={flushEvery}");
+        return;
+    }
+    // sysexreplay mode: send real SysEx messages, one per line of hex, flushing and rendering after
+    //   each, printing the index first. Whatever index is last on stdout when the process dies is
+    //   the message that killed it. Synthetic payloads do not reproduce the th07_19_user_gm.mid
+    //   fault at any count or length, so the trigger is content, and this is what finds it.
+    //   args: dll sysexreplay <hexfile>
+    if (args.Length > 1 && args[1] == "sysexreplay")
+    {
+        var lines = File.ReadAllLines(args[2]);
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        var lr = new float[512]; var rr = new float[512];
+        GsReset(); flush();
+        fixed (float* pl = lr, pr = rr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        int index = 0;
+        foreach (var line in lines)
+        {
+            var text = line.Trim();
+            if (text.Length == 0) continue;
+            var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var msg = new byte[parts.Length];
+            for (int i = 0; i < parts.Length; i++) msg[i] = Convert.ToByte(parts[i], 16);
+            Console.WriteLine($"{index}: {msg.Length}B {text[..Math.Min(36, text.Length)]}");
+            Console.Out.Flush();
+            fixed (byte* mp = msg) longIn(mp, 0);
+            flush();
+            fixed (float* pl = lr, pr = rr) process(pl, pr, 320);
+            index++;
+        }
+        Console.WriteLine($"survived all {index} messages");
         return;
     }
     // drumprobe mode: read a drum part's live per-note parameter planes before and after an NRPN, to
@@ -1126,15 +1193,26 @@ unsafe
             while (ei < events.Count && events[ei].At < pos + blk)
             {
                 var e = events[ei++];
-                // Yamaha SysEx is dropped before it reaches the core, which is what SCWrap's
-                // wrapper hook does for the same reason: XG bulk dumps sometimes fault SCCore.dll
-                // outright. th07_19_user_gm.mid is one such file -- 582 SysEx messages, all
-                // manufacturer 0x43, including a 39-byte `43 10 4c 06 00 00` XG display-letter
-                // block -- and feeding them unfiltered takes the DLL down with an access violation
-                // at 0xC0000005. Filtering here keeps a Roland engine fed only Roland data and lets
-                // an XG-flavoured file render rather than kill the run. Not a workaround for a
-                // harness bug: the messages are well formed and the parser handles them correctly.
-                if (e.Bytes != null && !(e.Bytes.Length > 1 && e.Bytes[1] == 0x43))
+                // Drop XG Multi Part writes addressed past part 32. SCCore.dll does implement XG:
+                // `F0 43 10 4C 00 00 7E 00 F7` (XG System On) arms it, and a Multi Part write
+                // `F0 43 10 4C 08 <part> <param> <value> F7` is then honoured. Parts 0x00..0x1f are
+                // accepted and 0x20 upward kill the process with 0xC0000005.
+                //
+                // 0x00..0x1f is thirty-two parts, which is exactly what this synth has -- so the
+                // range is right and the message is not: a part index of 0x20 is the thirty-third
+                // part and does not exist. th07_19_user_gm.mid genuinely asks for one. The core's
+                // defect is only that it indexes its part table without bounds-checking first, so
+                // a malformed file walks off the end of it instead of being ignored.
+                //
+                // Narrower than SCWrap's hook, which drops Yamaha SysEx wholesale for this crash.
+                // Keeping the rest preserves whatever XG behaviour the core really has, at the cost
+                // of assuming this is its only unchecked index; widen to `e.Bytes[1] == 0x43` if
+                // another fault turns up.
+                bool xgOutOfRangePart = e.Bytes != null && e.Bytes.Length >= 6
+                                        && e.Bytes[1] == 0x43 && (e.Bytes[2] & 0xF0) == 0x10
+                                        && e.Bytes[3] == 0x4C && e.Bytes[4] == 0x08
+                                        && e.Bytes[5] >= 0x20;
+                if (e.Bytes != null && !xgOutOfRangePart)
                 {
                     fixed (byte* mp = e.Bytes) longIn(mp, 0);
                 }
