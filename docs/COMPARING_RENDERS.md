@@ -36,17 +36,35 @@ across the whole file, while its envelopes correlate at 0.775–0.938 and its le
 
 Measured figures for a comparison judged correct, and the pass this record uses:
 
-| Window | Reference passage | A good result |
-| --- | --- | --- |
-| 4 ms | 0.72 | ≥ 0.72 |
-| 20 ms | — | ≥ 0.88 |
-| 250 ms | 0.91 | ≥ 0.91 |
-| 1 s | — | ≥ 0.93 |
-| level | within 0.5 dB | within 0.5 dB |
+| Window | A good result |
+| --- | --- |
+| 4 ms | *advisory — see below* |
+| 20 ms | ≥ 0.88 |
+| 50 ms | ≥ 0.90 |
+| 250 ms | ≥ 0.91 |
+| 1 s | ≥ 0.93 |
+| level | within 0.5 dB |
 
-The reference column is the passage the verification record cites as correct despite looking poor —
-a harpsichord section riding the sustain pedal, which is about as unfavourable as this comparison
-gets.
+**The 4 ms window does not carry a threshold, and an earlier version of this document was wrong to
+give it one.** A floor of 0.72 was taken from a single passage the verification record cites as
+correct, and it does not survive five files:
+
+| File | 4 ms | 20 ms | 50 ms | 250 ms | 1 s | level |
+| --- | --- | --- | --- | --- | --- | --- |
+| canyon (sparse) | 0.775 | 0.900 | 0.914 | 0.919 | 0.938 | −0.30 dB |
+| sc50nn | 0.664 | 0.903 | 0.938 | 0.945 | 0.951 | −0.44 dB |
+| transcendental (dense) | 0.631 | 0.935 | 0.980 | 0.995 | 0.998 | +0.03 dB |
+| bad_apple (dense) | 0.573 | 0.811 | 0.880 | 0.935 | 0.964 | −0.09 dB |
+
+Only the sparsest file clears 0.72 at 4 ms, and the two densest sit near 0.6 while agreeing at
+0.98–0.998 by a quarter-second and within 0.1 dB on level. That is the beating sensitivity this
+document opens by explaining, applied to its own threshold: **4 ms correlation is a function of how
+dense the passage is, so a fixed floor measures the file rather than the engine.** Read it as a
+number that should be *higher on sparse material than dense*, and be suspicious when it is not.
+
+Note also that both dense files above exhaust a 64-voice pool. Where an engine steals voices its
+stealing *policy* shapes the fine structure directly — different notes cut at different moments —
+so on such files the 4 ms figure is partly measuring an allocator, not a synthesiser.
 
 **The rise with window size is itself the signal.** A comparison that is genuinely right climbs
 steeply from 4 ms to 250 ms and then flattens, because the disagreement is concentrated in the

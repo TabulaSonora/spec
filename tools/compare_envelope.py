@@ -17,9 +17,11 @@ Exit status is 0 when every window meets its threshold and the level agrees, 1 o
 """
 import argparse, array, math, os, struct, sys, wave
 
-# From docs/COMPARING_RENDERS.md. The reference column there is a passage judged correct despite
-# looking poor, so these are a floor rather than an aspiration.
-THRESHOLDS = [(4, 0.72), (20, 0.88), (50, 0.90), (250, 0.91), (1000, 0.93)]
+# From docs/COMPARING_RENDERS.md.
+# A threshold of None reports the window without gating on it. 4 ms is advisory: its value tracks
+# how dense the passage is rather than how right the engine is, so a fixed floor there measures the
+# file. See the corpus table in docs/COMPARING_RENDERS.md.
+THRESHOLDS = [(4, None), (20, 0.88), (50, 0.90), (250, 0.91), (1000, 0.93)]
 LEVEL_DB = 0.5
 
 # A render this quiet is not a render. Guards the failure where both sides are silent and agree
@@ -136,6 +138,9 @@ def main():
             print("%7d ms %10s   (too short)" % (ms, "-"))
             continue
         r = correlation(envelope(a, window), envelope(b, window))
+        if floor is None:
+            print("%7d ms %+10.4f   %s" % (ms, r, "(advisory)"))
+            continue
         good = r == r and r >= floor
         ok = ok and good
         print("%7d ms %+10.4f   >= %.2f  %s" % (ms, r, floor, "ok" if good else "UNDER"))
