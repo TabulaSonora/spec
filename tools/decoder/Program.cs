@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -806,6 +806,73 @@ unsafe
         Console.WriteLine($"song done: {songWav} ({total/(double)SR:0.0}s, peak={peak:0.000})");
         return;
     }
+
+    // ---------------------------------------------------------------------------------------
+    // smf: render an arbitrary Standard MIDI File through the real engine.
+    //
+    // STATUS: runs end to end and produces plausible audio, but its output does NOT yet correlate
+    // with a reimplementation's render of the same file (r ~ -0.11 on canyon.mid, with RMS within
+    // 0.7 dB and no time offset found within 20k samples). Until that is explained, nothing here
+    // should be treated as an oracle -- the discrepancy may be in this harness rather than in the
+    // engine being measured. Suspects, in order: the warm-up before the event loop, whether a GS
+    // reset belongs before or after the tone-map selection, and the event grid.
+    //
+    // This is the authoritative oracle. Everything else in this file inspects the DLL; this one
+    // simply plays it a song and records what comes out, so a reimplementation has something to be
+    // wrong against. The event feed matches `song` mode's: messages are handed over on a 64-frame
+    // grid with a flush before each process call, which is the granularity the engine's own input
+    // ring resolves anyway.
+    if (args.Length > 1 && args[1] == "smf")
+    {
+        string midiPath = args.Length > 2 ? args[2] : "song.mid";
+        string wavPath  = args.Length > 3 ? args[3] : "real_engine_song.wav";
+        int map         = args.Length > 4 ? int.Parse(args[4]) : 4;
+        double tailSec  = args.Length > 5 ? double.Parse(args[5]) : 2.2;
+        const int SR = 32000;
+
+        byte[] smf = File.ReadAllBytes(midiPath);
+        var events = Smf.Parse(smf, SR, out double songSeconds);
+        Console.WriteLine($"{Path.GetFileName(midiPath)}: {events.Count} events, {songSeconds:F2} s");
+
+        setSR((float)SR); setBS(512); activate((float)SR, 512); setThr();
+        GsReset();
+        if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
+        flush();
+        { var wl = new float[512]; var wr = new float[512];
+          fixed (float* pl = wl, pr = wr) for (int i = 0; i < 6; i++) process(pl, pr, 512); }
+
+        int total = (int)((songSeconds + tailSec) * SR);
+        var outL = new float[total]; var outR = new float[total];
+        var sL = new float[512]; var sR = new float[512];
+        int blk = 64, ei = 0, pos = 0;
+
+        while (pos < total)
+        {
+            while (ei < events.Count && events[ei].At < pos + blk)
+            {
+                var e = events[ei++];
+                if (e.Bytes != null) { fixed (byte* mp = e.Bytes) longIn(mp, 0); }
+                else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), 0);
+            }
+            flush();
+            int nf = Math.Min(blk, total - pos);
+            fixed (float* pl = sL, pr = sR) process(pl, pr, (uint)nf);
+            for (int i = 0; i < nf; i++) { outL[pos + i] = sL[i]; outR[pos + i] = sR[i]; }
+            pos += nf;
+        }
+
+        // Fixed gain rather than per-file normalisation: an oracle whose level depends on its own
+        // peak cannot be compared across files, or against anything else.
+        var pcm = new short[total * 2];
+        for (int i = 0; i < total; i++)
+        {
+            pcm[i * 2]     = (short)Math.Clamp(outL[i] * 32767f, -32768f, 32767f);
+            pcm[i * 2 + 1] = (short)Math.Clamp(outR[i] * 32767f, -32768f, 32767f);
+        }
+        WriteWavStereo(wavPath, pcm, SR);
+        Console.WriteLine($"wrote {wavPath}");
+        return;
+    }
     // seq mode: play a TIMED event script through the DLL -> STEREO dry WAV (fixed gain, no per-file
     //   normalize, so absolute level is preserved). This is the ground truth for scvx_sequencer.py.
     //   args: dll seq <script.txt> <out.wav> [map] [tailSec] [wet]
@@ -1375,5 +1442,119 @@ unsafe
         w.Write(rate); w.Write(rate * 2); w.Write((short)2); w.Write((short)16);
         w.Write(System.Text.Encoding.ASCII.GetBytes("data")); w.Write(dataBytes);
         foreach (var s in mono) w.Write(s);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Standard MIDI File parsing, kept deliberately small.
+//
+// Only what a render needs: absolute sample positions for channel messages and system exclusives,
+// with the tempo map applied. Meta events other than tempo are read past, not interpreted -- the
+// engine has no use for a track name.
+struct SmfEvent
+{
+    public int At;        // sample position
+    public int Status;    // channel message status byte, or 0 when Bytes is set
+    public int D1, D2;
+    public byte[] Bytes;  // a system exclusive, including F0 and F7
+}
+
+static class Smf
+{
+    public static System.Collections.Generic.List<SmfEvent> Parse(byte[] d, int sampleRate,
+                                                                 out double seconds)
+    {
+        if (d.Length < 14 || d[0] != 'M' || d[1] != 'T' || d[2] != 'h' || d[3] != 'd')
+            throw new InvalidDataException("not a Standard MIDI File");
+
+        int tracks = (d[10] << 8) | d[11];
+        int division = (d[12] << 8) | d[13];
+        if ((division & 0x8000) != 0)
+            throw new InvalidDataException("SMPTE division is not supported");
+
+        // Every track's events at absolute ticks, merged, then converted once the tempo map is
+        // known -- a tempo change in track 0 has to move events in track 5 too.
+        var raw = new System.Collections.Generic.List<(long Tick, int Order, SmfEvent Ev)>();
+        var tempos = new System.Collections.Generic.List<(long Tick, int UsPerQn)>();
+        int order = 0, at = 14;
+
+        for (int t = 0; t < tracks && at + 8 <= d.Length; t++)
+        {
+            if (d[at] != 'M' || d[at + 1] != 'T' || d[at + 2] != 'r' || d[at + 3] != 'k') break;
+            int len = (d[at + 4] << 24) | (d[at + 5] << 16) | (d[at + 6] << 8) | d[at + 7];
+            int p = at + 8, end = Math.Min(at + 8 + len, d.Length);
+            long tick = 0; int status = 0;
+            at = at + 8 + len;
+
+            while (p < end)
+            {
+                tick += ReadVar(d, ref p);
+                if (p >= end) break;
+
+                if (d[p] >= 0x80) status = d[p++];
+                if (status == 0xFF)
+                {
+                    int type = d[p++];
+                    int mlen = ReadVar(d, ref p);
+                    if (type == 0x51 && mlen == 3)
+                        tempos.Add((tick, (d[p] << 16) | (d[p + 1] << 8) | d[p + 2]));
+                    p += mlen;
+                }
+                else if (status == 0xF0 || status == 0xF7)
+                {
+                    int mlen = ReadVar(d, ref p);
+                    // A stored F0 event omits its own leading F0; the engine wants it back.
+                    var msg = new byte[status == 0xF0 ? mlen + 1 : mlen];
+                    int o = 0;
+                    if (status == 0xF0) msg[o++] = 0xF0;
+                    Array.Copy(d, p, msg, o, mlen);
+                    p += mlen;
+                    raw.Add((tick, order++, new SmfEvent { Bytes = msg }));
+                }
+                else
+                {
+                    int hi = status & 0xF0;
+                    int d1 = d[p++];
+                    int d2 = (hi == 0xC0 || hi == 0xD0) ? 0 : d[p++];
+                    raw.Add((tick, order++, new SmfEvent { Status = status, D1 = d1, D2 = d2 }));
+                }
+            }
+        }
+
+        raw.Sort((a, b) => a.Tick != b.Tick ? a.Tick.CompareTo(b.Tick) : a.Order.CompareTo(b.Order));
+        tempos.Sort((a, b) => a.Tick.CompareTo(b.Tick));
+
+        var outEvents = new System.Collections.Generic.List<SmfEvent>(raw.Count);
+        long lastTick = 0; double lastSeconds = 0; int us = 500000, ti = 0;
+
+        foreach (var (tick, _, ev) in raw)
+        {
+            while (ti < tempos.Count && tempos[ti].Tick <= tick)
+            {
+                lastSeconds += (tempos[ti].Tick - lastTick) * (us / 1e6) / division;
+                lastTick = tempos[ti].Tick;
+                us = tempos[ti].UsPerQn;
+                ti++;
+            }
+            double when = lastSeconds + (tick - lastTick) * (us / 1e6) / division;
+            var copy = ev;
+            copy.At = (int)(when * sampleRate);
+            outEvents.Add(copy);
+        }
+
+        seconds = outEvents.Count == 0 ? 0.0 : outEvents[outEvents.Count - 1].At / (double)sampleRate;
+        return outEvents;
+    }
+
+    static int ReadVar(byte[] d, ref int p)
+    {
+        int v = 0;
+        while (p < d.Length)
+        {
+            int b = d[p++];
+            v = (v << 7) | (b & 0x7F);
+            if ((b & 0x80) == 0) break;
+        }
+        return v;
     }
 }
