@@ -384,10 +384,32 @@ following hit. On a real drum part at 2,233 notes that accumulates into exactly 
 excess low-mid energy from overlapping bodies, deficient top octave because the hats it does sound
 are muddied rather than crisp.
 
-`[open]`, narrowed to mute-group/choke handling: the divergence is per-repeat rather than per-key,
-appears only when hits overlap, and is signed the way insufficient choking predicts. Note also that
-kick hit 2 goes the other way (−2.37 dB), so retrigger of the *same* key may over-choke where the
-mute group under-chokes; both belong to the same code path.
+**Correction — choke is not the defect, and the roll misled me.** `[confirmed]` A three-way probe
+separates them: an open hat alone, an open hat choked by a closed hat (same group 1), and an open
+hat followed by a snare (group 0, must *not* choke). Measured over the surviving tail, each engine
+against **its own** un-choked reference:
+
+| Probe | DLL | reimplementation |
+| --- | --- | --- |
+| choked by same group | −15.12 dB | **−18.15 dB** |
+| followed by group 0 | +1.11 dB | +0.79 dB |
+
+Both engines choke on the shared group and neither chokes across groups, so group detection and
+gating are right. If anything the reimplementation chokes *harder*, not less — the opposite of what
+the roll suggested — and the group-0 control confirms neither cuts when it should not.
+
+What the probe also shows is the real defect, in its first row: the un-choked open hat is
+**+1.09 dB** here. Key 46 alone measured +1.23 dB the same way. So the roll's "+1.4 to +1.8 dB on
+open hats" was one intrinsically loud key seen repeatedly, plus a little residue, and reading a
+per-repeat pattern into it was wrong — the first hit of each *key* matched because the kick and
+closed hat are correct; the open hat never did.
+
+`[open]`, and now genuinely per-key: **tone 1946 renders about 1.2 dB loud** with a slightly higher
+spectral centroid. Its neighbour tone 1947 (key 49, same level 127, same pan 84) matches to 0.10 dB,
+so it is not a level-plane or pan law issue — it is that tone. Next probe is its partial structure:
+velocity zones, partial count, and whether one layer is sounding that should not.
+
+Kick hit 2's −2.37 dB is separately unexplained and belongs to same-key retrigger, not to groups.
 
 ### The reverb and chorus macro rows are the GS parameters themselves `[confirmed]`
 
