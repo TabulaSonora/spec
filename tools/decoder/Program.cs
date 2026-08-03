@@ -831,6 +831,7 @@ unsafe
         string wavPath  = args.Length > 3 ? args[3] : "real_engine_song.wav";
         int map         = args.Length > 4 ? int.Parse(args[4]) : 4;
         double tailSec  = args.Length > 5 ? double.Parse(args[5]) : 2.2;
+        bool pinPhase   = args.Length > 6 && args[6] == "pin";
         const int SR = 32000;
 
         // The core renders in 320-sample blocks -- 10 ms at 32 kHz, its 100 Hz control tick -- and
@@ -851,6 +852,51 @@ unsafe
         flush();
         { var wl = new float[512]; var wr = new float[512];
           fixed (float* pl = wl, pr = wr) for (int i = 0; i < 6; i++) process(pl, pr, 512); }
+
+        // Phase pinning -- EXPERIMENTAL, and its validation failed: pre-rolling this register to
+        // ~0 against a reimplementation whose accumulator starts at 0 still leaves a ~2.7 dB wet
+        // difference at r 0.73, so register-zero is NOT the same origin as accumulator-zero and
+        // the convention is unresolved. The deterministic phase READ is trustworthy (identical
+        // across runs); the pre-roll target is not. Kept because the read is the prerequisite for
+        // anyone resolving the convention; do not treat pinned output as phase-matched.
+        //
+        // Background: the chorus LFO free-runs from an engine-internal origin, and its phase at
+        // song start is what makes two engines' wets non-comparable -- the level of a windowed wet
+        // measurement is a function of the phase offset (see FINDINGS: the "1.17 dB chorus
+        // deficit" was entirely this). A reimplementation whose chorus starts at phase 0 with the
+        // stream is matched by pre-rolling this engine until its phase wraps to ~0 before the song.
+        //
+        // Phase advances 192 per sample into 24 bits, so only the residue mod 64 is unreachable:
+        // the pre-roll lands within +-32 phase units, 0.0002 samples of tap. The read is the same
+        // process-memory address `chodump` reports as `L lfoPhase`.
+        {
+            long PV(long va) => b + (va - 0x180000000L);
+            int phase = *(int*)PV(0x181a62af8L);
+            int lfoInc = *(int*)PV(0x181a62afcL);
+            Console.WriteLine($"chorus lfoPhase at song start = {phase} (inc {lfoInc})");
+            if (pinPhase && lfoInc > 0)
+            {
+                const int WRAP = 1 << 24;
+                long n0 = ((long)WRAP - phase) / lfoInc;
+                long best = n0; long bestAbs = long.MaxValue;
+                for (long n = Math.Max(0, n0 - 2); n <= n0 + 2; n++)
+                {
+                    long residue = (phase + n * lfoInc) % WRAP;
+                    long dist = Math.Min(residue, WRAP - residue);
+                    if (dist < bestAbs) { bestAbs = dist; best = n; }
+                }
+                var zl = new float[512]; var zr = new float[512];
+                long left = best;
+                fixed (float* pl = zl, pr = zr)
+                    while (left > 0) { uint c = (uint)Math.Min(512, left); process(pl, pr, c); left -= c; }
+                int after = *(int*)PV(0x181a62af8L);
+                Console.WriteLine($"pinned: pre-rolled {best} samples, lfoPhase now {after}");
+            }
+            else if (pinPhase)
+            {
+                Console.WriteLine("pin requested but the chorus LFO is not running; skipped");
+            }
+        }
 
         int total = (int)((songSeconds + tailSec) * SR);
         var outL = new float[total]; var outR = new float[total];

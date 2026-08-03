@@ -307,6 +307,21 @@ queue latency predicts 3,225 — so the DLL's LFO does **not** start at phase ze
 the ~36,800-sample discrepancy is unaccounted init state. Pinning it (a phase dump at song start)
 is what would let the harness phase-match deterministically instead of by sweep.
 
+*Attempted:* the harness now reads `L lfoPhase` at song start (deterministic — identical across
+runs, 2,992,128 after the standard warm-up) and an experimental `pin` argument pre-rolls the engine
+until the register wraps to ~0. **Validation failed**: pinned-register-zero against an
+accumulator-zero reimplementation still leaves −2.7 dB of wet at r 0.73 and lag 142 — so the
+register's zero is not the accumulator's zero, and decent waveform alignment can coexist with a
+3 dB wet difference, which also breaks the simple "level tracks phase" model above. The convention
+is unresolved, and resolving it means modelling the engine's LFO state exactly.
+
+The project's conclusion, rather than pushing further down that hole: phase differences in
+free-running modulated effects are not worth modelling short of total state replication. Render
+comparison should move to **phase-tolerant metrics** — per-band spectrum and envelope PSNR, with a
+small alignment search absorbing fixed delays — and reserve exactness claims for the deterministic
+layers. The sweep result stands as the proof that the chorus *implementation* is correct; the pin
+mode stands as the deterministic phase *read*, useful to whoever eventually resolves the origin.
+
 Incidentally measured: the DLL's dry onset lands 153 samples after the reimplementation's for the
 same nominal event time — its input queue costs ~5 ms of fixed latency. Irrelevant once measured
 onset-relative, but worth knowing before reading any absolute-time comparison.
