@@ -810,12 +810,16 @@ unsafe
     // ---------------------------------------------------------------------------------------
     // smf: render an arbitrary Standard MIDI File through the real engine.
     //
-    // STATUS: runs end to end and produces plausible audio, but its output does NOT yet correlate
-    // with a reimplementation's render of the same file (r ~ -0.11 on canyon.mid, with RMS within
-    // 0.7 dB and no time offset found within 20k samples). Until that is explained, nothing here
-    // should be treated as an oracle -- the discrepancy may be in this harness rather than in the
-    // engine being measured. Suspects, in order: the warm-up before the event loop, whether a GS
-    // reset belongs before or after the tone-map selection, and the event grid.
+    // STATUS: runs end to end and produces plausible audio. How close it is to a reimplementation
+    // is not yet established, and the raw sample correlation measured so far (~0.03 whole-file on
+    // canyon.mid, RMS within 0.5 dB) is NOT evidence either way -- that is the wrong metric for
+    // this comparison, as the verification notes say in as many words. Dense passages decorrelate
+    // at the sample level through beating between simultaneous notes while sounding and measuring
+    // correct on an envelope and a spectrum; the sparse end of canyon.mid correlates four times
+    // better than its dense middle, which is that effect and not a defect.
+    //
+    // Judge this against a reimplementation with an envelope/spectrum comparison, not a sample
+    // correlation. Until that is done, treat the output as promising rather than authoritative.
     //
     // This is the authoritative oracle. Everything else in this file inspects the DLL; this one
     // simply plays it a song and records what comes out, so a reimplementation has something to be
@@ -830,6 +834,14 @@ unsafe
         double tailSec  = args.Length > 5 ? double.Parse(args[5]) : 2.2;
         const int SR = 32000;
 
+        // The core renders in 320-sample blocks -- 10 ms at 32 kHz, its 100 Hz control tick -- and
+        // asked for any other count it chunks internally, taking pending events only at the start
+        // of each of its own blocks. Feeding on a finer grid therefore does not place events more
+        // precisely; it places them at the same moments while making this harness *believe* they
+        // landed elsewhere. Matching the core's block is what makes an event's position mean the
+        // same thing on both sides.
+        const int BlockFrames = 320;
+
         byte[] smf = File.ReadAllBytes(midiPath);
         var events = Smf.Parse(smf, SR, out double songSeconds);
         Console.WriteLine($"{Path.GetFileName(midiPath)}: {events.Count} events, {songSeconds:F2} s");
@@ -843,8 +855,8 @@ unsafe
 
         int total = (int)((songSeconds + tailSec) * SR);
         var outL = new float[total]; var outR = new float[total];
-        var sL = new float[512]; var sR = new float[512];
-        int blk = 64, ei = 0, pos = 0;
+        var sL = new float[BlockFrames]; var sR = new float[BlockFrames];
+        int blk = BlockFrames, ei = 0, pos = 0;
 
         while (pos < total)
         {
