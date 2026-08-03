@@ -592,7 +592,8 @@ unsafe
     // tvftrace mode: hold one note and dump the live per-voice TVF fields every control tick.
     //   Ground truth for the TVF envelope: +0xcc runtime cutoff, +0xdc resonance (q raw),
     //   +0xec running env level, +0x1f0 base cutoff, +0x1f5 filter type, +0xee resonance byte.
-    //   args: dll tvftrace <prog> <note> <holdSec> <out.csv> [vel]
+    //   args: dll tvftrace <prog> <note> <holdSec> <out.csv> [vel] [bank] [bend] [bendRange] [map]
+    //         [noteOffPermille] [cc71 resonance] [cc74 cutoff]
     if (args.Length > 1 && args[1] == "tvftrace")
     {
         int SR4=32000; int pg4=int.Parse(args[2]); int nt4=int.Parse(args[3]);
@@ -602,6 +603,11 @@ unsafe
         int bend4=args.Length>8?int.Parse(args[8]):8192;  // 14-bit pitch bend (8192 = center)
         int brange4=args.Length>9?int.Parse(args[9]):-1;  // RPN 00/00 bend range in semitones (-1 = don't set)
         int map4=args.Length>10?int.Parse(args[10]):0;    // tone map 1=SC55..4=SC8820; 0=default GS
+        // args 12/13 (after the note-off fraction) drive the resonance byte and the cutoff off
+        // neutral: CC#71 is the only way to reach resonance bytes outside a partial's own value, and
+        // CC#74 opens the filter, so the pair reaches the corners of the (f, q) space.
+        int cc71=args.Length>12?int.Parse(args[12]):-1;   // -1 = don't send
+        int cc74=args.Length>13?int.Parse(args[13]):-1;
         setSR((float)SR4); setBS(512); activate((float)SR4,512); setThr();
         long fb4=b+0x1a1b5b8;
         var getVC4=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
@@ -613,6 +619,7 @@ unsafe
         CC4(0,bk4);CC4(32,0);CC4(7,127);CC4(10,64);CC4(91,0);CC4(93,0);
         if(brange4>=0){ CC4(101,0);CC4(100,0);CC4(6,brange4);CC4(38,0);CC4(101,127);CC4(100,127); }  // RPN bend range
         shortIn((uint)(0xC0|(pg4<<8)),0); flush();
+        if(cc71>=0) CC4(71,cc71); if(cc74>=0) CC4(74,cc74); if(cc71>=0||cc74>=0) flush();
         if(bend4!=8192){ shortIn((uint)((0xE0|0)|((bend4&0x7f)<<8)|(((bend4>>7)&0x7f)<<16)),0); flush(); }  // 0xEn LSB MSB
         var sb4=new System.Text.StringBuilder("t_ms,voice,cc_cutoff,dc_resoraw,ec_envlev,f0_base,f5_type,ee_resobyte,pitch64,pitch6c,phase_bc,amp\n");
         shortIn((uint)(0x90|(nt4<<8)|(vl4<<16)),0); flush();
