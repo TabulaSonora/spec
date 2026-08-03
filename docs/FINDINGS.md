@@ -241,6 +241,58 @@ Macro parameters → registers → float coefficients, via:
 - `fx_param_apply` @ `0x180055e90` (was `fx_param_update`) — lighter previous-vs-current param
   delta handler. Both are invoked indirectly (dispatch table), so they show no direct callers.
 
+### The four-band EQ computes nothing `[confirmed]`
+
+`40 02` is not a filter design, it is an index. `fx_eq_band_preset_apply` @ `0x1800407d0` reads two
+tables of stored coefficients and writes them straight to registers:
+
+| Band | Table | Index | Registers (L, then R) |
+| --- | --- | --- | --- |
+| Low | `0x1818960b0` | `freq * 0x4b + (gain - 0x34) * 3` | `0xe7`, `0xe6`, `0xe8` / `0xf4`, `0xf3`, `0xf5` |
+| High | `0x1818961e0` | same shape | `0xea`, … / `0xf7`, … |
+
+300 bytes each: 2 corner frequencies × 25 gain settings (`0x34`–`0x4c`, −12…+12 dB) × 3 int16
+coefficients, in the same fixed-14 encoding as the reverb and chorus. That is why `40 02 00` and
+`40 02 02` accept only 0 or 1 — the corner is a choice of table row, not a parameter. The gain test
+is an unsigned `(v - 0x34) < 0x19`, so an out-of-range byte is **ignored**, not clamped.
+
+Each band is a one-pole shelf, `H(z) = (b0 + b1·z⁻¹) / (1 − a1·z⁻¹)`, and the two channels get
+identical coefficients — every word is written twice — so the block moves the spectrum and never
+the stereo image.
+
+**The flat row is the proof the read order is right.** The registers are written `0xe7`, `0xe6`,
+`0xe8` — not ascending — so the natural guess reorders the coefficients. Taken in stored order the
+0 dB row is exactly `{1, −a, a}`, which makes numerator and denominator the same polynomial and the
+response algebraically unity at every frequency. No other assignment of the three produces that.
+
+Not established: what the printed corner frequencies mean. Reading `a1` as a plain one-pole −3 dB
+point gives 225 and 426 Hz for the low band against an advertised 200 and 400 — persuasive — and
+then 11 kHz for the high band's second setting against an advertised 6. So that reading is wrong
+despite half of it agreeing. `[guess]` — the poles are facts, the Hz are not.
+
+### Part EQ defaults **off**, against the manual `[confirmed — absence of evidence]`
+
+The SC-8820 manual gives `40 4x 20` (EQ ON/OFF, `part+0x450`) a default of `01 ON`. The binary
+disagrees: the part reset writes the byte to **zero**, and no code anywhere writes one to it — the
+only writer is `sysex_part_param_450` @ `0x180076e90`, the handler for the message itself. A module
+never told to switch the EQ on never switches it on.
+
+This is silent until a stream also sends a non-flat `40 02`, because a flat EQ is exactly
+transparent. On a stream that sets an EQ curve without addressing `40 4x 20`, the two readings
+differ completely.
+
+`[unverified]` against the DLL as an oracle — this rests on an exhaustive search for writers rather
+than on a measurement, which is a weaker footing than most findings here. One render of a file that
+sets `40 02` and no part EQ would settle it.
+
+### Where EQ'd parts go `[confirmed]`
+
+The voice bus-assign sends a part's **dry** signal to bus `0x33` (51) when `part+0x450` is set and
+`0x3a` (58) when it is clear. The sends are computed identically either way — only the dry path
+detours. The same function sends a part with insertion EFX on (`part+0x452`) to bus `0x3e` (62)
+with both send buses forced to the null bus `0x0f`, which is the mechanism behind the manual's note
+that system-effect levels become common to all EFX parts.
+
 ---
 
 ## MIDI → voice pipeline `[confirmed]` (traced end to end)
