@@ -149,15 +149,39 @@ The dispatch index is **NOT** the EFX type number. I nearly assumed it was (Thru
 …) — the size heuristic even looked vaguely supportive — but the correlation was weak (Pearson
 r=0.35) so I did not commit to it. Instead I found the authoritative mapping in the binary:
 
-- `fx_select_algo_from_type` @ `0x18003f140` scans `g_fx_type_to_algo_map` @ `0x18189566c`
-  (66 records × 0x28 bytes: `[+0] type key (MSB<<8|LSB)`, `[+2] dispatch index`) for the current
+- `fx_select_algo_from_type` @ `0x18003f140` scans `g_fx_type_to_algo_map` for the current
   `g_fx_current_type`, then calls `fx_set_algo_index` @ `0x180062410`.
 
-Joining that table's `type→index` with the manual's `type_id→name` (`efx_definitions.json`) gives
-the definitive map. It is a **scramble** — e.g. Stereo-EQ (`01 00`) → dispatch **2**,
-Humanizer (`01 03`) → dispatch **46**, 3D Manual (`01 71`) → dispatch **48**. Had I named by EFX
-order, ~all 65 would have been wrong. This is the third assumption this project would have gotten
-wrong; the pattern is clear — *verify the mapping in the binary, don't infer it from order or size.*
+**CORRECTION — the record starts 12 bytes before the symbol, and it carries the names.**
+`[confirmed]` I first read this table from `0x18189566c`, where the `g_fx_type_to_algo_map` symbol
+lands, and described the record as `[+0] type key (MSB<<8|LSB)`, `[+2] dispatch index`. That is the
+middle of the record. The symbol points at the type key, not at the record start, so dumping from
+it reads each effect's name against the **previous** effect's type key — which is exactly why this
+looked like a table of bare numbers that needed an external name source. From the true start at
+`0x181895660`, 66 records × 0x28 bytes:
+
+| Offset | Field |
+| --- | --- |
+| `+0x00` | `char name[12]` — display name, space padded |
+| `+0x0C` | `u16` type key (MSB<<8 \| LSB) — what `40 03 00` selects |
+| `+0x0E` | `u16` dispatch index into `g_fx_algo_dispatch` |
+| `+0x10` | `param_apply` — per-effect handler mapping the 20 GS parameters to registers |
+| `+0x18` | `param_defaults` — returns a block whose `+0x0C` holds the `0x1C`-byte defaults |
+| `+0x20` | `common` — one shared handler, identical in all 66 records |
+
+So **no external name source is needed**: the engine names its own effects, and
+`tools/dump_efx_table.py` recovers the whole directory from the DLL. The 66 records are the 65
+types the SC-8820 manual lists plus a `0xffff` record with a blank name and a **null** apply
+handler, which is the "no effect assigned" state; record 66 reads as noise, which is what pins the
+count. The names agree with the manual's Insertion Effect List on all 65 types, with two cosmetic
+differences — the DLL says `Equalizer` where the manual says `01: Stereo-EQ`, and `Lo-Fi` where the
+manual says `33: Lo-Fi 1`.
+
+The mapping is still a **scramble** — Stereo-EQ (`01 00`) → dispatch **2**, Spectrum (`01 01`) →
+dispatch **6**, Humanizer (`01 03`) → dispatch **46**, 3D Manual (`01 71`) → dispatch **48**. Had I
+named by EFX order, ~all 65 would have been wrong. Two lessons rather than one: *verify the mapping
+in the binary, don't infer it from order or size* — and *verify where a symbol sits inside its
+record before trusting the field at offset zero.*
 
 All 67 dispatch functions are now named `fx_algo_*` in the project (`sampler`-style):
 - dispatch **0** = `fx_algo_thru` (smallest fn, 529 B — routing/level only, confirms index 0 = Thru)
