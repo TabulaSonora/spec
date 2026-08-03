@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "sysexstress" || args[1] == "sysexreplay");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "sysexstress" || args[1] == "sysexreplay");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -275,6 +275,59 @@ unsafe
     //   driven in 320-sample control ticks: the core renders audio in 32-sample units but only
     //   takes events every 10 ms, so 320 is the grid on which a note-off means what it says.
     //   args: dll notebatch <cases.txt> <outdir> [tailSeconds]
+    //
+    // tvatrace mode: play one note and read the amplitude envelope the module built for it, straight
+    //   out of the voice, before any of it has run. `tva_compute_env_rates @ 180060ca0` writes the
+    //   four segment durations to voice+0x12/0x1c6/0x1c8/0x1ca and the release to +0x32, and
+    //   `tva_compute_env_levels @ 180060b40` writes the four targets to +0x16/0x1d2/0x1d4/0x1d6.
+    //   Reading them is the difference between inferring a port's envelope error from the audio and
+    //   being told what the answer should have been.
+    //
+    //   Segments 0 and the release store a per-tick *step*, 0xa0000/duration, rather than the
+    //   duration -- segments 1 to 3 store the duration and their loaders divide it later. Both are
+    //   printed so the two are never confused.
+    //   args: dll tvatrace <prog> <note> <vel> <map> [channel]
+    if (args.Length > 1 && args[1] == "tvatrace")
+    {
+        int pgv = int.Parse(args[2]), ntv = int.Parse(args[3]);
+        int vlv = args.Length > 4 ? int.Parse(args[4]) : 100;
+        int mpv = args.Length > 5 ? int.Parse(args[5]) : 0;
+        int chv = args.Length > 6 ? int.Parse(args[6]) & 15 : 0;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        long fbv2 = b + 0x1a1b5b8;
+        var getVCv = (delegate* unmanaged[Cdecl]<int, long>)(b + 0x5c360);
+        long vcv = getVCv(0);
+        var lv2 = new float[512]; var rv2 = new float[512];
+        void CCv2(int c, int v) => shortIn((uint)((0xB0 | chv) | (c << 8) | (v << 16)), 0);
+        GsReset();
+        if (mpv >= 1 && mpv <= 4) for (int c = 0; c < 16; c++) ToneMap0(c, mpv);
+        flush();
+        fixed (float* pl = lv2, pr = rv2) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        CCv2(0, 0); CCv2(32, 0); CCv2(7, 127); CCv2(10, 64); CCv2(91, 0); CCv2(93, 0);
+        shortIn((uint)((0xC0 | chv) | (pgv << 8)), 0); flush();
+        shortIn((uint)((0x90 | chv) | (ntv << 8) | (vlv << 16)), 0); flush();
+        // One control tick only. The envelope is built at note-on; rendering longer would let the
+        // first segment run and tell us nothing more.
+        fixed (float* pl = lv2, pr = rv2) process(pl, pr, 320);
+        for (int v = 0; v < 64; v++)
+        {
+            if ((*(byte*)(fbv2 + v * 0x50) & 1) == 0) continue;
+            long p = vcv + (long)v * 0x220;
+            ushort step0 = *(ushort*)(p + 0x12), d1 = *(ushort*)(p + 0x1c6);
+            ushort d2 = *(ushort*)(p + 0x1c8), d3 = *(ushort*)(p + 0x1ca);
+            ushort rstep = *(ushort*)(p + 0x26), rdur = *(ushort*)(p + 0x32);
+            Console.WriteLine(
+                $"voice{v} targets={*(ushort*)(p + 0x16)},{*(ushort*)(p + 0x1d2)}," +
+                $"{*(ushort*)(p + 0x1d4)},{*(ushort*)(p + 0x1d6)}" +
+                $" dur={(step0 == 0xffff ? 0 : 0xa0000 / step0)},{d1},{d2},{d3}" +
+                $" rel={(rstep == 0xffff ? 0 : 0xa0000 / rstep)}/{rdur}" +
+                $" step0={step0} relstep={rstep}" +
+                $" curve={*(ushort*)(p + 0x10)},{*(ushort*)(p + 0x1cc)},{*(ushort*)(p + 0x1ce)}," +
+                $"{*(ushort*)(p + 0x1d0)},{*(ushort*)(p + 0x24)}" +
+                $" zeroflag={*(byte*)(p + 0x188)}");
+        }
+        return;
+    }
     if (args.Length > 1 && args[1] == "notebatch")
     {
         const int SRn = 32000;
