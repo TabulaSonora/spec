@@ -3870,3 +3870,49 @@ settles both the count and the values.
 **The open question is narrowed to one thing:** what makes `g_voice_ramp_pitch` active at note-on
 for this tone and not its neighbours — that is, what its initial value and target are set to, and
 why they differ. `voice+0x64` (66671 against 60000) is the obvious suspect for the target.
+
+## The pitch ramp, dumped: `+0xb8` and `+0xbc` are its endpoints, and it is live for one chunk `[confirmed]`
+
+Reading `g_voice_ramp_pitch` (`0x181a1cbf0`, stride 0x18: `+0` flags, `+4` counter, `+8` current,
+`+0xc` target, `+0x10` step, `+0x14` cached increment) beside the sampler position, at the core's
+32-sample chunk:
+
+| samples | note 42 (1944 CHH) | note 46 (1946 OHH) |
+|---|---|---|
+| 96 | flags `0000`, cur = tgt = 229376, step 0, **inc 65536 (1.000000)** | flags **`0001`**, cur **238484**, tgt 229376, step **−4553**, **inc 96199 (1.467880)** |
+| 128 | flags `0000`, inc 65536 | flags `0000`, cur 229376 = tgt, step 0, inc 65536 |
+| 160+ | unchanged | unchanged |
+
+**`voice+0xb8` and `+0xbc` are the ramp's endpoints.** `+0xb8` = 238484 is its *initial current*
+and `+0xbc` = 229376 its *target* — not a rate and not a ratio, which retires two turns of reading
+their quotient as a playback ratio. `229376` is simply the ramp domain's value for unity.
+
+**Tone 1946's ramp is live at note-on and its neighbour's is not.** Note 42 starts with
+`cur == tgt`, flags clear, and takes the cached increment — exactly `65536`, unity — from its first
+sample. Note 46 starts 9108 above target and walks down in steps of 4553; `9108 / 4553 = 2`
+exactly, so it arrives in **two steps**, inside a single 32-sample chunk, and the flag is clear by
+the next observation.
+
+**The excursion is large.** The exponential conversion of the initial `cur` gives an increment of
+`96199 / 65536 = 1.467880` — the voice starts reading its wave **47% fast** and settles to exactly
+1.0 within a millisecond. That is what deposits the 1.693481 samples, and with the increment's
+fractional part then zero, the residue is frozen into the phase for the life of the note.
+
+**The increment is not constant across that chunk, and cannot be.** A single value would need
+`276017 / 4 = 69004.25` in 16.16 to produce the measured 33.693481-sample advance, and
+`32 x N mod 65536` cannot equal 45448 for any integer `N` because 45448 is not a multiple of 32.
+The total phase advance is `2208136`, so the four 8-sample slots sum to `276017` — which `96199`
+plus three copies of `65536` (292807) overshoots and no two-step interpolation of the ramp closes
+on cleanly. So the ramp is stepping *inside* the chunk, at a granularity finer than the four slots
+`ramp_env_step_eval` writes per call. Confirming the per-slot values needs the scratch itself at
+`DAT_181a18f30`, which is only four lanes wide and is refilled per voice group, so it has to be read
+from inside the render rather than after it.
+
+**For the port, none of that blocks the fix.** `PartialVoice` has no pitch ramp at all — `ratio_` is
+computed once per 320-sample control block and applied instantly — so it cannot deposit a
+sub-sample residue under any circumstances. What has to be added is a per-voice pitch ramp with
+this shape: current and target in the `g_ramp_exp_tbl` input domain, a signed step, a rate mask
+gating how often it advances, and the exponential conversion `TvfChain::frequency_coefficient`
+already implements. Where the initial `cur` of 238484 comes from — why this tone starts 9108 sharp
+and its neighbours start on target — is the last unknown, and `voice+0x64` (66671 against 60000) is
+still the obvious suspect.

@@ -130,10 +130,16 @@ unsafe
                     Console.Write($"{posP,6} smp:");
                     for(int v=0;v<64;v++){ if((*(byte*)(fbp+v*0x50)&1)==0) continue;
                         long st3=ssp+(long)v*0x50;
-                        long pvv=((delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360))(0)+(long)v*0x220;
+                        // g_voice_ramp_pitch @181a1cbf0, stride 0x18: +0 flags (bit0 = active),
+                        // +4 counter, +8 current, +0xc target, +0x10 step, +0x14 cached increment.
+                        // The increment scratch at DAT_181a18f30 is only four lanes and is refilled
+                        // per voice group, so the persistent ramp state is what can be read here.
+                        long rp=b+(0x181a1cbf0L-0x180000000L)+(long)v*0x18;
                         Console.Write($"  v{v} pos={*(int*)(st3+0x28)} ph={*(ushort*)(st3+0x46)}"
                                      +$" exact={*(int*)(st3+0x28) + *(ushort*)(st3+0x46)/65536.0:0.000000}"
-                                     +$" p64={*(int*)(pvv+0x64)} p6c={*(int*)(pvv+0x6c)} b8={*(int*)(pvv+0xb8)}"); }
+                                     +$" | pitchramp flags={*(ushort*)(rp+0):x4} cur={*(int*)(rp+8)}"
+                                     +$" tgt={*(int*)(rp+0xc)} step={*(int*)(rp+0x10)}"
+                                     +$" inc={*(int*)(rp+0x14)} ({*(int*)(rp+0x14)/65536.0:0.000000})"); }
                     Console.WriteLine();
                 }
             }
