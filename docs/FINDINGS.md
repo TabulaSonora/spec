@@ -3824,3 +3824,49 @@ first chunk where 33.693481 were measured, and it predicts 1.0397 in steady stat
 sample from `param_3 + param_5`, so the one-chunk excess is expressible there and nowhere in the
 static data. Finding who fills that array for a voice's first chunk is now the whole problem, and it
 is a single writer to identify rather than another field to hunt for.
+
+## The sampler increment comes from a PITCH RAMP through `g_ramp_exp_tbl` `[confirmed]`
+
+Found the writer. `render_block`'s per-voice loop calls
+
+```c
+ramp_env_step_eval(&g_voice_ramp_pitch + voice*0x18, &DAT_181a18f30 + voice*0x10);
+```
+
+and `&DAT_181a18f30 + voice*0x10` is exactly the third argument `render_block` hands
+`voice_render_dispatch`, which the samplers take as `param_3` — the increment array. So **the
+sampler's phase increment is the output of a pitch ramp**, not a value computed once at note-on.
+
+`ramp_env_step_eval` (`18005d580`) writes **four slots per call**, and `sampler_pcm` reads one per
+outer iteration of its 4x4x2 loop — so one increment serves **8 samples**, four to a 32-sample
+chunk, the same granularity as the SVF coefficients. When the ramp is inactive it copies its cached
+value into all four; when active it steps toward its target and converts through the exponential:
+
+```c
+i    = (cur >> 6) & 0xff;                       /* same table as the TVF's f */
+v    = g_ramp_exp_tbl[i] * (0x40 - (cur & 0x3f)) + g_ramp_exp_tbl[i+1] * (cur & 0x3f);
+inc  = ((v + (v >> 31 & 0x3f)) >> 6) >> (0xf - ((cur >> 0xe) & 0xf));
+```
+
+That is `TvfChain::frequency_coefficient`'s arithmetic — the same interpolation over
+`g_ramp_exp_tbl` and the same variable shift — differing only in that the result is left as a 16.16
+sampler increment rather than taken `>> 3` and divided by 16384.
+
+**This is the mechanism behind tone 1946.** Its pitch ramp is *active* at note-on, so during the
+first chunk the increment is above 1.0 and the read position gains 1.693481 samples; once the ramp
+reaches its target the increment is exactly 1.0 and the accumulated fraction is frozen into the
+phase for the life of the note. Notes 42 and 49 have inactive ramps and take the cached increment,
+exactly 1.0, from their first sample. **This port has no pitch ramp at all** — `PartialVoice`
+computes `ratio_` once per 320-sample control block and applies it instantly — so it can never
+accumulate that offset, which is why it reads wave 4010 at phase 0 forever.
+
+Note the first chunk's arithmetic does not close on a single constant increment: 33.693481 samples
+over 32 needs 69004.25 in 16.16, and `32 x N mod 65536` cannot equal 45448 for integer `N` because
+45448 is not a multiple of 32. So either the voice rendered fewer than 32 samples in that chunk or
+the ramp stepped inside it. That is now directly observable rather than arguable — the increment
+array is at `DAT_181a18f30 + voice*0x10`, four int32 per chunk, and dumping it beside the position
+settles both the count and the values.
+
+**The open question is narrowed to one thing:** what makes `g_voice_ramp_pitch` active at note-on
+for this tone and not its neighbours — that is, what its initial value and target are set to, and
+why they differ. `voice+0x64` (66671 against 60000) is the obvious suspect for the target.
