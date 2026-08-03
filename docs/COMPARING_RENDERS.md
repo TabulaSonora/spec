@@ -113,6 +113,31 @@ identical — the static tables, the sample codec, the pitch and LFO tick stream
 directly and demand equality. This method is for the rendered output, where the hardware itself is
 not deterministic in the small.
 
+## The shape of the curve tells you which kind of wrong
+
+Two failures from the same corpus, and they do not mean the same thing:
+
+| File | 4 ms | 20 ms | 50 ms | 250 ms | 1 s | level |
+| --- | --- | --- | --- | --- | --- | --- |
+| bad_apple | 0.573 | 0.811 | 0.880 | 0.935 | 0.964 | −0.09 dB |
+| Right In The Night | 0.648 | 0.806 | 0.816 | 0.812 | 0.847 | **−2.50 dB** |
+
+The first **rises** — 0.57 to 0.96 — and its level is right. That is fine structure disagreeing while
+the music agrees, the beating effect this document opens with, and it points at something small.
+
+The second is **flat**: 0.81 at 20 ms and 0.81 at a quarter-second, with the level 2.5 dB out. A
+disagreement that does not shrink as the window widens is not beating; it is at the scale of notes.
+Something is wrong with the sound itself.
+
+And it was. That file sets `40 01 33` and `40 01 3A` — the individual **reverb level** and **chorus
+level** — where the engine being measured implements only the reverb and chorus *macros* and drops
+single-parameter edits. Its wet levels were wrong for the whole file, which is a constant offset in
+the mix: exactly a flat curve and a level error.
+
+So read the curve before reading any single number. A rising curve with a right level is a lead
+about detail; a flat curve with a wrong level is a missing feature, and it will usually name itself
+if you go and look at what the file asks for that the engine ignores.
+
 ## A note on where the number comes from
 
 A bad-looking figure is a lead, not a verdict, and a good-looking one taken at a single window is
