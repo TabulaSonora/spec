@@ -10,7 +10,9 @@ public class RenameSynth extends GhidraScript {
         {"1800607e0","env_rate_scale","Envelope RATE modifier: (baseRate, param 0x40=neutral) -> 8.8 fixed rate mult via g_env_scale_curve + g_env_rate_out. Returns 0x100 (=1.0) at neutral."},
         {"180060880","env_level_scale","Level/depth scaler: two 0x40-centered params -> 8.8 fixed mult via g_env_scale_curve + g_env_rate_out."},
         {"180061640","tvf_env_level_conv","Converts a TVF env stage level byte -> internal filter env amplitude (per-voice)."},
-        {"18008fbb0","lfo_value","Returns current LFO output (u16); source for pitch/TVF/TVA modulation."},
+        // 18008fbb0 was named lfo_value here; RenameLfo.java owns it as prng_lfsr, which is what it
+        // actually is (a Galois LFSR feeding the random/S&H waveforms). Two scripts naming one
+        // address made the result depend on run order, and alphabetically this one ran last.
         // --- TVA amplitude (confident) ---
         {"180060960","tva_compute_base_level","TVA base level from patch level(block+0x53), level key-follow(block+0x54/+0x55, g_kf_tvalevel), velocity(g_vel_curve) -> DAT_181a1f5a8."},
         {"180060b00","tva_compute_env_levels","4 TVA env segment target amplitudes: base(DAT_181a1f5a8) - per-stage level(block+0x5a..+0x5d, g_level_curve) mapped via g_amp_curve_hi/lo -> voice+0x16/0x1d2/0x1d4/0x1d6."},
@@ -20,7 +22,9 @@ public class RenameSynth extends GhidraScript {
         {"1800600c0","pitch_env_apply_stage","[provisional] Applies one pitch-env stage; called from partial_compute_pitch_env."},
         {"180060150","partial_apply_pitch_env_rates","[provisional] Applies pitch-env rate key-follow (g_kf_pitchrate0/1) after pitch-env compute."},
         {"180060620","tvf_env_prep","[provisional] TVF env preparation; called just before partial_compute_filter."},
-        {"180060ca0","tva_compute_env_rates","[provisional] TVA env stage rates from rate key-follow (g_kf_tvarate0/1) + vel sens."},
+        // 180060ca0 tva_compute_env_rates is deliberately absent: RenameEnvSeg.java owns it and
+        // carries the measured description. The provisional one that used to sit here ran later
+        // alphabetically and overwrote the good comment with a worse one.
     };
     // corrected plate comment for the filter compute (offsets re-verified)
     String[][] FC = {

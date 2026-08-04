@@ -35,7 +35,9 @@ public class RenameDispatch extends GhidraScript {
         {"1819a2408", "g_tva_env_stage_handlers"},
         {"1819a3054", "g_env_next_stage"},
         {"18199fb30", "g_cc_handlers"},
-        {"1819a7a00", "g_env_startphase_pitch"},
+        // 1819a7a00 is deliberately absent: RenameBulk2607.java names it g_tvf_env_startphase, which
+        // is what both SYMBOLS.md files document. Naming it g_env_startphase_pitch here as well only
+        // meant the decompile disagreed with the docs, since this pass runs later.
         {"1819a7a30", "g_env_startphase_b"},
     };
 

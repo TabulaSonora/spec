@@ -28,10 +28,14 @@ preservation / interoperability effort on a discontinued product.
 - `tools/ghidra_scripts/` — the Ghidra headless scripts that produce `SCCore.decompiled.c`
   (`DecompileToC.java`) and apply the recovered function/label names (`Rename*.java`).
 
-Two notes on running them. `DefineTableFunctions.java` must run before the naming passes: large
+Three notes on running them. `DefineTableFunctions.java` must run before the naming passes: large
 parts of the control path are reached only through data pointer tables, so nothing *calls* those
-targets and auto-analysis never disassembles them. And `RenameXg.java` must run *last* — it renames
-the XG SysEx front end, which the earlier passes had named as if it were GS.
+targets and auto-analysis never disassembles them. `RenameXg.java` must run *last* — it renames the
+XG SysEx front end, which the earlier passes had named as if it were GS. And **no address may be
+named by two scripts**: the later one silently wins, so the result depends on run order.
+`RenameSynth`/`RenameLfo` (`18008fbb0`), `RenameSynth`/`RenameEnvSeg` (`180060ca0`) and
+`RenameDispatch`/`RenameBulk2607` (`1819a7a00`) each had that collision; the duplicate side is now
+commented out with a note pointing at the owner.
 
 Any script that writes table dumps — `Export*.java`, `RenameEnvSeg.java`, `RenameLfo.java` — takes
 the output directory as its first script arg or from `$SCVX_TABLES_DIR`, defaulting to `tables/`
