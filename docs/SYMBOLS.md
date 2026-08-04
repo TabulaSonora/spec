@@ -870,7 +870,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1819a2890` | `g_tvf_env_level_curve` | abs(level-0x40) TVF env level curve |
 | `1819a2fa0` | `g_pan_curve` | 128-byte pan law; read forward for the right gain |
 | `1819a3020` | `g_pan_curve_end` | far end of `g_pan_curve`; indexed negatively for the left gain |
-| `1819a7a00` | `g_tvf_env_startphase` | TVF env start-phase table[0..10] |
+| `1819a7a00` | `g_tvf_env_startphase` | env interp start-phase table[0..10]. Despite the name, read by **both** the pitch-env path (`partial_apply_pitch_env_rates`, `pitch_env_stage1/2/3_load`) and the TVF-env path (`tvf_compute_env_rates` + its stage loaders at `1800846f0`/`770`/`7f0`). TVA's equivalent is `g_env_startphase_b`. |
 | `1819a9d80` | `g_bit_mask_lut` | 1<<(i&0x1f) shared bitmask helper |
 | `1819f28b0` | `g_prog_to_col` | program -> map column (0xff=none); melodic rows 0-11, drum rows 12+ |
 | `1819f2e30` | `g_bank_to_row` | map selector (part+0x44d) -> melodic map row; `0x77`=XG(9), `0x7a`=GM2(10), `01`-`04`=SC-55/88/88Pro/8850 |
