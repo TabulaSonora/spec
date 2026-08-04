@@ -85,7 +85,9 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180004730` | `reverb_update` | reverb combined param+level update |
 | `180004840` | `fx_control_update` | master fx state-machine update loop |
 | `1800051e0` | `fx_coef_table_select` | select fx coefficient table by index |
-| `1800052d0` | `dispatch_noop` | shared do-nothing dispatch target (`ret 0`); fills unimplemented `g_cc_handlers` slots, envelope stage-table slot 0, the pitch table's terminal slot, and fn-ptr globals — 176 pointers in all. **Not** the CFG guard: CFG is disabled in this image (all `GuardCF*` load-config fields are zero) and Ghidra's Function ID matches any one-instruction `ret`. The export `TG_setInterruptThreadIdAtThisTime` (ordinal 14) is ICF-folded onto it. |
+| `1800052d0` | `dispatch_noop` | shared do-nothing dispatch target (`ret 0`). Three identities are ICF-folded here, all bare returns: the engine no-op (175 of its 176 pointers — unimplemented `g_cc_handlers` slots, envelope stage-table slot 0, the pitch table's terminal slot, fn-ptr globals); the stub export `TG_setInterruptThreadIdAtThisTime` (ordinal 14); and the CRT's inert `__guard_check_icall_fptr` default at `1800921b8`, which is why Ghidra calls it `_guard_check_icall`. CFG is **not** enabled — the guard region of the load config (`0xa0`–`0xff`) is entirely zero — so that pointer is vestigial and nothing guards an indirect call. |
+| `1800921b8` | `g_guard_check_icall_fptr_unused` | CRT guard check fptr, unregistered in a non-CFG build; targets `dispatch_noop` |
+| `1800921c0` | `g_guard_dispatch_icall_fptr_unused` | CRT guard dispatch fptr, likewise inert; targets the `jmp rax` at `180091ae0` |
 | `1800052e0` | `reverb_calc_coef` | compute reverb/delay coef from time params |
 | `1800053e0` | `reverb_load_algo_regs` | program reverb/delay register bank |
 | `180005860` | `chorus_load_algo_regs` | program chorus register bank |

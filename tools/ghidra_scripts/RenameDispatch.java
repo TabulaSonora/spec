@@ -15,7 +15,7 @@ public class RenameDispatch extends GhidraScript {
     /** Functions: address, name, plate comment. */
     String[][] F = {
         // --- the shared do-nothing dispatch target ---
-        {"1800052d0", "dispatch_noop", "The engine's shared no-op handler: a bare `ret 0` (c2 00 00). 176 pointers across the image resolve here -- every unimplemented slot of g_cc_handlers, slot 0 of all three envelope stage tables, the pitch table's terminal slot, and many fn-ptr globals initialised at startup. NOT the CFG guard: Ghidra's Function ID names it _guard_check_icall, but this image has Control Flow Guard disabled (every GuardCF field in the load config is zero), and a one-instruction `ret` matches the guard signature by accident. The DLL's export table also puts TG_setInterruptThreadIdAtThisTime (ordinal 14) at this address -- that export is a stub, and MSVC's /OPT:ICF folded it onto the engine's no-op. Every other export sits together at 0x88xxx-0x8axxx, so a stub landing alone here among engine code is what folding looks like."},
+        {"1800052d0", "dispatch_noop", "The engine's shared no-op handler: a bare `ret 0` (c2 00 00). 175 of the 176 pointers that resolve here are engine dispatch tables -- every unimplemented slot of g_cc_handlers, slot 0 of all three envelope stage tables, the pitch table's terminal slot, and fn-ptr globals initialised at startup. Three identities are folded onto this address by /OPT:ICF, all of them a bare ret: the engine no-op above; the export TG_setInterruptThreadIdAtThisTime (ordinal 14), a stub -- every other export sits together at 0x88xxx-0x8axxx, so one landing alone in engine code is what folding leaves behind; and the CRT's inert __guard_check_icall_fptr default, which is the pointer at 1800921b8 and the reason Ghidra called this _guard_check_icall. That last name is misleading rather than baseless: Control Flow Guard is NOT enabled here -- the whole guard region of the load config directory (offsets 0xa0-0xff, covering GuardCFCheckFunctionPointer, GuardCFDispatchFunctionPointer and GuardFlags) is zero -- so nothing guards any indirect call and the fptr pair is vestigial CRT data. dispatch_noop is the identity that matters when reading the dispatch tables."},
         // --- pitch envelope stage loaders (dispatch table g_pitch_env_stage_handlers) ---
         {"180083870", "pitch_env_stage1_load", "Pitch-env stage 1: start<-current target, target<-voice+0x210, rate word from the stored ms at voice+0x204 (T<11 ? 0xffff : 0xa0000/T), shape 0x4000, interp <- g_env_startphase[min(T,10)]."},
         {"180083800", "pitch_env_stage2_load", "Pitch-env stage 2: target<-voice+0x214, time voice+0x206. Same form as stage 1."},
@@ -44,6 +44,11 @@ public class RenameDispatch extends GhidraScript {
         {"1819a2430", "g_tvf_env_stage_handlers"},
         {"1819a3054", "g_env_next_stage"},
         {"18199fb30", "g_cc_handlers"},
+        // The CRT's guard fptr pair, left inert by a non-CFG build: the check pointer targets
+        // dispatch_noop and the dispatch pointer a bare `jmp rax`. Nothing in the load config
+        // registers them, so no indirect call is actually guarded.
+        {"1800921b8", "g_guard_check_icall_fptr_unused"},
+        {"1800921c0", "g_guard_dispatch_icall_fptr_unused"},
         // 1819a7a00 is deliberately absent: RenameBulk2607.java owns it as g_tvf_env_startphase.
         // Neither that name nor g_env_startphase_pitch is quite right -- the table is read by the
         // pitch-env path AND the TVF-env path -- so naming it in two scripts only made the result
