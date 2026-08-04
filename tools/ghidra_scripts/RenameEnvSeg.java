@@ -6,12 +6,25 @@ import java.io.FileOutputStream;
 
 /** Exports g_rate_curve (rate param -> segment ms) + relabels the TVA segment-rate machine. */
 public class RenameEnvSeg extends GhidraScript {
+    /** Table output dir: first script arg, else $SCVX_TABLES_DIR, else "tables/" relative to the
+     *  working directory. Created if missing, so a fresh checkout needs no setup. */
+    String tablesDir() {
+        String[] a = getScriptArgs();
+        String d = (a.length > 0 && !a[0].isEmpty()) ? a[0] : System.getenv("SCVX_TABLES_DIR");
+        if (d == null || d.isEmpty()) d = "tables/";
+        new java.io.File(d).mkdirs();
+        return d.endsWith("/") ? d : d + "/";
+    }
     @Override public void run() throws Exception {
-        String d = "tables/";
-        byte[] b = new byte[0x100];
-        currentProgram.getMemory().getBytes(toAddr(0x1819a2900L), b, 0, 0x100);
-        try (FileOutputStream f = new FileOutputStream(d + "curve_segrate_2900.bin")) { f.write(b); }
-        println("wrote curve_segrate_2900.bin 256");
+        // The export is best-effort: this script's real job is the naming below, and a table dump
+        // that cannot be written must not take the renames down with it.
+        try {
+            String d = tablesDir();
+            byte[] b = new byte[0x100];
+            currentProgram.getMemory().getBytes(toAddr(0x1819a2900L), b, 0, 0x100);
+            try (FileOutputStream f = new FileOutputStream(d + "curve_segrate_2900.bin")) { f.write(b); }
+            println("wrote curve_segrate_2900.bin 256");
+        } catch (Exception e) { println("export skipped: " + e); }
 
         createLabel(toAddr(0x1819a2900L), "g_rate_curve", true);          // rate param -> segment ms (u16 x0x80)
         createLabel(toAddr(0x181a1f5b4L), "g_tva_rate_mult", true);        // env_rate_scale(kf0, block[0x67])

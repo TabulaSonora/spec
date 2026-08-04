@@ -3,6 +3,15 @@ import java.io.FileOutputStream;
 
 // Export the per-partial synthesis curve/param tables (the "back half").
 public class ExportCurves extends GhidraScript {
+    /** Table output dir: first script arg, else $SCVX_TABLES_DIR, else "tables/" relative to the
+     *  working directory. Created if missing, so a fresh checkout needs no setup. */
+    String tablesDir() {
+        String[] a = getScriptArgs();
+        String d = (a.length > 0 && !a[0].isEmpty()) ? a[0] : System.getenv("SCVX_TABLES_DIR");
+        if (d == null || d.isEmpty()) d = "tables/";
+        new java.io.File(d).mkdirs();
+        return d.endsWith("/") ? d : d + "/";
+    }
     void dump(long base, int n, String p) throws Exception {
         byte[] b = new byte[n];
         currentProgram.getMemory().getBytes(toAddr(base), b, 0, n);
@@ -10,7 +19,7 @@ public class ExportCurves extends GhidraScript {
         println("wrote " + p + " " + n);
     }
     @Override public void run() throws Exception {
-        String d = "tables/";
+        String d = tablesDir();
         // --- envelope RATE math (FUN_1800607e0 / FUN_180060880) ---
         dump(0x1819a3060L, 0x400,  d+"curve_rateout_3060.bin");   // u16 rate multiplier output (8.8)
         dump(0x1819a28e8L, 0x100,  d+"curve_scale_28e8.bin");     // byte scaling curve

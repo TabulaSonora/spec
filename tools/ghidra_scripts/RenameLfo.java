@@ -6,6 +6,15 @@ import java.io.FileOutputStream;
 
 /** Names the LFO/vibrato engine + PRNG, exports the LFO tables. */
 public class RenameLfo extends GhidraScript {
+    /** Table output dir: first script arg, else $SCVX_TABLES_DIR, else "tables/" relative to the
+     *  working directory. Created if missing, so a fresh checkout needs no setup. */
+    String tablesDir() {
+        String[] a = getScriptArgs();
+        String d = (a.length > 0 && !a[0].isEmpty()) ? a[0] : System.getenv("SCVX_TABLES_DIR");
+        if (d == null || d.isEmpty()) d = "tables/";
+        new java.io.File(d).mkdirs();
+        return d.endsWith("/") ? d : d + "/";
+    }
     void dump(long base,int n,String p) throws Exception {
         byte[] b=new byte[n]; currentProgram.getMemory().getBytes(toAddr(base),b,0,n);
         try(FileOutputStream f=new FileOutputStream(p)){f.write(b);} println("wrote "+p+" "+n);
@@ -23,10 +32,14 @@ public class RenameLfo extends GhidraScript {
         {"181a227d0","g_lfo_waveform_sel"},
     };
     @Override public void run() throws Exception {
-        String d="tables/";
-        dump(0x1819a1740L, 0x100, d+"lfo_wave_1740.bin");   // waveform table (byte)
-        dump(0x1819a2790L, 0x100, d+"lfo_rate_2790.bin");   // vibRate -> phase increment (u16 x0x80)
-        dump(0x1819a2690L, 0x100, d+"lfo_cents_2690.bin");  // pitch depth -> cents (s16 x0x80)
+        // Best-effort: this script's real job is the naming below, and a table dump that cannot be
+        // written must not take the renames down with it.
+        try {
+            String d=tablesDir();
+            dump(0x1819a1740L, 0x100, d+"lfo_wave_1740.bin");   // waveform table (byte)
+            dump(0x1819a2790L, 0x100, d+"lfo_rate_2790.bin");   // vibRate -> phase increment (u16 x0x80)
+            dump(0x1819a2690L, 0x100, d+"lfo_cents_2690.bin");  // pitch depth -> cents (s16 x0x80)
+        } catch (Exception e) { println("export skipped: " + e); }
         int ok=0,lb=0;
         for (String[] e : F){ Address a=toAddr(Long.parseLong(e[0],16)); Function fn=getFunctionAt(a);
             if(fn==null){ println("MISS fn "+e[0]); continue; }

@@ -4079,3 +4079,196 @@ at 16 would be the one thing here that is actually wrong. And **bounds-check the
 ignoring `0x20` and above rather than reproducing the fault. There is nothing to be gained by
 copying a missing bounds check, and a note left dangling about it would only invite someone to
 reproduce it faithfully later.
+
+## XG is a second SysEx front end, and it re-maps the instrument `[confirmed — static]`
+
+The bisect above established from the outside that the core implements XG, and put the crash
+boundary at part `0x20`. Reading the parser settles what "implements XG" actually covers, and the
+mechanism turns out to agree with the measurement exactly.
+
+Every function in this subsystem carried a GS-flavoured name from the earlier naming passes
+(`sysex_dispatch_by_manufacturer`, `gs_reset`, `part_set_bank_program`, …), which is why it kept
+reading as GS code that happens to see `0x43`. `RenameXg.java` renames it; the names below are the
+new ones.
+
+### There are two parsers, and XG System On switches between them
+
+`g_xg_mode` (`181a225d8`) is a mode flag. The byte-level SysEx dispatch pointer at `181a22538` is
+swapped whenever it changes:
+
+| state | `g_xg_mode` | dispatcher | shape |
+|---|---|---|---|
+| GS / GM (default) | 0 | `sysex_output_pump` | buffers the whole message, then resolves the address |
+| XG | 1 | `xg_sysex_dispatch` | streams bytes through a returned-handler chain |
+
+- **Into XG**: XG System On, through either the buffered path (`xg_system_on_buffered`) or the
+  streaming one (`xg_system_on`). Both were previously named `gs_reset*`; the real GS Reset is
+  `sysex_system_common_reset`, keyed `0x7f` at address `40 00 7F`.
+- **Out of XG**: *any* Roland message (`F0 41 …`) — the dispatcher clears the flag, resets all parts
+  and reinstalls the GS pump without inspecting the message further. Also GM1 On, GM Off and GM2 On.
+
+That asymmetry matters for a player: **the first Roland SysEx after XG System On silently resets the
+instrument**, so a file that mixes dialects does not layer them, it flip-flops.
+
+Before System On the core recognises exactly one XG message — System On itself, and only with device
+`10` and model `4C`. Every other XG parameter change is dropped. After System On the streaming
+dispatcher accepts device `10`–`1f` and **never checks the model byte at all**, so any Yamaha
+message with a `1n` device is parsed as though it were XG `4C`.
+
+### Which XG blocks exist
+
+`xg_sysex_dispatch` keys on the address-high byte into `g_xg_dispatch_table` (`1819a0870`), taking
+the first entry whose key is `>=` the byte:
+
+| addr-high | handled as | XG block |
+|---|---|---|
+| `00` | `xg_system_param` | System |
+| `02` | `xg_effect1_param` | Effect1 |
+| `08` | `xg_multipart_param` | **Multi Part** |
+| `30`–`3f` | `xg_drum_setup_param` | **Drum Setup 1–4** |
+| `01`, `03`–`07`, `09`–`2f`, `40`–`7f` | consumed and ignored | incl. `0a` A/D part |
+
+System covers master tune, master volume, transpose, System On and All Parameter Reset. Effect1
+covers reverb type/time/return and chorus type/return. Everything else in XG is silently eaten.
+
+### Multi Part is complete, and its parameter map is exact
+
+`xg_multipart_param` puts the part number through `g_xg_part_remap` (`1819a0990`) — 64 bytes,
+`01 02 03 04 05 06 07 08 09 00 0a 0b 0c 0d 0e 0f` repeated with `+0x10` per block, i.e. XG part
+number (0-based channel) to the engine's GS block order where engine part 0 is MIDI channel 10.
+
+The handler chain's return values pin the parameter alignment without any guesswork — the `04`
+handler returns the `05` handler, which returns `06`, and so on — and it matches the published XG
+Multi Part table exactly:
+
+| `pp` | XG parameter | effect |
+|---|---|---|
+| `00` | Element Reserve | consumed, ignored |
+| `01`/`02`/`03` | Bank MSB / Bank LSB / Program | see bank handling below |
+| `04` | Rcv Channel | part+0x3d8; resets controllers, relinks the voice |
+| `05` | Mono/Poly | part+0x3d9 bit7 |
+| `06` | Same Note Number Key On Assign | part+0x3d9 bits 0–1 |
+| `07` | **Part Mode** (0 normal, 1 drum, 3–5 drums1–3) | drum bits + resets bank/program |
+| `08` | Note Shift | part+0x3da, clamp 0x28..0x58 |
+| `09`,`0a` | Detune | part+0x3db, 2 nibbles |
+| `0b` | Volume | part+0x3dc and part+0x46d — the same pair CC7 writes |
+| `0c`/`0d` | Vel Sense Depth / Offset | part+0x3de / +0x3df |
+| `0e` | Pan | part+0x3dd |
+| `0f`/`10` | Note Limit Low / High | part+0x3e0 / +0x3e1 |
+| `11` | Dry Level | ignored |
+| `12`/`13` | Chorus / Reverb Send | part+0x3e2 / +0x3e3 |
+| `14` | Variation Send | ignored |
+| `15`/`16`/`17` | Vibrato Rate / Depth / Delay | part+0x3e4 / +0x3e5 / +0x3eb |
+| `18`/`19` | Filter Cutoff / Resonance | part+0x3e6 / +0x3e7 |
+| `1a`/`1b`/`1c` | EG Attack / Decay / Release | part+0x3e8 / +0x3e9 / +0x3ea |
+| `1d`–`22` | MW control ×6 | mod block part+0x3fc |
+| `23`–`28` | Bend control ×6 | mod block part+0x408 |
+| `30`–`3f` | the 16 Rcv switches | part+0x3d6 bitmap |
+| `40` | Rcv Bank Select | part+0x3ec bit0 |
+| `41`–`4c` | Scale Tuning C..B | part+0x3ee … +0x3f9 |
+| `4d`–`52` / `53`–`58` | CAT / PAT control ×6 | part+0x414 / +0x420 |
+| `59` / `5a`–`5f` | AC1 ctrl number (clamp 0x5f) / control ×6 | part+0x3fa / +0x42c |
+| `60` / `61`–`66` | AC2 ctrl number / control ×6 | part+0x3fb / +0x438 |
+| `67` / `68` | Portamento Switch / Time | grouped-part propagate / part+0x463 |
+| `>= 69` | — | ignored |
+
+Drum Setup is likewise XG-numbered, not GS-numbered: `00` pitch coarse, `02` level, `03` alternate
+group, `04` pan, `05` reverb send, `06` chorus send, `09` rcv note off, `0a` rcv note on, with the
+rest consumed. `rr` is the note number and the writes are per-note into the selected setup buffer.
+
+### The part-index fault, from the other side
+
+The measured boundary was `0x1f` accepted / `0x20` fatal. The mechanism matches: `g_xg_part_remap`
+has **64** entries with values up to `0x3f`, and `xg_multipart_param` guards only `nn < 0x40`, while
+the part array is allocated for **32** parts at stride `0x488`. A part number of `0x20` or above
+therefore computes a pointer up to `32 × 0x488 = 0x9100` bytes past the end and writes through it.
+
+Two independent routes to the same number is worth stating: the black-box sweep found the edge, and
+the table sizes explain why the edge is there. The advice from the bisect stands unchanged — support
+32 parts, bounds-check the index, do not reproduce the missing check.
+
+`xg_drum_setup_param` has the same shape of flaw on a smaller scale, indexing the drum-setup array
+with `addr-high & 0xf` (0–15) when only 8 setups are allocated. XG only defines setups 1–4
+(`30`–`33`), so nothing in practice reaches it — but an implementation should still clamp.
+
+### XG mode changes the tone map and the drum kits
+
+This is the part that does not show up in a crash bisect at all, and it is the part that matters
+most for anyone implementing XG here.
+
+Every part carries a **map selector** at part+0x44d, fed to `g_bank_to_row` for melodic tones and to
+`g_drum_bank_to_row` for kits:
+
+| selector | melodic row | drum row | meaning |
+|---|---|---|---|
+| `01`–`04` | 7, 6, 5, 0 | 3, 2, 1, 0 | SC-55 / SC-88 / SC-88Pro / SC-8850 |
+| **`77`** | **9** | **4** | **XG** |
+| `7a` | 10 | 5 | GM2 |
+
+Both XG System On handlers set part+0x44d to `0x77` on **every** part, exactly as GM2 On sets `0x7a`.
+So XG System On re-maps the whole instrument; it does not merely reset it.
+
+The XG melodic row is a genuinely separate preset layout — **45 bank-LSB variations, 534 presets**,
+each with its own tone-map column (LSB 0 carries all 128 programs; the variation banks 1/3/6/8/12/…
+/64–72/96–101 are sparse, and 125 is the SFX bank reached by bank MSB 64). It is not an aliasing of
+the GS map.
+
+Drums get **11 dedicated kit records** — programs 0, 1, 8, 16, 24, 25, 32, 40, 48 for the nine
+standard XG kits, plus 120/121 for SFX Kit 1/2 — distinct records from GM2's nine and from the SC
+rows.
+
+### Bank MSB switches drums on and off per part
+
+In XG mode the bank-select path (`part_bank_program_apply`) behaves completely differently from GS:
+
+- **MSB < 0x7e** — melodic. Selector becomes `0x77` and the *bank LSB* picks the variation, which is
+  XG's own convention.
+- **MSB == 0x40** — the XG SFX voice bank.
+- **MSB == 0x7e** — SFX kits: program `+= 0x78`, then treated as drums.
+- **MSB == 0x7f** — drum kits, program used directly (clamped: `> 0x77` becomes 0).
+
+For both drum cases the part is *switched into drum mode* and re-programmed; if the program has no
+kit, the previous bank/program/selector are restored and a rejection is queued.
+
+So under XG **any** part becomes a drum part via bank MSB 127 and reverts via MSB < 126, with no
+SysEx involved. Under GS that is impossible through bank select — it needs the Use-For-Rhythm-Part
+SysEx. XG Part Mode (`08 nn 07`) does the same job explicitly.
+
+### XG effect types are translated, and most are dropped
+
+Reverb and chorus type arrive as an MSB/LSB pair and are linear-searched in a 4-byte-stride
+translation table; **an unmatched pair leaves the effect at its previous setting**.
+
+`g_reverb_macro_table` (`1819a0108`), as `XG type → internal reverb, extra`:
+
+| XG type | internal | extra |
+|---|---|---|
+| 1/0 HALL1 | 3 | 72 |
+| 1/1 HALL1 | 4 | 84 |
+| 2/0 HALL2 | 0 | 52 |
+| 2/1 HALL2 | 1 | 48 |
+| 2/2 HALL2 | 2 | 36 |
+| 3/0 ROOM1 | 3 | 76 |
+| 3/1 ROOM1 | 3 | 44 |
+| 4/0 ROOM2 | 5 | 101 |
+| 16/0 WHITE ROOM | 0 | 68 |
+| 17/0 TUNNEL | 5 | 127 |
+| 18/0 CANYON | 0 | 80 |
+| 19/0 BASEMENT | 0 | 44 |
+
+Note what is absent: ROOM3, STAGE1/2 and PLATE have no entry. `g_chorus_macro_table` (`1819a0830`)
+is the same shape — 65/0, 65/1, 65/8, 66/0, 66/1, 66/8, 68/0, 72/0 and 87/0 map to internal chorus
+0; 65/2 and 66/2 to internal 2; CHORUS3 (67/0, 67/1, 67/8) to internal 5 — and CELESTE1–3 and the
+flangers are absent entirely.
+
+XG Reverb Time is remapped through a piecewise curve that branches on which internal reverb is
+active, so it is not a linear rescale.
+
+### One inconsistency to measure before copying
+
+The CC0 path and the SysEx path disagree on XG bank MSB 64 (the SFX voice bank). `part_bank_program_apply`
+sets selector `0x77` with bank `0x7d`, which resolves to a valid column. `xg_part_bank_program` sets
+selector `0x7d` with bank `0x40`, and `g_bank_to_row[0x7d]` is `0xff` — an index far outside the
+column table. Either something downstream special-cases that selector, or it is a second
+out-of-bounds read. It is worth a targeted probe against the oracle before an implementation mirrors
+either branch.

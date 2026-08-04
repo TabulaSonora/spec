@@ -397,7 +397,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180066470` | `engine_all_parts_reset` | full reset: RPN slots + all part/voice structs |
 | `180066750` | `part_voice_reset` | reset one part active voices/controller state |
 | `180066790` | `sysex_reset_engine` | GM/GS reset dispatcher; install fn-ptrs, reset |
-| `180066860` | `part_note_remap_refresh` | remap/re-trigger held notes on mode change |
+| `180066860` | `part_bank_program_apply` | apply pending bank MSB/LSB + program to all parts on the channel; branches on `g_xg_mode` |
 | `180066c30` | `poly_aftertouch_apply` | poly key-pressure -> per-part mod matrix dests |
 | `180066fe0` | `nrpn_apply` | NRPN switch: vib/TVF/TVA/drum params |
 | `180067760` | `pitch_bend_apply` | pitch-bend -> bipolar mod matrix pitch dest |
@@ -433,7 +433,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1800697e0` | `sysex_prepare_dt1_reply` | parse RQ1/DT1 address, stage reply header |
 | `180069b00` | `sysex_build_dump_address` | internal param addr -> GS sysex address bytes |
 | `18006b100` | `sysex_receive_parse` | route incoming sysex by mfr byte, verify checksum |
-| `18006b380` | `gs_reset_execute` | GS-reset data-set: reinit parts |
+| `18006b380` | `xg_system_on_buffered` | **XG System On** (buffered path, addr `00 00 7E`): reinit parts, map selector `0x77`, install the XG dispatcher |
 | `18006b4a0` | `sysex_select_param_map` | pick param-map table by model id + address |
 | `18006ba60` | `sysex_handler_noop` | default byte consumer; flush TX when done |
 | `18006bad0` | `sysex_advance_to_next_handler` | skip bytes to target index then jump |
@@ -464,7 +464,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180071360` | `sysex_master_volume` | system common master volume |
 | `180071450` | `sysex_master_key_shift` | master key shift clamp 0x28..0x58 |
 | `180071510` | `sysex_master_pan` | master panpot |
-| `180071620` | `sysex_system_common_reset` | clear dump buf reset write idx |
+| `180071620` | `sysex_system_common_reset` | **GS Reset** (`40 00 7F 00`): reset all parts, clear SysEx TX buffer |
 | `180071690` | `sysex_master_patch_name` | 16-byte patch name |
 | `1800717b0` | `sysex_system_common_dump` | pack system-common block into dump buf |
 | `180071c20` | `sysex_reverb_macro` | reverb type/macro preset lookup |
@@ -566,28 +566,28 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `18007d030` | `sysex_scale_octave_tuning` | write 12 scale-tune bytes @part+0x3ee |
 | `18007d190` | `sysex_key_based_inst_ctrl` | per-note level/pan/rev/cho |
 | `18007d360` | `sysex_global_rev_cho_macro` | global reverb/chorus macros |
-| `18007d5a0` | `sysex_dispatch_by_manufacturer` | top SysEx demux Roland/0x43/0x7E/0x7F |
-| `18007d6c0` | `sysex_roland_addr_subdispatch` | Roland reception sub-state demux |
-| `18007d910` | `sysex_gs_part_param_dispatch` | GS per-part param demux -> part+0x3dc.. |
-| `18007dfa0` | `sysex_drum_setup_param` | GS drum-setup: tone-name match, drum pitch |
-| `18007e010` | `sysex_master_tune_4nibble` | 4 nibbles -> 12-bit tune write |
-| `18007e0f0` | `system_set_key_shift` | clamp, write system key shift |
-| `18007e130` | `gs_reset` | GS Reset: reset all parts, rearm dispatch |
-| `18007e230` | `all_parts_sound_off` | clear voice state all parts |
-| `18007e2f0` | `reverb_type_select` | reverb macro lookup, set FX block |
-| `18007e4d0` | `chorus_type_select` | chorus macro lookup, set FX block |
-| `18007e5d0` | `part_set_bank_program` | bank+PC -> part+0x3d4/0x44d/0x3d5, drum sw |
-| `18007e730` | `part_set_map_reset_voices` | part map, reset controllers, unlink voice |
-| `18007e7f0` | `part_set_rx_flag` | part+0x3d9 bit7 |
-| `18007e830` | `part_set_mono_poly` | part+0x3d9 mono/poly bits |
-| `18007e880` | `part_set_assign_mode` | part+0x3d9/+0x12 voice-assign mode |
-| `18007ea20` | `part_set_key_shift` | clamp -> part+0x3da key shift |
-| `18007ea60` | `part_set_rx_channel` | 2 nibbles -> part+0x3db rx channel |
-| `18007ecb0` | `part_set_rx_ctrl_flags` | set/clear part+0x3d6 rx-control bits |
-| `18007ed10` | `part_set_rx_flag2` | part+0x3ec bit0 rx enable |
-| `18007edf0` | `part_set_tva_partial_params` | write partial/tone params |
-| `18007ef30` | `part_group_mute_toggle` | grouped parts: toggle mute bits |
-| `18007ef90` | `part_group_set_param` | grouped parts: write part+0x463 |
+| `18007d5a0` | `xg_sysex_dispatch` | **XG-mode** byte dispatcher; `0x43` -> XG table `1819a0870`, any Roland `0x41` leaves XG mode |
+| `18007d6c0` | `xg_system_param` | **XG System block** (`00 00 pp`): master tune/volume/transpose, System On, All Param Reset |
+| `18007d910` | `xg_multipart_param` | **XG Multi Part** (`08 nn pp`); remaps `nn` via `1819a0990`. Unbounded for `nn >= 0x20` |
+| `18007dfa0` | `xg_drum_setup_param` | **XG Drum Setup** (`3n rr pp`), XG parameter numbering |
+| `18007e010` | `xg_system_master_tune` | XG System `00 00 00`-`03` Master Tune, 4 nibbles |
+| `18007e0f0` | `xg_system_transpose` | XG System `00 00 06` Transpose, clamped |
+| `18007e130` | `xg_system_on` | **XG System On** (streaming path); GS Reset is `180071620` |
+| `18007e230` | `xg_all_param_reset` | XG System `00 00 7F` All Parameter Reset |
+| `18007e2f0` | `xg_reverb_type_select` | XG reverb type MSB/LSB -> internal macro via `1819a0108`; unmatched types dropped |
+| `18007e4d0` | `xg_chorus_type_select` | XG chorus type MSB/LSB -> internal macro via `1819a0830`; unmatched types dropped |
+| `18007e5d0` | `xg_part_bank_program` | XG Multi Part `01`/`02`/`03` bank MSB/LSB + program; MSB >= `0x7e` switches the part to drums |
+| `18007e730` | `xg_part_rx_channel` | XG Multi Part `04` **Rcv Channel** -> part+0x3d8 |
+| `18007e7f0` | `xg_part_mono_poly` | XG Multi Part `05` **Mono/Poly** -> part+0x3d9 bit7 |
+| `18007e830` | `xg_part_same_note_assign` | XG Multi Part `06` **Same Note Key On Assign** -> part+0x3d9 bits 0-1 |
+| `18007e880` | `xg_part_mode` | XG Multi Part `07` **Part Mode** (0 normal, 1 drum, 3-5 drums1-3) |
+| `18007ea20` | `xg_part_note_shift` | XG Multi Part `08` **Note Shift**, clamp 0x28..0x58 |
+| `18007ea60` | `xg_part_detune` | XG Multi Part `09`/`0a` **Detune**, 2 nibbles |
+| `18007ecb0` | `xg_part_rx_switches` | XG Multi Part `30`-`3f`: the 16 Rcv switches -> part+0x3d6 |
+| `18007ed10` | `xg_part_rx_bank_select` | XG Multi Part `40` **Rcv Bank Select** -> part+0x3ec bit0 |
+| `18007edf0` | `xg_part_mod_param` | XG Multi Part mod blocks: MW/Bend/CAT/PAT/AC1/AC2 x6, and scale tuning |
+| `18007ef30` | `xg_part_portamento_switch` | XG Multi Part `67` **Portamento Switch** |
+| `18007ef90` | `xg_part_portamento_time` | XG Multi Part `68` **Portamento Time** -> part+0x463 |
 | `18007eff0` | `caseD_0` |  |
 | `18007f440` | `fx_load_reverb_preset` | load FX DSP reverb preset |
 | `18007f490` | `fx_apply_reverb_chorus_type` | apply reverb/delay type: program DSP coeffs |
@@ -861,18 +861,22 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 |---------|-------|------------|
 | `181893930` | `g_delay_preset_tbl` | delay macro preset table |
 | `18189566e` | `g_fx_type_algo_col` | per-row algo-index column of EFX type map |
-| `1819a0108` | `g_reverb_macro_table` | reverb-type match table |
+| `1819a0108` | `g_reverb_macro_table` | **XG** reverb-type match table: `[msb, lsb, internal_type, extra]`, `ff` terminator |
 | `1819a0248` | `g_reverb_preset_tbl` | reverb macro preset table |
 | `1819a0550` | `g_rx_flag_bitmask_tbl` | u16 bitmasks for part Rx-flag 0x3d6 |
-| `1819a0830` | `g_chorus_macro_table` | chorus-type match table |
+| `1819a0830` | `g_chorus_macro_table` | **XG** chorus-type match table, same layout |
+| `1819a0870` | `g_xg_dispatch_table` | XG address-high dispatch table (`00` system, `02` effect1, `08` multi-part, `30`-`3f` drum setup) |
+| `1819a0990` | `g_xg_part_remap` | 64-byte XG part number -> engine part index (ch10-first GS block order) |
 | `1819a2890` | `g_tvf_env_level_curve` | abs(level-0x40) TVF env level curve |
 | `1819a2fa0` | `g_pan_curve` | 128-byte pan law; read forward for the right gain |
 | `1819a3020` | `g_pan_curve_end` | far end of `g_pan_curve`; indexed negatively for the left gain |
 | `1819a7a00` | `g_tvf_env_startphase` | TVF env start-phase table[0..10] |
 | `1819a9d80` | `g_bit_mask_lut` | 1<<(i&0x1f) shared bitmask helper |
-| `1819f28b0` | `g_prog_to_col` | program -> map column (0xff=none) |
-| `1819f2e30` | `g_bank_to_row` | bank(CC0) -> map row (0xff=none) |
+| `1819f28b0` | `g_prog_to_col` | program -> map column (0xff=none); melodic rows 0-11, drum rows 12+ |
+| `1819f2e30` | `g_bank_to_row` | map selector (part+0x44d) -> melodic map row; `0x77`=XG(9), `0x7a`=GM2(10), `01`-`04`=SC-55/88/88Pro/8850 |
+| `1819f31b0` | `g_drumkit_index` | [drum column] -> drum-set record index (stride 0x50c; 0xffff=none) |
 | `1819f32b0` | `g_tonemap_index` | [row][col] -> tone index (0x8000+=none) |
+| `181a00bb0` | `g_drum_bank_to_row` | map selector -> drum map row; `0x77`=XG(4), `0x7a`=GM2(5), `01`-`04`=SC-55/88/88Pro/8850 |
 | `181a03620` | `g_kf_tvfrate2` | second TVF env-rate key-follow table |
 | `181a10140` | `g_voice_ramp_amp` | per-voice amp/level ctrl-ramp SoA |
 | `181a10740` | `g_voice_ramp_cutoff` | per-voice TVF-cutoff ctrl-ramp SoA |
@@ -888,6 +892,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `181a1e292` | `g_active_sound_map` | SC-55/88/88Pro map id |
 | `181a1e704` | `g_part_count` | parts allocated at init; 0x20, not 0x10 |
 | `181a1f5a8` | `g_tva_base_level` | scratch TVA base level |
+| `181a225d8` | `g_xg_mode` | 1 while XG mode is active; swaps the SysEx front end and the bank-select semantics |
 | `181a20288` | `g_modmatrix_dirty_mask` | per-dest dirty bitmask from modmatrix helpers |
 | `181a21290` | `g_part_note_velmap` | per-part 128-byte note-velocity table (0xff=inactive) |
 | `181a22291` | `g_midi_note` | current MIDI note number |
