@@ -633,6 +633,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1800838e0` | `tva_env_stage1_load` | TVA twin: target <- voice+0x1d2, time voice+0x1c6 |
 | `180083960` | `tva_env_stage2_load` | TVA twin: target <- voice+0x1d4, time voice+0x1c8 |
 | `1800839e0` | `tva_env_stage3_load` | TVA twin: target <- voice+0x1d6, time voice+0x1ca |
+| `180083a60` | `tva_env_stage4_hold` | TVA-env stage 4 (terminal): pins interp start phase voice+0xe to `g_env_startphase_b[10]`; the ramp stops advancing |
 | `180083a70` | `env_ramp_segment` |  |
 | `180083be0` | `voice_pan_smooth` | slew pan/send toward target |
 | `180083db0` | `voice_expr_smooth` | slew expression/level via curve tbls |
@@ -642,6 +643,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1800846f0` | `tvf_env_stage1_load` | TVF-env stage 1 loader: target voice+0x1e4, time voice+0x1d8, shape voice+0x1de |
 | `180084770` | `tvf_env_stage2_load` | TVF-env stage 2 loader: target voice+0x1e6, time voice+0x1da |
 | `1800847f0` | `tvf_env_stage3_load` | TVF-env stage 3 loader: target voice+0x1e8, time voice+0x1dc |
+| `180084870` | `tvf_env_stage4_hold` | TVF-env stage 4 (terminal): pins the interp start-phase scratch to `g_tvf_env_startphase[10]` |
 | `180084880` | `tvf_env_ramp_segment` | TVF-env segment ramp snap on wrap |
 | `1800849a0` | `voices_control_update` |  |
 | `180084c60` | `engine_init_tasks_ports` | init task list, port structs, FIFOs |

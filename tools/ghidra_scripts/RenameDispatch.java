@@ -17,15 +17,17 @@ public class RenameDispatch extends GhidraScript {
         // --- pitch envelope stage loaders (dispatch table g_pitch_env_stage_handlers) ---
         {"180083870", "pitch_env_stage1_load", "Pitch-env stage 1: start<-current target, target<-voice+0x210, rate word from the stored ms at voice+0x204 (T<11 ? 0xffff : 0xa0000/T), shape 0x4000, interp <- g_env_startphase[min(T,10)]."},
         {"180083800", "pitch_env_stage2_load", "Pitch-env stage 2: target<-voice+0x214, time voice+0x206. Same form as stage 1."},
-        {"180083790", "pitch_env_stage3_load", "Pitch-env stage 3: target<-voice+0x218 (the unbiased base pitch), time voice+0x208. Stage 4 is terminal and dispatches to the no-op."},
+        {"180083790", "pitch_env_stage3_load", "Pitch-env stage 3: target<-voice+0x218 (the unbiased base pitch), time voice+0x208. Stage 4 is terminal: unlike TVA and TVF, the pitch table's stage-4 slot holds the same bare-return stub as slot 0, so the pitch envelope simply stops."},
         // --- TVA envelope stage loaders (dispatch table g_tva_env_stage_handlers) ---
         {"1800838e0", "tva_env_stage1_load", "TVA-env stage 1: target<-voice+0x1d2, time voice+0x1c6, interp table g_env_startphase_b. Same machine as the pitch loaders."},
         {"180083960", "tva_env_stage2_load", "TVA-env stage 2: target<-voice+0x1d4, time voice+0x1c8."},
         {"1800839e0", "tva_env_stage3_load", "TVA-env stage 3: target<-voice+0x1d6, time voice+0x1ca."},
+        {"180083a60", "tva_env_stage4_hold", "TVA-env stage 4, the terminal state (g_env_next_stage maps 3->4 and 4->4). Loads no segment: it pins the interp start phase at voice+0xe to 0x33, which is g_env_startphase_b[10] -- the slowest entry, the one the loaders clamp to for any time >= 11 ms. The ramp therefore stops advancing rather than being switched off."},
         // --- TVF envelope stage loaders (dispatch table g_tvf_env_stage_handlers) ---
         {"1800846f0", "tvf_env_stage1_load", "TVF-env stage 1: target<-voice+0x1e4, time voice+0x1d8, shape voice+0x1de, interp table g_tvf_env_startphase. Same machine as the TVA loaders; the TVF block sits 0x12 above the TVA one (0x1c6/0x1cc/0x1d2 -> 0x1d8/0x1de/0x1e4). tvf_compute_env_rates writes the fields these read."},
         {"180084770", "tvf_env_stage2_load", "TVF-env stage 2: target<-voice+0x1e6, time voice+0x1da, shape voice+0x1e0."},
         {"1800847f0", "tvf_env_stage3_load", "TVF-env stage 3: target<-voice+0x1e8, time voice+0x1dc, shape voice+0x1e2."},
+        {"180084870", "tvf_env_stage4_hold", "TVF-env stage 4, the terminal state. Same shape as tva_env_stage4_hold: pins the interp start phase (the DAT_181a226fa scratch) to 0xcc, which is g_tvf_env_startphase[10]. Takes no argument -- the TVF env runs out of scratch globals, not the voice."},
         // --- MIDI controller handlers (dispatch table g_cc_handlers, index = controller number) ---
         {"180065e50", "cc64_hold_damper", "CC64 damper. Rx gate 0x820 in part+0x3d6. Stores the RAW value into part+0x462 when the part's tone carries half-damper (part+0x24c bit 2, from tone header byte 0x0d); otherwise quantises to 0 / 0x7f. At release the value scales the release ramp rate: rate*(0xffff-(v<<9))>>16."},
         {"1800661a0", "cc66_sostenuto", "CC66 sostenuto, binary (bit 6 only). Rx gate 0x880. Down: for each sounding note-group (node+0x30==1) set the note's bit in the captured-note bitmap part+0x260 and the capture flag node+0x34 bit 0. Up: clear the flags, mark voices released (voice+0x16d=1) for groups already in state 2, then zero the bitmap."},
