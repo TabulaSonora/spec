@@ -4241,6 +4241,56 @@ Drums get **11 dedicated kit records** — programs 0, 1, 8, 16, 24, 25, 32, 40,
 standard XG kits, plus 120/121 for SFX Kit 1/2 — distinct records from GM2's nine and from the SC
 rows.
 
+### Kit names, and three things not to assume about them `[confirmed — measured]`
+
+Each 0x50C kit record carries a **12-byte ASCII name at `+0x500`** — the field the module's own
+rhythm-set name dump reads. All 88 kits reachable through the six drum map rows have one; none is
+empty and none contains a byte outside printable ASCII. Reading it is what lets a mixer say
+"analog kit" instead of "kit 73".
+
+Three properties of that data will mislead anyone who assumes otherwise.
+
+**The XG set is the only one not in capitals.** Counting the names each drum row reaches:
+
+| row | set | ALL CAPS | all lower | mixed |
+|---|---|---|---|---|
+| 0 | SC-8820 | 38 | 0 | 0 |
+| 1 | SC-88Pro | 26 | 0 | 0 |
+| 2 | SC-88 | 15 | 0 | 0 |
+| 3 | SC-55 | 10 | 0 | 0 |
+| **4** | **XG** | **0** | **9** | **2** |
+| 5 | GM2 | 9 | 0 | 0 |
+
+The two mixed entries are XG's `SFX 1 kit` and `SFX 2 kit`. Every other XG kit is lower case, and
+every kit of every other set is upper. That is the ROM's own inconsistency and it is left alone
+here: normalising it would destroy the one thing it is good for.
+
+Because it is **a free diagnostic**. An ALL-CAPS kit name on material that looks like XG means the
+drum row is *not* following XG — the mode never engaged. `CaveStory-MoonSong_XG.mid` shows
+`ELECTRONIC` on channel 10 by default and `electro kit` once the map is set to XG, and the two
+names are the fastest way to see which happened. GS and XG both define a kit at program 24, so
+nothing else about the render says which one sounded.
+
+**Names are not identifiers.** Fifteen are shared by two to four distinct kit records:
+
+```
+ASIA 26,46          BRUSH 19,55,65      DANCE 12,44,53      ELECTRONIC 10,51,62
+HIP HOP 4,41        JAZZ 17,45,54,64    JUNGLE 5,42         ORCHESTRA 22,56,66
+POWER 9,50,61       ROOM 3,40,49,60     SFX 30,58,67        STANDARD 1 0,38,47
+STANDARD 2 1,48     TECHNO 6,43         TR-808 11,63
+```
+
+`ROOM` alone is four records, one per GS vintage — the same name over four different sets of
+samples. Anything keying on the name rather than the record index will collide, and will collide
+precisely across the vintages a tone map exists to distinguish.
+
+**Some are truncated to fit.** The field is exactly twelve bytes with no terminator, and nine names
+fill it: `STANDARD L/R`, `KICK & SNARE`, `KICK&SNARE 2`, `CYMBAL&CLAPS`, `standard kit`,
+`standrd kit2`, `GM2 STANDARD`, `GM2 ELECTRIC`, `GM2 ORCHSTRA`. Two are visibly elided rather than
+merely full: XG's `standrd kit2` drops the *a* from "standard" rather than the trailing digit, and
+GM2's `GM2 ORCHSTRA` drops the *E* from "ORCHESTRA". So a name at the full twelve bytes should be
+read as possibly abbreviated, and the elision is not always at the end.
+
 ### Bank MSB switches drums on and off per part
 
 In XG mode the bank-select path (`part_bank_program_apply`) behaves completely differently from GS:
