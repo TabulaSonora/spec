@@ -1292,26 +1292,48 @@ unsafe
             while (ei < events.Count && events[ei].At < pos + blk)
             {
                 var e = events[ei++];
-                // Drop XG Multi Part writes addressed past part 32. SCCore.dll does implement XG:
-                // `F0 43 10 4C 00 00 7E 00 F7` (XG System On) arms it, and a Multi Part write
-                // `F0 43 10 4C 08 <part> <param> <value> F7` is then honoured. Parts 0x00..0x1f are
-                // accepted and 0x20 upward kill the process with 0xC0000005.
+                // Drop XG messages whose address would index past the end of an array the core
+                // does not bounds-check. SCCore.dll does implement XG: `F0 43 10 4C 00 00 7E 00 F7`
+                // (XG System On) arms it, and the parameter blocks are then honoured.
                 //
-                // 0x00..0x1f is thirty-two parts, which is exactly what this synth has -- so the
-                // range is right and the message is not: a part index of 0x20 is the thirty-third
-                // part and does not exist. th07_19_user_gm.mid genuinely asks for one. The core's
-                // defect is only that it indexes its part table without bounds-checking first, so
-                // a malformed file walks off the end of it instead of being ignored.
+                // Two such indexes are known, both read straight out of the address:
                 //
-                // Narrower than SCWrap's hook, which drops Yamaha SysEx wholesale for this crash.
-                // Keeping the rest preserves whatever XG behaviour the core really has, at the cost
-                // of assuming this is its only unchecked index; widen to `e.Bytes[1] == 0x43` if
-                // another fault turns up.
-                bool xgOutOfRangePart = e.Bytes != null && e.Bytes.Length >= 6
-                                        && e.Bytes[1] == 0x43 && (e.Bytes[2] & 0xF0) == 0x10
-                                        && e.Bytes[3] == 0x4C && e.Bytes[4] == 0x08
-                                        && e.Bytes[5] >= 0x20;
-                if (e.Bytes != null && !xgOutOfRangePart)
+                //  * Multi Part, `08 <part> <param>`. The part goes through a 64-entry remap table
+                //    while the part array holds 32, so 0x00..0x1f are accepted and 0x20 upward kill
+                //    the process with 0xC0000005. Thirty-two is exactly what this synth has, so the
+                //    range is right and the message is not -- part 0x20 is a thirty-third part that
+                //    does not exist, and th07_19_user_gm.mid genuinely asks for one.
+                //
+                //  * Drum Setup, `3n <note> <param>`. The setup index is `addrH & 0x0F`, which
+                //    yields 0..15, but only **eight** setup buffers are allocated: the count global
+                //    is 8 and the block is `malloc(0x2860)` at a stride of 0x50C, which is 8 exactly.
+                //    So `38`..`3F` index buffers 8..15 and run off the end.
+                //
+                //    Measured with `sysexreplay`, one index per process, after XG System On:
+                //    `30`..`37` (0-7) all survive, as they should. Of the rest, `3B` and `3F` die
+                //    with 0xC0000005 while `38`, `39` and `3D` *survive* -- they land in mapped
+                //    heap and corrupt whatever is there instead of faulting. The erratic half is
+                //    the reason to filter the whole range rather than only what crashes today:
+                //    a silent write into the neighbouring allocation is worse than the crash, and
+                //    which indices do which is an accident of the heap. XG itself only defines
+                //    setups 1-4 (`30`..`33`), so nothing well-formed is lost.
+                //
+                // The model byte is deliberately **not** checked. Once its XG parser is armed the
+                // core stops checking it too, so `F0 43 1n <anything> 08 20 ...` reaches the same
+                // unguarded index that `4C` does; a filter that insisted on `4C` would let it past.
+                //
+                // Still narrower than SCWrap's hook, which drops Yamaha SysEx wholesale. Keeping
+                // the rest preserves whatever XG behaviour the core really has.
+                bool xgUncheckedIndex = false;
+                if (e.Bytes != null && e.Bytes.Length >= 6 && e.Bytes[1] == 0x43
+                    && (e.Bytes[2] & 0xF0) == 0x10)
+                {
+                    int addrH = e.Bytes[4];
+                    int addrM = e.Bytes[5];
+                    if (addrH == 0x08 && addrM >= 0x20) xgUncheckedIndex = true;
+                    if (addrH >= 0x30 && addrH <= 0x3F && (addrH & 0x0F) >= 8) xgUncheckedIndex = true;
+                }
+                if (e.Bytes != null && !xgUncheckedIndex)
                 {
                     fixed (byte* mp = e.Bytes) longIn(mp, 0);
                 }

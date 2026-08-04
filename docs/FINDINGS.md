@@ -4187,9 +4187,33 @@ Two independent routes to the same number is worth stating: the black-box sweep 
 the table sizes explain why the edge is there. The advice from the bisect stands unchanged — support
 32 parts, bounds-check the index, do not reproduce the missing check.
 
-`xg_drum_setup_param` has the same shape of flaw on a smaller scale, indexing the drum-setup array
-with `addr-high & 0xf` (0–15) when only 8 setups are allocated. XG only defines setups 1–4
-(`30`–`33`), so nothing in practice reaches it — but an implementation should still clamp.
+`xg_drum_setup_param` has the same shape of flaw on a smaller scale, and it has since been measured —
+see the next section.
+
+### The drum-setup index is a second unchecked one, and it is erratic
+
+`xg_drum_setup_param` takes its setup buffer from `addrH & 0x0F`, which yields 0-15, while only
+**eight** buffers exist: the count global is 8 and the block is `malloc(0x2860)` at a stride of
+`0x50C`, which is 8 exactly. `38`-`3F` therefore index buffers 8-15 and run off the end.
+
+Measured against the DLL with `sysexreplay`, one index per process, each after XG System On:
+
+| `addrH` | setup index | result |
+|---|---|---|
+| `30`-`37` | 0-7 | survives (these are the eight that exist) |
+| `38`, `39` | 8, 9 | **survives** |
+| `3B` | 11 | `0xC0000005` |
+| `3D` | 13 | **survives** |
+| `3F` | 15 | `0xC0000005` |
+
+The half that survives is the more dangerous half: those writes land in mapped heap and corrupt the
+neighbouring allocation instead of faulting, and which indices fall which way is an accident of the
+heap rather than a property of the code. That is why the harness filters the whole `38`-`3F` range
+rather than only the indices observed to crash.
+
+Nothing well-formed reaches it -- XG defines drum setups 1-4, which are `30`-`33` -- so this is a
+robustness fault rather than something a real file trips, unlike the Multi Part part index that
+`th07_19_user_gm.mid` genuinely walks off the end of.
 
 ### XG mode changes the tone map and the drum kits
 
