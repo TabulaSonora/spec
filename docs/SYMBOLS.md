@@ -639,6 +639,9 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180083f00` | `tvf_cutoff_compute` | TVF cutoff pipeline stages + add-LFO |
 | `180083fc0` | `tvf_env_cutoff_update` | TVF env ramp + cutoff compute |
 | `180084350` | `tvf_cutoff_add_lfo` |  |
+| `1800846f0` | `tvf_env_stage1_load` | TVF-env stage 1 loader: target voice+0x1e4, time voice+0x1d8, shape voice+0x1de |
+| `180084770` | `tvf_env_stage2_load` | TVF-env stage 2 loader: target voice+0x1e6, time voice+0x1da |
+| `1800847f0` | `tvf_env_stage3_load` | TVF-env stage 3 loader: target voice+0x1e8, time voice+0x1dc |
 | `180084880` | `tvf_env_ramp_segment` | TVF-env segment ramp snap on wrap |
 | `1800849a0` | `voices_control_update` |  |
 | `180084c60` | `engine_init_tasks_ports` | init task list, port structs, FIFOs |
@@ -867,6 +870,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1819a0830` | `g_chorus_macro_table` | **XG** chorus-type match table, same layout |
 | `1819a0870` | `g_xg_dispatch_table` | XG address-high dispatch table (`00` system, `02` effect1, `08` multi-part, `30`-`3f` drum setup) |
 | `1819a0990` | `g_xg_part_remap` | 64-byte XG part number -> engine part index (ch10-first GS block order) |
+| `1819a2430` | `g_tvf_env_stage_handlers` | TVF env stage loader fn-ptr table; parallel to `g_tva_env_stage_handlers` |
 | `1819a2890` | `g_tvf_env_level_curve` | abs(level-0x40) TVF env level curve |
 | `1819a2fa0` | `g_pan_curve` | 128-byte pan law; read forward for the right gain |
 | `1819a3020` | `g_pan_curve_end` | far end of `g_pan_curve`; indexed negatively for the left gain |

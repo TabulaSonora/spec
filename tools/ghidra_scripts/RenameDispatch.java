@@ -22,6 +22,10 @@ public class RenameDispatch extends GhidraScript {
         {"1800838e0", "tva_env_stage1_load", "TVA-env stage 1: target<-voice+0x1d2, time voice+0x1c6, interp table g_env_startphase_b. Same machine as the pitch loaders."},
         {"180083960", "tva_env_stage2_load", "TVA-env stage 2: target<-voice+0x1d4, time voice+0x1c8."},
         {"1800839e0", "tva_env_stage3_load", "TVA-env stage 3: target<-voice+0x1d6, time voice+0x1ca."},
+        // --- TVF envelope stage loaders (dispatch table g_tvf_env_stage_handlers) ---
+        {"1800846f0", "tvf_env_stage1_load", "TVF-env stage 1: target<-voice+0x1e4, time voice+0x1d8, shape voice+0x1de, interp table g_tvf_env_startphase. Same machine as the TVA loaders; the TVF block sits 0x12 above the TVA one (0x1c6/0x1cc/0x1d2 -> 0x1d8/0x1de/0x1e4). tvf_compute_env_rates writes the fields these read."},
+        {"180084770", "tvf_env_stage2_load", "TVF-env stage 2: target<-voice+0x1e6, time voice+0x1da, shape voice+0x1e0."},
+        {"1800847f0", "tvf_env_stage3_load", "TVF-env stage 3: target<-voice+0x1e8, time voice+0x1dc, shape voice+0x1e2."},
         // --- MIDI controller handlers (dispatch table g_cc_handlers, index = controller number) ---
         {"180065e50", "cc64_hold_damper", "CC64 damper. Rx gate 0x820 in part+0x3d6. Stores the RAW value into part+0x462 when the part's tone carries half-damper (part+0x24c bit 2, from tone header byte 0x0d); otherwise quantises to 0 / 0x7f. At release the value scales the release ramp rate: rate*(0xffff-(v<<9))>>16."},
         {"1800661a0", "cc66_sostenuto", "CC66 sostenuto, binary (bit 6 only). Rx gate 0x880. Down: for each sounding note-group (node+0x30==1) set the note's bit in the captured-note bitmap part+0x260 and the capture flag node+0x34 bit 0. Up: clear the flags, mark voices released (voice+0x16d=1) for groups already in state 2, then zero the bitmap."},
@@ -33,6 +37,7 @@ public class RenameDispatch extends GhidraScript {
     String[][] L = {
         {"1819a17c8", "g_pitch_env_stage_handlers"},
         {"1819a2408", "g_tva_env_stage_handlers"},
+        {"1819a2430", "g_tvf_env_stage_handlers"},
         {"1819a3054", "g_env_next_stage"},
         {"18199fb30", "g_cc_handlers"},
         // 1819a7a00 is deliberately absent: RenameBulk2607.java owns it as g_tvf_env_startphase.
