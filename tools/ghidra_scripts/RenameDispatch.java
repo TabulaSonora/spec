@@ -14,6 +14,8 @@ public class RenameDispatch extends GhidraScript {
 
     /** Functions: address, name, plate comment. */
     String[][] F = {
+        // --- the shared do-nothing dispatch target ---
+        {"1800052d0", "dispatch_noop", "The engine's shared no-op handler: a bare `ret 0` (c2 00 00). 176 pointers across the image resolve here -- every unimplemented slot of g_cc_handlers, slot 0 of all three envelope stage tables, the pitch table's terminal slot, and many fn-ptr globals initialised at startup. NOT the CFG guard: Ghidra's Function ID names it _guard_check_icall, but this image has Control Flow Guard disabled (every GuardCF field in the load config is zero), and a one-instruction `ret` matches the guard signature by accident. The DLL's export table also puts TG_setInterruptThreadIdAtThisTime (ordinal 14) at this address -- that export is a stub, and MSVC's /OPT:ICF folded it onto the engine's no-op. Every other export sits together at 0x88xxx-0x8axxx, so a stub landing alone here among engine code is what folding looks like."},
         // --- pitch envelope stage loaders (dispatch table g_pitch_env_stage_handlers) ---
         {"180083870", "pitch_env_stage1_load", "Pitch-env stage 1: start<-current target, target<-voice+0x210, rate word from the stored ms at voice+0x204 (T<11 ? 0xffff : 0xa0000/T), shape 0x4000, interp <- g_env_startphase[min(T,10)]."},
         {"180083800", "pitch_env_stage2_load", "Pitch-env stage 2: target<-voice+0x214, time voice+0x206. Same form as stage 1."},

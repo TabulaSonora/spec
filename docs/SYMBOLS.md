@@ -85,7 +85,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `180004730` | `reverb_update` | reverb combined param+level update |
 | `180004840` | `fx_control_update` | master fx state-machine update loop |
 | `1800051e0` | `fx_coef_table_select` | select fx coefficient table by index |
-| `1800052d0` | `_guard_check_icall` |  |
+| `1800052d0` | `dispatch_noop` | shared do-nothing dispatch target (`ret 0`); fills unimplemented `g_cc_handlers` slots, envelope stage-table slot 0, the pitch table's terminal slot, and fn-ptr globals — 176 pointers in all. **Not** the CFG guard: CFG is disabled in this image (all `GuardCF*` load-config fields are zero) and Ghidra's Function ID matches any one-instruction `ret`. The export `TG_setInterruptThreadIdAtThisTime` (ordinal 14) is ICF-folded onto it. |
 | `1800052e0` | `reverb_calc_coef` | compute reverb/delay coef from time params |
 | `1800053e0` | `reverb_load_algo_regs` | program reverb/delay register bank |
 | `180005860` | `chorus_load_algo_regs` | program chorus register bank |
