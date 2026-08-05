@@ -72,16 +72,22 @@ Known to be missing or provisional, beyond the structural limits in §9:
   exporter was emitting a positive one. The error was twice each sample's own offset, bank-wide.
   Fixed; the fundamental now lands within 1.3 cents and every band improved.
 
-  The remaining "darkness at the top" turned out to be **mostly an artefact of comparing two
-  synthesisers' noise floors**. Above about 4 kHz neither side is measuring signal: at the thirtieth
-  harmonic the engine's peak stands 5.2 dB above its own inter-harmonic floor and the bank's stands
-  0.5 dB above its own. The engine's floor is the higher by roughly 10 dB, and that is what the
-  harness was reporting.
+  The remaining "darkness at the top" is now identified, and it is **structural — see §9 item 13a**.
+  The engine's Chamberlin state-variable filter and the reader's RBJ biquad are both nominally
+  two-pole lowpasses, they agree on cutoff, and their stopbands are nothing alike. Measured at a
+  matched 2088 Hz cutoff, the engine falls 16 dB between 4 and 13 kHz — about 2.6 dB/octave — where
+  the biquad falls 39 dB, the textbook 12. The SVF simply does not roll off; it levels out.
 
-  The likely source is named in `TvfChain::apply`'s own documentation — the filter's coefficients
-  refresh once per 320-sample control block, and the module's anti-zipper ramps that slew them over
-  2–40 ms are not modelled. Stepping coefficients at 100 Hz splatters, and 100 Hz is not
-  harmonically related to a 261 Hz note, so it lands between the harmonics where it was found.
+  Band-averaged that predicts −3.9 dB over 2500–6000 Hz and about −14 dB over 6000–14000, against a
+  measured −3.2 and −9.5. Right direction, right magnitude, and not fixable from the bank side.
+
+  Two other candidates were measured and **ruled out**, both worth recording so they are not
+  re-run. The filter's **anti-zipper ramps** — coefficients refreshing once per 320-sample block was
+  suspected of splattering at 100 Hz, between the harmonics — were implemented and move the floor
+  by 0 to 4 dB and mostly by nothing. The **4-tap resampler** looked promising on a synthetic tone,
+  where it produces 14–45 dB more inter-harmonic junk than linear interpolation above 4 kHz; on the
+  *real* sample it makes no difference at all (±2 dB, and above 6 kHz it is the *cleaner* of the
+  two), because wave 7's own broadband content sits well above either interpolator's artefacts.
 
   Three things were checked rather than assumed on the way, and all three agree: the **filters**
   (the reader's own modulation envelope reads 0.8975 at half a second, matching the exporter's model,
@@ -700,6 +706,14 @@ the export is for.
 13. **The engine's filter is a state-variable filter with four taps** — lowpass, highpass, bandpass
     and a sixth type — selected per partial. SF2 has one lowpass. Highpass and bandpass partials
     will be wrong, not approximate.
+13a. **Even the lowpass is a different filter** `[measured]`. The engine's is a Chamberlin SVF and
+    the reader's an RBJ biquad; they agree on cutoff and disagree on everything past it. At a
+    matched 2088 Hz cutoff the SVF falls 16 dB between 4 and 13 kHz where the biquad falls 39 —
+    2.6 dB/octave against 12. The SVF's stopband levels out instead of rolling off, so the hardware
+    leaks high frequency that a conforming SF2 player removes. This is the single largest measured
+    difference left between a rendered note and its exported counterpart, it accounts for the whole
+    of the top-band gap, and **nothing in the format can express it**: SF2 specifies the filter, and
+    a reader that implements it correctly will be wrong in exactly this way.
 14. **`Rx.Note On` / `Rx.Note Off` per drum key** are engine state that SysEx can rewrite; the
     export freezes the ROM defaults.
 
