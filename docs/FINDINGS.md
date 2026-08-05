@@ -4619,3 +4619,42 @@ Also worth recording, since the name invites the opposite conclusion: `fx_reg_wr
 @`1800621f0` is **not** a temporal smoother. It walks the register from its shadowed value to the
 new one a step at a time in a busy loop, calling `fx_reg_write` for each intermediate value, all
 inside one call. That is a register-glitch guard, not a ramp, and nothing waits between the steps.
+
+
+## Where the per-part chorus and delay sends are applied: the 33-bus matrix `[confirmed]`
+
+They are **taps in the send matrix**, not per-voice slots — which is why every voice-side search came
+up empty while an A/B of the rendered audio showed CC#93 and CC#94 changing it by more than half the
+peak.
+
+`fx_process_block` runs two 33-tap dot products after the coefficient interpolation, each summing
+the bus accumulators into an effect input, with float coefficient arrays of 33 x 4:
+
+| controller | matrix | address | tap |
+|---|---|---|---|
+| CC#93 chorus send | 1 | `DAT_181a6f310` | 1 |
+| CC#94 delay send | 0 | `DAT_181a6e8c0` | 1 |
+| CC#91 reverb send | — | — | none: it is the per-voice slot on bus 0x3c |
+
+Both decode the same way as everything else in the mixer — 0.992188 at 127, the `1e-05` floor at 0.
+
+**And they slew.** `scdec mattrace 93 1 1 0 127` walks the chorus tap in **64 steps of 16/1024, one
+every 640 samples, 1255 ms** end to end. That is one controller unit a control tick — the same
+effective rate as the per-voice reverb send's 1260 ms, reached in double steps at half the cadence.
+So all three sends cross full scale in about 1.26 s; two of them just do it as a per-part matrix
+coefficient rather than per voice.
+
+The distinction matters for a port. A per-voice smoother seeds each new voice at the level in force
+when it starts; a per-part one does not, so a note struck part-way through a send change joins the
+change in progress. Chorus and delay belong on the part.
+
+This closes the question the dead-branch finding opened. The full picture for a melodic part:
+
+- **dry** — per-voice slots 0 and 1, buses 51 and 52;
+- **reverb** — per-voice slot 2, bus 0x3c, from the part's `+0x3e3`, slewed by `voice_send_slew`;
+- **the part's own bus** — per-voice slot 3, bus `16 + part index`, at unity;
+- **chorus and delay** — matrix taps off that per-part bus, from `+0x3e2` and `+0x44a`, slewed in
+  the matrix.
+
+Note also, from the same dig, that the sixteen *interpolated* coefficients are a different set from
+the 33-tap matrices: those are the global effect levels, and CC#91/93/94 move none of them.

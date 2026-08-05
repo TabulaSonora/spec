@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1501,6 +1501,111 @@ unsafe
         for(int i=0;i<3;i++){ Row(); fixed(float* pl=le,pr=re) process(pl,pr,(uint)chunk); t+=chunk; }
         CCm(cc,after); flush();
         for(int i=0;i<npts;i++){ Row(); fixed(float* pl=le,pr=re) process(pl,pr,(uint)chunk); t+=chunk; }
+        return;
+    }
+    // slotscan mode: the four (gain, bus) slot arrays are indexed by VOICE -- DAT_181a1d930 + v*4
+    //   and so on, four arrays 0x100 apart. Earlier passes read voice 0 only. Sweep all 64 voices
+    //   and report every slot whose gain or bus moves when a controller does.
+    //   args: dll slotscan <cc> <before> <after> [prog] [note]
+    if (args.Length > 1 && args[1] == "slotscan")
+    {
+        int cc=args.Length>2?int.Parse(args[2]):93; int before=args.Length>3?int.Parse(args[3]):0;
+        int after=args.Length>4?int.Parse(args[4]):127;
+        int pg=args.Length>5?int.Parse(args[5]):19, nt=args.Length>6?int.Parse(args[6]):72;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCs3(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCs3(7,127);CCs3(10,64);CCs3(91,0);CCs3(93,0);CCs3(94,0);CCs3(cc,before);
+        shortIn((uint)(0xC0|(pg<<8)),0); flush();
+        var lf=new float[512]; var rf=new float[512];
+        fixed(float* pl=lf,pr=rf) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
+        fixed(float* pl=lf,pr=rf) for(int i=0;i<40;i++) process(pl,pr,512);
+        var g0=new float[4*64]; var u0=new uint[4*64];
+        for(int k=0;k<4;k++) for(int v=0;v<64;v++){
+            g0[k*64+v]=*(float*)(b+0x1a1d930+k*0x100L+v*4L);
+            u0[k*64+v]=*(uint*)(b+0x1a6e4b0+k*0x100L+v*4L);
+        }
+        CCs3(cc,after); flush();
+        fixed(float* pl=lf,pr=rf) for(int i=0;i<80;i++) process(pl,pr,512);
+        Console.WriteLine($"slotscan cc{cc} {before} -> {after} (prog {pg}, note {nt})");
+        int hits=0;
+        for(int k=0;k<4;k++) for(int v=0;v<64;v++){
+            float g=*(float*)(b+0x1a1d930+k*0x100L+v*4L);
+            uint u=*(uint*)(b+0x1a6e4b0+k*0x100L+v*4L);
+            if(g!=g0[k*64+v] || u!=u0[k*64+v]){
+                Console.WriteLine($"  voice {v,2} slot {k}: gain {g0[k*64+v]:0.000000} -> {g:0.000000}" +
+                    $"   bus {u0[k*64+v]} -> {u} (0x{u:X})");
+                hits++;
+            }
+        }
+        Console.WriteLine($"{hits} slots moved");
+        return;
+    }
+    // matscan mode: the 33-bus send matrix. fx_process_block runs two 33-tap dot products, one per
+    //   coefficient array -- DAT_181a6e8c0 and DAT_181a6f310, each 33 x 4 floats -- summing the bus
+    //   accumulators into the effect inputs. Report every tap that moves with a controller.
+    //   args: dll matscan <cc> <before> <after> [prog] [note]
+    if (args.Length > 1 && args[1] == "matscan")
+    {
+        int cc=args.Length>2?int.Parse(args[2]):93; int before=args.Length>3?int.Parse(args[3]):0;
+        int after=args.Length>4?int.Parse(args[4]):127;
+        int pg=args.Length>5?int.Parse(args[5]):19, nt=args.Length>6?int.Parse(args[6]):72;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCx(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCx(7,127);CCx(10,64);CCx(91,0);CCx(93,0);CCx(94,0);CCx(cc,before);
+        shortIn((uint)(0xC0|(pg<<8)),0); flush();
+        var lg=new float[512]; var rg=new float[512];
+        fixed(float* pl=lg,pr=rg) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
+        fixed(float* pl=lg,pr=rg) for(int i=0;i<40;i++) process(pl,pr,512);
+        long[] bases={b+0x1a6e8c0, b+0x1a6f310};
+        const int taps=33*4;
+        var snap=new float[2][];
+        for(int m=0;m<2;m++){ snap[m]=new float[taps];
+            for(int i=0;i<taps;i++) snap[m][i]=*(float*)(bases[m]+i*4L); }
+        CCx(cc,after); flush();
+        fixed(float* pl=lg,pr=rg) for(int i=0;i<80;i++) process(pl,pr,512);
+        Console.WriteLine($"matscan cc{cc} {before} -> {after}");
+        int hits=0;
+        for(int m=0;m<2;m++) for(int i=0;i<taps;i++){
+            float v=*(float*)(bases[m]+i*4L);
+            if(v!=snap[m][i]){
+                Console.WriteLine($"  matrix {m} (0x{(bases[m]-b):x}) tap {i/4,2} lane {i%4}: " +
+                    $"{snap[m][i]:0.000000} -> {v:0.000000}");
+                hits++;
+            }
+        }
+        Console.WriteLine($"{hits} taps moved");
+        return;
+    }
+    // mattrace mode: trace one 33-bus matrix tap across a controller jump, a block at a time, to
+    //   see whether the send coefficient steps or slews. args: dll mattrace <cc> <matrix 0|1> <tap>
+    //   <before> <after> [chunk] [npoints]
+    if (args.Length > 1 && args[1] == "mattrace")
+    {
+        int cc=int.Parse(args[2]); int mat=int.Parse(args[3]); int tap=int.Parse(args[4]);
+        int before=int.Parse(args[5]); int after=int.Parse(args[6]);
+        int chunk=args.Length>7?int.Parse(args[7]):32; int npts=args.Length>8?int.Parse(args[8]):200;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCt(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCt(7,127);CCt(10,64);CCt(91,0);CCt(93,0);CCt(94,0);CCt(cc,before);
+        shortIn((uint)(0xC0|(19<<8)),0); flush();
+        var lh=new float[512]; var rh=new float[512];
+        fixed(float* pl=lh,pr=rh) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(72<<8)|(110<<16)),0); flush();
+        fixed(float* pl=lh,pr=rh) for(int i=0;i<40;i++) process(pl,pr,512);
+        long addr=(mat==0 ? b+0x1a6e8c0 : b+0x1a6f310) + tap*4L*4L;
+        Console.WriteLine($"mattrace cc{cc} matrix {mat} tap {tap}: {before} -> {after}");
+        Console.WriteLine("sample,lane0");
+        int t=0;
+        for(int i=0;i<3;i++){ Console.WriteLine($"{t},{*(float*)addr:0.00000000}");
+            fixed(float* pl=lh,pr=rh) process(pl,pr,(uint)chunk); t+=chunk; }
+        CCt(cc,after); flush();
+        for(int i=0;i<npts;i++){ Console.WriteLine($"{t},{*(float*)addr:0.00000000}");
+            fixed(float* pl=lh,pr=rh) process(pl,pr,(uint)chunk); t+=chunk; }
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
