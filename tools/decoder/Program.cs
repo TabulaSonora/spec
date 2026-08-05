@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -600,6 +600,74 @@ unsafe
             shortIn((uint)(0x80|(ntn<<8)),0); flush();
             fixed(float* pl=ln,pr=rn) for(int i=0;i<40;i++) process(pl,pr,320);
         }
+        return;
+    }
+    // revir mode: the reverb network's IMPULSE RESPONSE, taken from the live engine by calling its
+    //   own `fx_reverb_process` (0x180086140) with a controlled input instead of driving it with a
+    //   note. That removes the voice path from the comparison entirely: a reimplementation feeding
+    //   the same impulse must produce the same samples, so a difference is the network's and
+    //   nothing else. Reading the wet out of a rendered note cannot do this -- the dry signal
+    //   feeding the reverb differs slightly between engines, which moves the wet level by ~10% and
+    //   varies with the patch, and that masks (or invents) network differences.
+    //
+    //   The function takes 32 samples per call from `input`, adds the two chorus-return buffers
+    //   (zeroed here), and writes 32 floats of L at `out` and 32 of R at `out+0x80`. The ring
+    //   cursor `DAT_181a62a34` is advanced by its CALLER, so this does that too.
+    //   args: dll revir <out.f32> <samples> [revType]
+    if (args.Length > 1 && args[1] == "revir")
+    {
+        string irOut = args[2];
+        int irCount = int.Parse(args[3]);
+        int irType = args.Length > 4 ? int.Parse(args[4]) : -1;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset();
+        if (irType >= 0) SendSysEx(Dt1(0x40, 0x01, 0x30, (byte)irType));
+        // The network's own gain ramps -- input, injection, feedback, output -- are parked at zero
+        // while nothing is feeding the reverb bus, so the network is muted at idle and an impulse
+        // into it produces silence. They only reach their preset values once a part is actually
+        // sending, which is why this drives a note first, exactly as `revdump` does.
+        void CCir(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+        CCir(0, 0); CCir(32, 0); CCir(7, 127); CCir(10, 64); CCir(91, 127); CCir(93, 0);
+        shortIn((uint)(0xC0 | (12 << 8)), 0);   // marimba, a short one
+        flush();
+        var wl = new float[512]; var wr = new float[512];
+        fixed (float* pl = wl, pr = wr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)(0x90 | (60 << 8) | (100 << 16)), 0); flush();
+        fixed (float* pl = wl, pr = wr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)(0x80 | (60 << 8) | (64 << 16)), 0); flush();
+        // Let that note's own tail fall ~90 dB before the impulse goes in, so what is captured is
+        // the impulse and not the marimba.
+        fixed (float* pl = wl, pr = wr) for (int i = 0; i < 250; i++) process(pl, pr, 512);
+
+        var revProc = (delegate* unmanaged[Cdecl]<long,float*,long,long,float*,void>)(b + 0x86140);
+        long V(long va) => b + (va - 0x180000000L);
+        Console.WriteLine($"gain in[0..3]={*(float*)V(0x181a6ed70)},{*(float*)V(0x181a6ed74)},{*(float*)V(0x181a6ed78)},{*(float*)V(0x181a6ed7c)}"
+            + $" inj={*(float*)V(0x181a6ee70)} fb={*(float*)V(0x181a6eef0)} out={*(float*)V(0x181a6edf0)} cursor={*(uint*)V(0x181a62a34):X}");
+        // Silence the chorus returns the network sums in, and let the tank settle from the notes
+        // the reset may have left ringing.
+        for (int i = 0; i < 32; i++) { *(float*)(V(0x181a22860) + i * 4) = 0f; *(float*)(V(0x181a228e0) + i * 4) = 0f; }
+        var inBuf = new float[32]; var outBuf = new float[64];
+        fixed (float* ip = inBuf, op = outBuf)
+        {
+            for (int i = 0; i < 64; i++) { for (int k = 0; k < 32; k++) ip[k] = 0f;
+                revProc(0, ip, 0, 0, op); *(uint*)V(0x181a62a34) = (*(uint*)V(0x181a62a34) - 0x20) & 0xFFFF; }
+            var samples = new float[irCount * 2];
+            int written = 0;
+            for (int block = 0; written < irCount; block++)
+            {
+                for (int k = 0; k < 32; k++) ip[k] = 0f;
+                if (block == 0) ip[0] = 1f;                      // the impulse
+                for (int i = 0; i < 32; i++) { *(float*)(V(0x181a22860) + i * 4) = 0f; *(float*)(V(0x181a228e0) + i * 4) = 0f; }
+                revProc(0, ip, 0, 0, op);
+                *(uint*)V(0x181a62a34) = (*(uint*)V(0x181a62a34) - 0x20) & 0xFFFF;
+                for (int k = 0; k < 32 && written < irCount; k++, written++)
+                { samples[written * 2] = op[k]; samples[written * 2 + 1] = op[32 + k]; }
+            }
+            var bytes = new byte[samples.Length * 4];
+            Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+            File.WriteAllBytes(irOut, bytes);
+        }
+        Console.WriteLine($"revir type={irType} -> {irOut} ({irCount} frames, interleaved f32)");
         return;
     }
     // efxdump mode: select an insertion-EFX type over SysEx in the LIVE engine and dump the block's
