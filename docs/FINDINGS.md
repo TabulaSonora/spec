@@ -4465,7 +4465,7 @@ tables alone got the first of them eight times too fast.
 |---|---|---|---|---|
 | part volume, expression | `voice_ctrl_ramp_b` @`18005e990` | the **gain**, in an accumulator | 2.49% of remaining error, every 8 samples | ~45 ms |
 | pan | `voice_pan_slew` @`180083db0` | the **position**, 0-127 | 2 units a control tick | 0.62 s |
-| reverb / chorus / delay send | `voice_send_slew` @`180083be0` | the **gain word**, 0-1023 | 8 units a control tick | 0.40 s |
+| reverb / chorus / delay send | `voice_send_slew` @`180083be0` | the **gain word**, 0-1023 | 8 units a control tick | 1.27 s |
 
 Only the first is a per-sample buffer. Pan and the sends land as per-voice *scalars* — four of them,
 at `DAT_181a1d930`/`1da30` (the pan pair) and `DAT_181a1db30`/`1dc30` (two send slots) — each
@@ -4494,13 +4494,38 @@ floats that are merely audio.
   — eight pushes of the minimum step — which pins the same cadence a second way. The fade lands on
   exactly `1e-05` and holds, so the ramp deactivates on arrival rather than walking past its target.
 - Pan: CC#10 64 -> 127 is **32 steps of 2 units**, one every 320 samples, 310 ms end to end.
-- Sends: CC#91 0 -> 127 is **40 steps of 8/1024 of gain**, one every 320 samples, 390 ms.
+- Sends: CC#91 0 -> 127 is **127 steps of 8/1024 of gain**, one every 320 samples, 1260 ms. Full
+  scale is 1016/1024, so that is one CC unit a tick, and the sends are far the slowest of the three.
+  (An earlier pass read this as 40 steps and 400 ms. That was the trace window's length, not the
+  glide's — a reminder to check that a measured ramp actually *finishes* inside the capture.)
 
-**Caveat on the sends.** Only the *reverb* send was isolated. A CC#93 or CC#94 change moves no
-stable float anywhere in `0x1a10000`-`0x1a30000`, so where chorus and delay reach the bus is not
-pinned — the two send slots hold one live send and one constant in every capture taken. They go
-through the same function in the decompile and are given the same rate in the port, but that is
-inference, not measurement.
+## Where the chorus and delay sends reach the bus `[confirmed]`
+
+A voice carries exactly **four `(gain, bus)` slots**, and no more: the arrays at `DAT_181a1d930` and
+`DAT_181a6e4b0` are on a `0x100` stride and the fifth entry is already past their end. The voice
+bus-assign code decides what the third and fourth carry:
+
+```
+bVar4 = part[+0x13]                                  // <= 0x1f: an explicit bus route
+if (bVar4 > 0x1f) bVar4 = (part[+0x45c] != 2) - 2    // otherwise 0xfe or 0xff
+uVar8 = part[+0x3e3]                                 // the reverb send, always
+if      (bVar4 == 0xfe) sendWord = part[+0x44a] * 0x200 + 0x30   // DELAY  send, bus 0x30
+else if (bVar4 == 0xff) sendWord = part[+0x3e2] * 0x200 + 0x3d   // CHORUS send, bus 0x3d
+else                    sendWord = bVar4 - 0x1f0                 // a direct bus route
+reverbWord = uVar8 * 0x200 + 0x3c                                // reverb, bus 0x3c
+```
+
+So the reverb send is unconditional on bus `0x3c`, and the *other* slot is a chorus send **or** a
+delay send — never both — or neither. That is why CC#93 and CC#94 appear to reach nothing: a
+default GS part has `+0x13` at or below `0x1f` and takes the `else` branch. Measured slots on such
+a part are `(0.5859, 51)`, `(0.5859, 52)`, `(reverb, 60)`, `(0.9922, 17)`, and that last pair is the
+arithmetic of the `else` branch exactly — `bVar4 - 0x1f0` with a small `+0x13` gives `0xFE11`, whose
+low six bits are 17 and whose `>> 6` is 1016, which is 0.9922. The branch is read, not guessed.
+
+Two consequences for a port. The engine sends a voice to reverb plus **one** of chorus and delay,
+where a naive implementation sends to all three independently. And CC#93 / CC#94 do nothing at all
+until the part's `+0x13` is raised, which is not a parameter this dig identified — `40 1x 22` is not
+it, and finding it is the obvious next step for anyone picking this up.
 
 Unrelated correction while in here: the `4096/(8i)` rate table this document calls `DAT_1819a7a30`
 at the superseded control-RAMP section collides with the manifest's `g_env_startphase` at that same

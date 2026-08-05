@@ -1172,9 +1172,14 @@ unsafe
         int after=args.Length>7?int.Parse(args[7]):127;
         int chunk=args.Length>8?int.Parse(args[8]):32; int npts=args.Length>9?int.Parse(args[9]):400;
         int map=args.Length>10?int.Parse(args[10]):4;
+        // Optional "a2,val" part-parameter poke at 40 41 a2, to steer the bus-assign branch.
+        string poke=args.Length>11?args[11]:null;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         void CCs2(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
         if(map>=1&&map<=4){ GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map); } else Gm1On();
+        if(poke!=null){ var pp=poke.Split(','); 
+            SendSysEx(Dt1(0x40,0x41,Convert.ToByte(pp[0],16),Convert.ToByte(pp[1],16)));
+            Console.WriteLine($"poked 40 41 {pp[0]} {pp[1]}"); }
         CCs2(7,127);CCs2(10,64);CCs2(91,0);CCs2(93,0);CCs2(cc,before);
         shortIn((uint)(0xC0|(pg<<8)),0);
         var l6=new float[512]; var r6=new float[512];
@@ -1182,13 +1187,21 @@ unsafe
         fixed(float* pl=l6,pr=r6) for(int i=0;i<8;i++) process(pl,pr,512);
         shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
         fixed(float* pl=l6,pr=r6) for(int i=0;i<40;i++) process(pl,pr,512);
-        long g0=b+0x1a1d930, g1=b+0x1a1da30, g2=b+0x1a1db30, g3=b+0x1a1dc30;
-        long bus0=b+0x1a6e4b0, bus1=b+0x1a6e7b0;
+        // The gain and bus arrays are both on a 0x100 stride; walk further than the four the
+        // decode function was seen to touch, in case a voice carries more sends than that.
+        const int slots = 8;
         Console.WriteLine($"sendramp prog={pg} note={nt} cc{cc} {before} -> {after} chunk={chunk}");
-        Console.WriteLine("sample,panL,panR,send0,send1,bus0,bus1");
+        Console.Write("sample");
+        for(int k=0;k<slots;k++) Console.Write($",g{k}");
+        for(int k=0;k<slots;k++) Console.Write($",bus{k}");
+        Console.WriteLine();
         int t=0;
-        void Row(){ Console.WriteLine($"{t},{*(float*)g0:0.000000},{*(float*)g1:0.000000}," +
-            $"{*(float*)g2:0.000000},{*(float*)g3:0.000000},{*(uint*)bus0},{*(uint*)bus1}"); }
+        void Row(){
+            Console.Write(t);
+            for(int k=0;k<slots;k++) Console.Write($",{*(float*)(b+0x1a1d930+k*0x100L):0.000000}");
+            for(int k=0;k<slots;k++) Console.Write($",{*(uint*)(b+0x1a6e4b0+k*0x100L)}");
+            Console.WriteLine();
+        }
         for(int i=0;i<3;i++){ Row(); fixed(float* pl=l6,pr=r6) process(pl,pr,(uint)chunk); t+=chunk; }
         CCs2(cc,after); flush();
         for(int i=0;i<npts;i++){ Row(); fixed(float* pl=l6,pr=r6) process(pl,pr,(uint)chunk); t+=chunk; }
@@ -1214,25 +1227,26 @@ unsafe
         fixed(float* pl=l7,pr=r7) for(int i=0;i<8;i++) process(pl,pr,512);
         shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
         fixed(float* pl=l7,pr=r7) for(int i=0;i<40;i++) process(pl,pr,512);
-        long lo=b+0x1a10000, hi=b+0x1a30000; int n=(int)((hi-lo)/4);
-        var snap=new float[n];
-        for(int i=0;i<n;i++) snap[i]=*(float*)(lo+i*4L);
+        long lo=b+0x1a10000, hi=b+0x1a70000; int n=(int)((hi-lo)/4);
+        var snap=new uint[n];
+        for(int i=0;i<n;i++) snap[i]=*(uint*)(lo+i*4L);
         // A control render at the SAME setting, to learn which floats are just audio. Anything that
         // moves without a controller moving cannot be the controller's scalar.
         fixed(float* pl=l7,pr=r7) for(int i=0;i<60;i++) process(pl,pr,512);
         var noisy=new bool[n];
-        for(int i=0;i<n;i++) noisy[i] = snap[i]!=*(float*)(lo+i*4L);
-        for(int i=0;i<n;i++) snap[i]=*(float*)(lo+i*4L);
+        for(int i=0;i<n;i++) noisy[i] = snap[i]!=*(uint*)(lo+i*4L);
+        for(int i=0;i<n;i++) snap[i]=*(uint*)(lo+i*4L);
         CCc(cc,after); flush();
         fixed(float* pl=l7,pr=r7) for(int i=0;i<60;i++) process(pl,pr,512);
         Console.WriteLine($"ccscan cc{cc} {before} -> {after}");
         int hits=0;
         for(int i=0;i<n;i++){
             if(noisy[i]) continue;
-            float a=snap[i], c=*(float*)(lo+i*4L);
-            if(a!=c && Math.Abs(a)<10f && Math.Abs(c)<10f){
-                Console.WriteLine($"  VA 0x1{(0x81a10000+i*4L):x}  {a:0.000000} -> {c:0.000000}");
-                if(++hits>=30) break;
+            uint a=snap[i], c=*(uint*)(lo+i*4L);
+            if(a!=c){
+                Console.WriteLine($"  VA 0x1{(0x81a10000+i*4L):x}  u32 {a} -> {c}" +
+                    $"   f32 {*(float*)&a:0.000000} -> {*(float*)&c:0.000000}");
+                if(++hits>=40) break;
             }
         }
         Console.WriteLine($"{hits} stable floats moved");
