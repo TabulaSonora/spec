@@ -3477,9 +3477,30 @@ crosses. That is presumably why the clamp is per-sample and inside the ramp func
 computed once per block.
 
 It is implemented in NativeTS (`TvfChain::coefficients`, which returns both coefficients together
-because the engine couples them). It changes no render there: NativeTS recomputes `f` and `q` from
-the same cutoff each control tick and does not model the ramps, so its pair is always consistent and
-the clamp cannot fire.
+because the engine couples them).
+
+**The ramps are now modelled too** `[implemented, unverified against the oracle]`. `CoefficientRamp`
+gives `f` and `q` one exponential smoother each — `(target − current) × rate >> 13` once a
+millisecond, rate `4096 / (2i)`, so a time constant of `4i` ms — and the clamp moved inside, applied
+per sample against the damping the ramp has actually reached. So the transient crossing described
+above can now fire, where before the pair was always consistent by construction.
+
+Two caveats. The per-partial rate word lives in a voice field not yet tied back to a tone-table
+byte, so a single index stands for all of them, defaulted to the table's fastest. And the oracle
+fixtures were absent when this landed, so it is unverified against the DLL.
+
+**It was implemented to test a hypothesis that turned out to be wrong**, which is worth recording so
+nobody re-runs it. The idea was that refreshing coefficients once per 320-sample control block put a
+10 ms discontinuity in the filter state, and that the resulting splatter — at 100 Hz, harmonically
+unrelated to any note, so landing *between* the harmonics — was the elevated noise floor seen when
+comparing a render against an exported SoundFont ([SOUNDFONT_EXPORT.md](SOUNDFONT_EXPORT.md)).
+Ramping moves that floor by **0 to 4 dB and mostly by nothing**. The floor is real and remains about
+10 dB above the SoundFont's.
+
+The likelier source, measured in passing: the **4-tap resampler's own error**. At the ratio the test
+note actually plays, 0.790817, a pure tone comes back with its worst spur 72.7 dB down at 1046 Hz in
+and 99.4 dB down at 261 Hz. One partial does not account for the floor; six or seven summing
+plausibly do. Unproven, and where the next look should start.
 
 **Consequences for the earlier reading.** The amplitude limiter described in the previous section
 does not exist, so there is no unimplemented stage "that will matter for loud voices" — the loud-voice
