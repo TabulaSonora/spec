@@ -4531,3 +4531,36 @@ Unrelated correction while in here: the `4096/(8i)` rate table this document cal
 at the superseded control-RAMP section collides with the manifest's `g_env_startphase` at that same
 VA. The `4096/(8i)` table is not in the exported set under any name, and none of the rates above
 came from it — they are all constants at their call sites (`0xCC` for the volume ramp) or measured.
+
+## `part+0x13`, the chorus/delay send gate: not found, and why the obvious searches cannot find it
+
+The byte that decides whether a voice's fourth slot is a chorus send, a delay send, or a direct bus
+route is read at `+0x13` off the pointer at `voice+0x128`. Its **value in a default GS part is 1**,
+which is not a guess: the `else` branch computes `bVar4 - 0x1f0`, and `1 - 0x1f0` is `0xFE11`, whose
+low six bits are 17 and whose `>> 6` is 1016 — exactly the `(0.9922, 17)` slot every capture shows.
+Both measured numbers fall out of the branch, so the reading is sound. What is missing is only what
+*writes* it.
+
+Ruled out by sweep, none of which moves the slot off bus 17:
+
+- every part parameter `40 1x NN`, `40 2x NN`, `40 3x NN` and `40 4x NN` for `NN` in `00`-`7f`, at
+  value `0x40` (`scdec busscan`);
+- all 128 programs (`scdec progscan`) — so it is not a property of the tone either, which had been
+  the leading theory once the part sweeps came up empty.
+
+**Why the memory searches failed, which is the useful part.** `engine_alloc_init_voices` @`18007fb20`
+*mallocs* the voice and effect struct arrays. Those structs are on the heap, not in the module image,
+so scanning module-relative offsets cannot reach them and never could. Two candidate bases were
+tried and both are wrong:
+
+- a base found by watching a byte follow CC#91 through three values (`scdec partfind`). It survives
+  the three-value filter and is still a false positive — under a different setup its `+0x3e3` reads
+  254 rather than the CC#91 value, and poking its `+0x13` changes nothing (`scdec pokebyte`);
+- `g_part_array_base` @`181a222a0` as SYMBOLS.md gives it. Its `+0x3e3` does not track CC#91 either,
+  and poking `+0x13` there has no effect. Whether the symbol is stale or the offsets belong to a
+  different struct than the bus-assign code implies is itself unresolved.
+
+The next step is therefore not another scan. It is to recover the heap pointer — read whatever
+global `engine_alloc_init_voices` stores its allocation in, index the voice array, and dereference
+`voice+0x128` to get the struct's real address. Then `+0x13` can be read and poked with certainty
+instead of guessed at, and the sweeps above become unnecessary.

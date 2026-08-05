@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -12,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1250,6 +1251,152 @@ unsafe
             }
         }
         Console.WriteLine($"{hits} stable floats moved");
+        return;
+    }
+    // busscan mode: which part parameter opens the chorus/delay send route? The voice's fourth
+    //   (gain, bus) slot is a direct bus route while part[+0x13] <= 0x1f and becomes a chorus send
+    //   (bus 0x3d) or a delay send (bus 0x30) above it. Sweep every 40 1x NN, start a note, and
+    //   report the ones that move that slot's bus off its default.
+    //   args: dll busscan [value] [prog] [note] [map]
+    if (args.Length > 1 && args[1] == "busscan")
+    {
+        int val=args.Length>2?int.Parse(args[2]):0x40;
+        // The middle SysEx byte: 0x11 is the 40 1x part block (where the chorus and delay sends
+        // live, at 21 and 2C), 0x41 the 40 4x one.
+        int a2=args.Length>3?Convert.ToInt32(args[3],16):0x11;
+        int pg=args.Length>4?int.Parse(args[4]):19, nt=args.Length>5?int.Parse(args[5]):96;
+        int map=args.Length>6?int.Parse(args[6]):4;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCb(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        var l8=new float[512]; var r8=new float[512];
+        Console.WriteLine($"busscan: 40 {a2:X2} NN = 0x{val:X2}, watching slot 3's bus");
+        uint baseline=0;
+        for(int nn=0; nn<0x80; nn++){
+            GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map);
+            CCb(7,127);CCb(10,64);CCb(91,64);CCb(93,64);
+            shortIn((uint)(0xC0|(pg<<8)),0);
+            flush();
+            fixed(float* pl=l8,pr=r8) for(int i=0;i<4;i++) process(pl,pr,512);
+            if(nn>=0) SendSysEx(Dt1(0x40,(byte)a2,(byte)nn,(byte)val));
+            flush();
+            fixed(float* pl=l8,pr=r8) process(pl,pr,512);
+            shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
+            fixed(float* pl=l8,pr=r8) for(int i=0;i<4;i++) process(pl,pr,512);
+            uint b2=*(uint*)(b+0x1a6e6b0), b3=*(uint*)(b+0x1a6e7b0);
+            float g3=*(float*)(b+0x1a1dc30);
+            if(nn==0) baseline=b3;
+            if(b3!=baseline || b3==0x3d || b3==0x30)
+                Console.WriteLine($"  40 {a2:X2} {nn:X2} -> slot2 bus {b2}, slot3 bus {b3} (0x{b3:X}), g3 {g3:0.000000}");
+            shortIn((uint)(0x80|(nt<<8)|(64<<16)),0); flush();
+            fixed(float* pl=l8,pr=r8) for(int i=0;i<2;i++) process(pl,pr,512);
+        }
+        Console.WriteLine($"baseline slot3 bus = {baseline}");
+        return;
+    }
+    // partfind mode: locate the part struct by watching a byte follow CC#91, then read the whole
+    //   struct around it. part[+0x3e3] is the reverb send, so an address whose byte tracks CC#91
+    //   is that field and the part base is 0x3e3 below it. args: dll partfind [lo] [hi] (hex offsets)
+    if (args.Length > 1 && args[1] == "partfind")
+    {
+        long lo=b+(args.Length>2?Convert.ToInt64(args[2],16):0x1a00000);
+        long hi=b+(args.Length>3?Convert.ToInt64(args[3],16):0x1a70000);
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCf(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        var l9=new float[512]; var r9=new float[512];
+        int n=(int)(hi-lo);
+        var seen=new byte[n][];
+        // Three distinct values, all of which the field must follow. Two is not enough: a SysEx
+        // echo buffer holding a run of ascending bytes matches a single transition by accident.
+        byte[] probe={0x11,0x5a,0x2c};
+        for(int k=0;k<probe.Length;k++){
+            CCf(91,probe[k]); flush();
+            fixed(float* pl=l9,pr=r9) for(int i=0;i<4;i++) process(pl,pr,512);
+            var snapk=new byte[n];
+            for(int i=0;i<n;i++) snapk[i]=*(byte*)(lo+i);
+            for(int i=0;i<n;i++){ if(seen[i]==null) seen[i]=new byte[probe.Length]; seen[i][k]=snapk[i]; }
+        }
+        Console.WriteLine("partfind: bytes that followed CC#91 through 0x11, 0x5a, 0x2c");
+        int hits=0;
+        for(int i=0;i<n;i++){
+            bool all=true;
+            for(int k=0;k<probe.Length;k++) if(seen[i][k]!=probe[k]) { all=false; break; }
+            if(all){
+                long fld=lo+i, bse=fld-0x3e3;
+                Console.WriteLine($"  +0x{(fld-b):x}  part base +0x{(bse-b):x}" +
+                    $"   [+0x13]={*(byte*)(bse+0x13)}  [+0x45c]={*(byte*)(bse+0x45c)}" +
+                    $"   [+0x3e2]={*(byte*)(bse+0x3e2)} [+0x44a]={*(byte*)(bse+0x44a)}");
+                if(++hits>=12) break;
+            }
+        }
+        Console.WriteLine($"{hits} candidates");
+        return;
+    }
+    // pokebyte mode: write one byte of the part struct directly and see what the voice's slots do.
+    //   Confirms both that a candidate part base is real (its neighbours a 0x488 stride away should
+    //   hold the same field) and what part[+0x13] actually gates.
+    //   args: dll pokebyte <baseOff hex> <fieldOff hex> <value> [prog] [note]
+    if (args.Length > 1 && args[1] == "pokebyte")
+    {
+        // "auto" reads g_part_array_base @181a222a0 and takes part 0 (stride 0x488).
+        long bse = args[2]=="auto" ? b+0x1a222a0 : b+Convert.ToInt64(args[2],16);
+        long fld=Convert.ToInt64(args[3],16);
+        int val=Convert.ToInt32(args[4]);
+        int pg=args.Length>5?int.Parse(args[5]):19, nt=args.Length>6?int.Parse(args[6]):96;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCk(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCk(7,127);CCk(10,64);CCk(91,64);CCk(93,64);
+        shortIn((uint)(0xC0|(pg<<8)),0);
+        var la=new float[512]; var ra=new float[512];
+        flush();
+        fixed(float* pl=la,pr=ra) for(int i=0;i<4;i++) process(pl,pr,512);
+        Console.WriteLine($"part base +0x{(bse-b):x} (g_part_array_base): [+0x13]={*(byte*)(bse+0x13)} " +
+            $"[+0x3e2]={*(byte*)(bse+0x3e2)} [+0x3e3]={*(byte*)(bse+0x3e3)} " +
+            $"[+0x44a]={*(byte*)(bse+0x44a)} [+0x45c]={*(byte*)(bse+0x45c)}");
+        Console.WriteLine($"  stride check: part-1 [+0x3e3]={*(byte*)(bse-0x488+0x3e3)}, " +
+            $"part+1 [+0x3e3]={*(byte*)(bse+0x488+0x3e3)}");
+        *(byte*)(bse+fld) = (byte)val;
+        Console.WriteLine($"  wrote [+0x{fld:x}] = {val}");
+        shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
+        fixed(float* pl=la,pr=ra) for(int i=0;i<4;i++) process(pl,pr,512);
+        for(int k=0;k<4;k++)
+            Console.WriteLine($"  slot{k}: gain {*(float*)(b+0x1a1d930+k*0x100L):0.000000}" +
+                $"  bus {*(uint*)(b+0x1a6e4b0+k*0x100L)} (0x{*(uint*)(b+0x1a6e4b0+k*0x100L):X})");
+        return;
+    }
+    // progscan mode: does the chorus/delay send route depend on the PROGRAM rather than the part?
+    //   The gate the bus-assign code reads is at +0x13 off the pointer at voice+0x128; if that
+    //   pointer is the tone rather than the part, the route is a property of the instrument and no
+    //   part parameter can move it. Sweep every program and report each one's slot buses.
+    //   args: dll progscan [note] [map]
+    if (args.Length > 1 && args[1] == "progscan")
+    {
+        int nt=args.Length>2?int.Parse(args[2]):60; int map=args.Length>3?int.Parse(args[3]):4;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCg(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        var lb=new float[512]; var rb=new float[512];
+        Console.WriteLine("progscan: slot2/slot3 bus per program");
+        var tally=new Dictionary<string,List<int>>();
+        for(int pg=0; pg<128; pg++){
+            GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map);
+            CCg(7,127);CCg(10,64);CCg(91,64);CCg(93,64);
+            shortIn((uint)(0xC0|(pg<<8)),0); flush();
+            fixed(float* pl=lb,pr=rb) for(int i=0;i<4;i++) process(pl,pr,512);
+            shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
+            fixed(float* pl=lb,pr=rb) for(int i=0;i<4;i++) process(pl,pr,512);
+            uint b2=*(uint*)(b+0x1a6e6b0), b3=*(uint*)(b+0x1a6e7b0);
+            string key=$"slot2 bus {b2} (0x{b2:X}), slot3 bus {b3} (0x{b3:X})";
+            if(!tally.ContainsKey(key)) tally[key]=new List<int>();
+            tally[key].Add(pg);
+            shortIn((uint)(0x80|(nt<<8)|(64<<16)),0); flush();
+            fixed(float* pl=lb,pr=rb) for(int i=0;i<2;i++) process(pl,pr,512);
+        }
+        foreach(var kv in tally){
+            var progs=kv.Value;
+            string list = progs.Count>12 ? $"{progs.Count} programs" : string.Join(",",progs);
+            Console.WriteLine($"  {kv.Key}  <- {list}");
+        }
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
