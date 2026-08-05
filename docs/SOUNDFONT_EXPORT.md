@@ -240,9 +240,42 @@ regenerated bank keeps its numbering when unrelated tones change.
 ### The five maps
 
 One `.sflist.json` per map, each with a `patchMappings` array whose `source` is the tone's stable
-slot above and whose `destination` is the vintage's real (bank, program). 418 to 1,454 entries each,
-a few hundred kilobytes of JSON in total against a ~30 MB bank — which is the storage win the design
-exists for.
+slot above and whose `destination` is the vintage's real (bank, program).
+
+**`source` selects presets inside the bank file and `destination` is where MIDI addresses them** —
+the opposite of what the names suggest at a glance, and it is `ss_filtered_bank_build_one`
+(`soundbank.c:881-906`) that fixes the direction.
+
+`[measured]` The generated files run **1,930 to 6,566 mappings each, 4.4 MB of JSON across all
+five** — an order of magnitude more than an earlier version of this section guessed, because the
+capital-tone fallback below is most of every file. That is still a rounding error against a 68 MB
+bank, so the storage argument holds; it is the *file count* claim that was wrong, not the
+conclusion.
+
+| Map | banks | melodic mappings | of which fallback | drum |
+|---|---|---|---|---|
+| SC-55 | 15 | 1,920 | 1,502 | 10 |
+| SC-88 | 24 | 3,072 | 2,462 | 15 |
+| SC-88Pro | 45 | 5,760 | 4,794 | 26 |
+| SC-8820 | 51 | 6,528 | 5,074 | 38 |
+| XG | 45 | 5,888 | 5,226 | 11 |
+
+The non-fallback counts — 418, 610, 966, 1,454 — are exactly the per-map preset slots in §1, which
+is the check that the bank iteration matches the lookup tables.
+
+**The two bank layouts are not the same shape**, and getting it backwards produces five files that
+all load, all validate, and quietly answer nothing for every variation a file selects:
+
+- **GS** carries the variation in the bank **MSB**, and selects the vintage itself with bank LSB
+  1–4. Choosing the vintage is what five separate lists are *for*, so destinations sit at LSB 0 and
+  let the MSB carry the variation as an ordinary GS file expects.
+- **XG** carries the variation in the bank **LSB**. The MSB names a column instead: MSB 64 is the
+  SFX voice bank, which the module reaches by substituting lookup bank `0x7d` whatever the LSB says,
+  so it is *one* destination rather than 128.
+
+Measured discrimination: MSB 8 program 0 answers `Piano 1w` under SC-55 and nothing under XG, LSB 8
+does the reverse, and MSB 64 program 90 answers `Submarine` rather than the `Polysynth` it is at
+LSB 0.
 
 `docs/generators/tg300b-sflist/tg300b_map_generator.c` in the spessasynth tree is a working
 precedent for generating exactly this shape.
@@ -257,7 +290,11 @@ Two things the generator has to handle that `sflist` will not do for it:
   for it.
 - **Drum rows.** SC-55 selects drum map row 3, SC-88 row 2, SC-88Pro row 1, SC-8820 row 0, XG row 4;
   row 5 is GM2's. The kit a program resolves to differs per row, so each map's file needs its own
-  drum mappings, not a shared block.
+  drum mappings, not a shared block. The kit *names* are a free check that the rows are right, since
+  every GS kit is upper case and every XG kit lower: SC-55 answers `STANDARD`/`ROOM`/`TR-808` where
+  XG answers `standard kit`/`room kit`/`analog kit`. Drum presets keep their percussion flag across
+  the remap — the rule copies `is_gm_gs_drum` and rewrites only the two bank bytes — so a drum
+  destination needs no flag of its own.
 
 Alternate-articulation entries (50 records) are **not** exportable. The second reference in each is
 reachable only through the mono/solo path and an inter-note timing test, which has no expression in
