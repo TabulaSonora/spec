@@ -48,7 +48,20 @@ Known to be missing or provisional, beyond the structural limits in §9:
 
 - **No committed tests.** Every measurement in this document came from throwaway drivers. The
   exporter has no coverage in the repository's suite, so nothing currently stops a regression.
-- **No A/B harness**, per above. This is the biggest gap and the obvious next thing.
+- **An A/B harness now exists and does not close this.** `tools/compare_soundfont.py` in NativeTS
+  renders one note through the engine and the same note through spessasynth playing the bank, and
+  reports level, envelope shape and per-band timbre. But it compares *two different synthesisers*:
+  the reader's EMU attenuation quirk, its interpolator, its triangle LFOs, its envelope shapes, the
+  send effects only the engine render carries, and no time alignment. **Use it relatively** — change
+  one thing in the exporter and see which way the number moves — never as a verdict.
+
+  Its first result shows both why it is useful and why it is not sufficient. `Piano 1` at note 60,
+  velocity 100 returns an envelope correlation of **0.9956** with its peak inside one control tick,
+  which is the fitting working. It also returns **+9.8 dB at 800–2500 Hz, +15.0 at 2500–6000 and
+  +7.2 above** — the bank is far brighter than the engine. That is a large real signal and it is
+  **not attributable yet**: it could be the filter opening past the module's ceiling (§6 warns of
+  exactly that), or it could be the engine's own 4-tap interpolator, which is a lowpass and
+  measurably not an identity. Telling those apart is work the harness does not do.
 - **The envelope fitting rule is a first attempt.** "Attack to the peak, decay to the last target,
   fold the rest" is defensible and its error is measured (§5), but no alternative has been tried
   against it, and the selection rule is where the audible quality lives.
@@ -61,6 +74,10 @@ Known to be missing or provisional, beyond the structural limits in §9:
 - **Vorbis quality is untuned**; the measured 0.0049 RMS is whatever VBR quality 0.5 produced.
 - **The capital-tone fallback expansion has not been tested against real files** — the counts match
   the lookup tables, but no MIDI file has been played through the generated maps.
+
+Still missing even with the harness: time alignment, a sweep across partials rather than one note at
+a time, any comparison of a whole MIDI file, and — the one that would make the number mean
+something — a way to separate the reader's contribution from the exporter's.
 
 Treat the numbers here as reproducible facts about the data and the format, and the *conclusions*
 about how good the result sounds as untested.
