@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -905,6 +905,98 @@ unsafe
             Console.WriteLine($"40 1x {addr:X2}  {(moved.Count == 0 ? "(no change)" : string.Join(" ", moved))}");
             Array.Copy(after, before, WINDOW);
         }
+        return;
+    }
+    // efxir mode: an insertion-EFX algorithm's response to a controlled signal, taken by driving
+    //   the module's own DSP function directly -- the counterpart of `revir`/`choir`/`dlyir` for
+    //   the EFX block, and the only way to compare a modulated algorithm sample for sample.
+    //
+    //   The problem it solves is phase. Rotary's two rotors, and every other modulated type, run
+    //   their accumulators out of the shared state buffer, free-running from whatever the engine
+    //   was doing beforehand. Comparing a render against a reimplementation whose accumulators
+    //   start at zero then compares two different points of a sweep, and the difference looks like
+    //   a transcription fault when it is only a phase offset. So this resets **both** delay buffers
+    //   to the anti-denormal seed the allocator fills them with -- which is where a fresh
+    //   reimplementation starts -- and only then begins.
+    //
+    //   The loop is `fx_process_block`'s inner one: wrap both delay lines, call the algorithm with
+    //   the input doubled, halve what comes back. Coefficients come from the type select alone, so
+    //   unlike the send networks no note has to be played first.
+    //   args: dll efxir <typeMsbHex> <typeLsbHex> <out.f32> <samples> [impulse|sine] [addr val ...]
+    if (args.Length > 1 && args[1] == "efxir")
+    {
+        int msb = Convert.ToInt32(args[2], 16), lsb = Convert.ToInt32(args[3], 16);
+        string irOut = args[4];
+        int irCount = int.Parse(args[5]);
+        string shape = args.Length > 6 ? args[6] : "impulse";
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        var el = new float[512]; var er = new float[512];
+        GsReset(); flush();
+        fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        SendSysEx(Dt1(0x40, 0x03, 0x00, (byte)msb, (byte)lsb)); flush();
+        fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        for (int p = 7; p + 1 < args.Length; p += 2)
+        {
+            SendSysEx(Dt1(0x40, 0x03, (byte)Convert.ToInt32(args[p], 16),
+                          (byte)Convert.ToInt32(args[p + 1], 16)));
+            flush();
+            fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        }
+
+        long Ve(long va) => b + (va - 0x180000000L);
+        var wrap = (delegate* unmanaged[Cdecl]<long, void>)(b + 0x89830);
+        // The algorithms take their two input samples in INTEGER registers carrying the float's
+        // bit pattern, not in XMM -- which is what the decompiler is saying when it types them
+        // `undefined4` and only ever stores them. Declaring them as floats here compiles and runs,
+        // and produces garbage from the second sample on: the first output depends only on state,
+        // so it looks correct and hides the mistake.
+        var algoTable = Ve(0x181895190);
+        int algoIndex = *(int*)Ve(0x181a63460);
+        var algo = (delegate* unmanaged[Cdecl]<int, int, float*, float*, long, long, long, void>)
+            (*(long*)(algoTable + (long)algoIndex * 8));
+        long bufA = *(long*)Ve(0x181a62cd8);
+        long bufB = *(long*)Ve(0x181a63468);
+
+        // Both buffers back to the seed the allocator wrote, so every accumulator in the algorithm
+        // -- rotor phases included -- starts where a reimplementation's does.
+        void Seed(long s)
+        {
+            long baseptr = *(long*)s;
+            int size = *(int*)(s + 0xC);
+            for (int i = 0; i < size; i++) *(float*)(baseptr + i * 4) = 1e-05f;
+            *(int*)(s + 0x10) = size - *(int*)(s + 8);
+        }
+        Seed(bufA); Seed(bufB);
+        Console.WriteLine($"efxir type={msb:X2} {lsb:X2} algo={algoIndex} shape={shape}");
+        Console.WriteLine($"  bufA struct=0x{bufA:X} base=0x{*(long*)bufA:X} window={*(int*)(bufA+8)} size={*(int*)(bufA+0xC)} cursor={*(int*)(bufA+0x10)}");
+        Console.WriteLine($"  bufB struct=0x{bufB:X} base=0x{*(long*)bufB:X} window={*(int*)(bufB+8)} size={*(int*)(bufB+0xC)} cursor={*(int*)(bufB+0x10)}");
+        Console.WriteLine($"  algo ptr=0x{(long)algo:X} coef[0]={*(float*)Ve(0x181a1af70)} coef[6]={*(float*)(Ve(0x181a1af70)+24)}");
+
+        // The output pair is two pointers 0x20 floats apart inside one buffer, exactly as
+        // `fx_process_block` hands them over -- the algorithms are written against that spacing.
+        var samples = new float[irCount * 2];
+        var pair = new float[0x40];
+        fixed (float* pp = pair)
+        {
+            for (int n = 0; n < irCount; n++)
+            {
+                float x = shape == "sine"
+                    ? (float)(0.25 * Math.Sin(2.0 * Math.PI * 440.0 * n / 32000.0))
+                    : (n == 0 ? 1f : 0f);
+                wrap(bufA); wrap(bufB);
+                long aBase = *(long*)bufA + (long)(*(int*)(bufA + 0x10)) * 4;
+                long bBase = *(long*)bufB + (long)(*(int*)(bufB + 0x10)) * 4;
+                float doubled = x + x;
+                int bits = *(int*)&doubled;
+                algo(bits, bits, pp, pp + 0x20, aBase, bBase, Ve(0x181a1af70));
+                samples[n * 2] = pp[0] * 0.5f;
+                samples[n * 2 + 1] = pp[0x20] * 0.5f;
+            }
+        }
+        var bytes = new byte[samples.Length * 4];
+        Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+        File.WriteAllBytes(irOut, bytes);
+        Console.WriteLine($"efxir -> {irOut} ({irCount} frames, interleaved f32)");
         return;
     }
     // efxdump mode: select an insertion-EFX type over SysEx in the LIVE engine and dump the block's
