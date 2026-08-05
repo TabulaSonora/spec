@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -785,6 +785,126 @@ unsafe
             File.WriteAllBytes(irOut, bytes);
         }
         Console.WriteLine($"dlyir type={irType} -> {irOut} ({irCount} frames, interleaved f32)");
+        return;
+    }
+    // partprobe mode: read a live part's send bytes after each of the controls that claim to set
+    //   them, so a reimplementation can see which byte a control really writes rather than trusting
+    //   an address list. The bus-assign reads reverb from part+0x3e3, and the part's SECOND send is
+    //   either chorus (part+0x3e2, bus 0x3d) or delay (part+0x44a, bus 0x30) -- selected by
+    //   part+0x45c, not sent alongside. That selector is why a part can look like it has a delay
+    //   send set and still put nothing on the delay bus.
+    //   args: dll partprobe [prog] [ch]
+    if (args.Length > 1 && args[1] == "partprobe")
+    {
+        int ppProg = args.Length > 2 ? int.Parse(args[2]) : 115;
+        int ppCh = args.Length > 3 ? int.Parse(args[3]) : 0;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        long fbP = b + 0x1a1b5b8;
+        var getVCp = (delegate* unmanaged[Cdecl]<int, long>)(b + 0x5c360);
+        long vcp = getVCp(0);
+        var lp = new float[512]; var rp = new float[512];
+        void CCp(int c, int v) => shortIn((uint)((0xB0 | ppCh) | (c << 8) | (v << 16)), 0);
+        GsReset(); flush();
+        fixed (float* pl = lp, pr = rp) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)((0xC0 | ppCh) | (ppProg << 8)), 0); flush();
+        fixed (float* pl = lp, pr = rp) process(pl, pr, 512);
+
+        long PartOf()
+        {
+            for (int v = 0; v < 64; v++)
+                if ((*(byte*)(fbP + v * 0x50) & 1) != 0) return *(long*)(vcp + (long)v * 0x220 + 0x128);
+            return 0;
+        }
+        void Strike()
+        {
+            shortIn((uint)((0x90 | ppCh) | (60 << 8) | (110 << 16)), 0); flush();
+            fixed (float* pl = lp, pr = rp) for (int i = 0; i < 3; i++) process(pl, pr, 256);
+        }
+        void Dump(string tag)
+        {
+            long part = PartOf();
+            if (part == 0) { Console.WriteLine($"{tag}: no sounding voice"); return; }
+            Console.WriteLine($"{tag,-26} 0x13={*(byte*)(part + 0x13):X2}"
+                + $" rev(3e3)={*(byte*)(part + 0x3e3),3} cho(3e2)={*(byte*)(part + 0x3e2),3}"
+                + $" dly(44a)={*(byte*)(part + 0x44a),3} sel(45c)={*(byte*)(part + 0x45c),3}"
+                + $" rx(3d6)=0x{*(ushort*)(part + 0x3d6):X4}");
+        }
+        Strike(); Dump("after GS reset");
+        // The part's tone map: an SC-55-era part may simply not have a delay send, where an
+        // SC-88/8820 one does.
+        ToneMap0(ppCh, 4); flush(); Strike(); Dump("after tone map 4 (SC-8820)");
+        CCp(94, 127); flush(); Strike(); Dump("+ CC#94=127 on map 4");
+        SendSysEx(Dt1(0x40, 0x00, 0x7F, 0x01)); flush();   // System Mode Set 1
+        shortIn((uint)((0xC0 | ppCh) | (ppProg << 8)), 0); flush();
+        CCp(94, 127); flush(); Strike(); Dump("+ mode set 1, CC#94");
+        // Delay send first, with chorus still at zero: the engine's second send is a selector
+        // between chorus and delay rather than two independent sends, so the order may matter.
+        CCp(94, 127); flush(); Strike(); Dump("CC#94=127 (chorus still 0)");
+        SendSysEx(Dt1(0x40, 0x01, 0x50, 0x00)); flush(); Strike(); Dump("+ delay macro");
+        byte[] preset = { 0x00, 0x61, 0x01, 0x01, 0x7F, 0x00, 0x00, 0x40, 0x50, 0x00 };
+        for (int i = 0; i < preset.Length; i++)
+            SendSysEx(Dt1(0x40, 0x01, (byte)(0x51 + i), preset[i]));
+        flush(); Strike(); Dump("+ delay params 51-5A");
+        CCp(94, 127); flush(); Strike(); Dump("+ CC#94 again");
+        CCp(93, 90); flush(); Strike(); Dump("+ CC#93=90 (chorus on)");
+        CCp(93, 0); flush(); CCp(94, 127); flush(); Strike(); Dump("+ chorus 0, CC#94=127");
+        return;
+    }
+    // partmap mode: write every GS part-parameter address in turn and report which byte of the
+    //   live part struct each one moved. An address list copied from documentation -- or worse,
+    //   from the XG block, which is laid out differently -- cannot be checked any other way, and a
+    //   wrong entry is silent: the message is accepted and lands somewhere harmless.
+    //   args: dll partmap [prog] [ch] [firstAddr] [lastAddr]
+    if (args.Length > 1 && args[1] == "partmap")
+    {
+        int pmProg = args.Length > 2 ? int.Parse(args[2]) : 115;
+        int pmCh = args.Length > 3 ? int.Parse(args[3]) : 0;
+        int pmFirst = args.Length > 4 ? Convert.ToInt32(args[4], 16) : 0x00;
+        int pmLast = args.Length > 5 ? Convert.ToInt32(args[5], 16) : 0x5F;
+        const int WINDOW = 0x480;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        long fbM = b + 0x1a1b5b8;
+        var getVCm = (delegate* unmanaged[Cdecl]<int, long>)(b + 0x5c360);
+        long vcm = getVCm(0);
+        var lm = new float[512]; var rm = new float[512];
+        GsReset(); flush();
+        fixed (float* pl = lm, pr = rm) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)((0xC0 | pmCh) | (pmProg << 8)), 0); flush();
+        fixed (float* pl = lm, pr = rm) process(pl, pr, 512);
+        long PartOfM()
+        {
+            for (int v = 0; v < 64; v++)
+                if ((*(byte*)(fbM + v * 0x50) & 1) != 0) return *(long*)(vcm + (long)v * 0x220 + 0x128);
+            return 0;
+        }
+        void StrikeM()
+        {
+            shortIn((uint)((0x90 | pmCh) | (60 << 8) | (110 << 16)), 0); flush();
+            fixed (float* pl = lm, pr = rm) for (int i = 0; i < 3; i++) process(pl, pr, 256);
+        }
+        StrikeM();
+        long partM = PartOfM();
+        if (partM == 0) { Console.WriteLine("no sounding voice"); return; }
+        var before = new byte[WINDOW];
+        var after = new byte[WINDOW];
+        System.Runtime.InteropServices.Marshal.Copy((nint)partM, before, 0, WINDOW);
+        for (int addr = pmFirst; addr <= pmLast; addr++)
+        {
+            // A value no default is likely to already hold, so a write that lands shows up.
+            SendSysEx(Dt1(0x40, (byte)(0x10 | BlockNum(pmCh)), (byte)addr, 0x33));
+            flush();
+            fixed (float* pl = lm, pr = rm) process(pl, pr, 512);
+            // The part pointer is cached rather than re-resolved from a sounding voice: some of
+            // these addresses (Rx switches, key range, Rx channel) stop the part from sounding,
+            // and a probe that needs a live voice to find the part loses it exactly where the
+            // interesting writes are.
+            System.Runtime.InteropServices.Marshal.Copy((nint)partM, after, 0, WINDOW);
+            var moved = new System.Collections.Generic.List<string>();
+            for (int off = 0; off < WINDOW; off++)
+                if (before[off] != after[off]) moved.Add($"+{off:X3}:{before[off]:X2}->{after[off]:X2}");
+            Console.WriteLine($"40 1x {addr:X2}  {(moved.Count == 0 ? "(no change)" : string.Join(" ", moved))}");
+            Array.Copy(after, before, WINDOW);
+        }
         return;
     }
     // efxdump mode: select an insertion-EFX type over SysEx in the LIVE engine and dump the block's
