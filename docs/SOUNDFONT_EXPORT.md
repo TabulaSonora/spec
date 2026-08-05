@@ -53,16 +53,45 @@ The union is 1,694 melodic tones and 50 alternate-articulation entries. **The fi
 heavily** — 3,982 preset slots resolve to 1,746 distinct tone references — which is the whole reason
 one shared bank plus five remapping files is worth doing rather than five banks.
 
-### Sample data
+### Sample data `[measured on the built export]`
 
-Summing every descriptor's extent gives 31.8 M samples; deduplicating by exact `(region, loop,
-start)` triple gives 25.6 M; merging overlapping extents per region gives **24.3 M samples**, or
-**46.4 MB as 16-bit PCM**. The three numbers differ because descriptors share and nest — one wave's
-range is frequently a subrange of another's. A per-descriptor dump wastes about 30%; dedup by merged
-ROM extent, not by descriptor.
+**64.8 MB as 16-bit PCM**, in 3,880 sample runs. That is what the exporter actually produces, and
+it is half again the 46.4 MB an earlier version of this section projected. Two of that estimate's
+assumptions were wrong, and both were wrong in the same direction:
 
-24.3 M of the ROM's 25.1 M sample positions are referenced, so the export covers essentially the
-whole 24 MB ROM ([HARDWARE_ROMS.md](HARDWARE_ROMS.md)).
+| Reading | Samples | 16-bit MB |
+|---|---|---|
+| every descriptor's extent, summed | 31.8 M | 60.7 |
+| deduplicated by exact `(region, loop, start)` | 25.6 M | 48.9 |
+| overlapping extents merged per region | 24.3 M | 46.4 |
+| **what the export stores** | **34.0 M** | **64.8** |
+
+**Merging overlapping extents is not available**, which is what §3 records: the codec integrates
+from zero at the exponent-block boundary below each wave's own data start, so two waves over
+overlapping ROM have identical *shape* and levels differing by a DC constant — up to 0.217 on a ±1
+signal, and SF2 has no generator that can add one back. Waves are therefore keyed on their exact
+extent. Sharing still happens where the constant is zero, which is 379 of the 3,880 runs.
+
+**Ping-pong costs extra sample data**, because the baked round trip appends the descending leg to
+the wave (§7). That is 549 runs carrying about 15.2 M samples between them, against roughly 7.5 M
+if they were stored as plain forward loops.
+
+Broken out by bake, over the census the exporter actually reaches:
+
+| Bake | Runs | Samples | 16-bit MB |
+|---|---|---|---|
+| forward loop | 2,639 | 12.3 M | 23.4 |
+| ping-pong | 549 | 15.2 M | 29.0 |
+| one-shot | 512 | 4.3 M | 8.3 |
+| reverse | 180 | 2.0 M | 3.9 |
+
+**The census reaches all 4,259 descriptors**, not the 3,870 an earlier melodic-only count
+suggested — the drum kits pull in the remainder. So the export covers essentially the whole 24 MB
+ROM ([HARDWARE_ROMS.md](HARDWARE_ROMS.md)).
+
+Add the specification's 46-sample gaps and the finished PCM is 64.8 MB; the written SF2 with all
+generators is **68.5 MB**. Scaling §3's codec estimates by the same factor puts FLAC at roughly
+**36–42 MB** and Ogg Vorbis at roughly **17–25 MB**.
 
 The native rate is **32 kHz** — the control tick is 100 Hz over 320-sample blocks.
 
@@ -76,13 +105,18 @@ instruments have to be **partial-level**, with the envelope and filter generator
 instrument's global zone where 128 drum keys can reference them cheaply. Push the partial parameters
 up into preset zones instead and every kit re-emits ~30 generators × 256 zones.
 
-With instrument-per-partial over the 1,694 mapped melodic tones:
+With instrument-per-partial over the 1,694 mapped melodic tones, the projection was:
 
 ```
 inst = 2,644     ibag = 25,413     igen ≈ 271,000
 ```
 
-SF2's `ibag` and `igen` indices are `uint16`. **271,000 does not fit.**
+**The built export measures higher still** — 3,387 instruments, 23,950 `ibag` and **330,003 `igen`**
+— because the census reaches every descriptor rather than the melodic subset, and because each zone
+carries a fitted volume envelope and a modulation envelope on top of its mapping.
+
+SF2's `ibag` and `igen` indices are `uint16`. **330,003 does not fit**, and neither did the
+projection.
 
 The alternative — instrument per multisample (798 instruments, 5,560 key zones, 6,358 `ibag`, about
 61,000 `igen`) — squeezes under the ceiling only by moving the partial parameters into preset zones,
@@ -96,11 +130,13 @@ same reader accepts `sfen` as a form type and handles `RIFS`/RIFF64 64-bit chunk
 
 Design decisions that follow:
 
-- **Write `xdta` from the first commit.** Do not build a `uint16` writer and retrofit; the counts are
-  4× over from the start, so a `uint16` writer can never emit a usable file.
+- **Write `xdta` from the first commit**, and for every bank however small. Do not build a `uint16`
+  writer and retrofit; the counts are 5× over, so a `uint16` writer can never emit a usable file.
+  The negative control is worth knowing: the same bank written without the `xdta` LIST does not
+  degrade, it makes the reader **segfault**, because the truncated indices address nothing.
 - **Instrument per partial**, preset per tone and per drum kit. The 4× zone cost against the
   multisample-deduped layout is paid back by the drum kits.
-- `RIFF64` is not needed. 46 MB of PCM, or ~30 MB compressed, is nowhere near 4 GB.
+- `RIFF64` is not needed. 64.8 MB of PCM, or ~40 MB compressed, is nowhere near 4 GB.
 
 One note for anyone extending this: the `ISFe` LIST **is parsed into a chunk handle and then never
 read** — opened at `soundfont_reader.c:241`, closed at `:811`/`:849`, no field ever consulted. The
@@ -112,10 +148,17 @@ would have to go.
 The tempting idea is to declare an SFe extension and ship the wave ROM's own delta+exponent streams
 verbatim. Three reasons not to, in order of weight:
 
-**It does not win on size.** The codec is one signed delta byte per sample plus a 4-bit shift
-exponent per 16 samples — 10 bits per sample, so 24.3 M samples ≈ **29 MB**. FLAC over 32 kHz mono
-instrument material lands around 55–65% of 16-bit, i.e. **26–30 MB**. The bespoke format's best case
-is parity with an off-the-shelf lossless codec that any conforming reader already handles.
+**It wins on size, and that is not enough.** *(Corrected: an earlier version of this section claimed
+it did not win. That was wrong, and wrong in the bespoke format's favour to admit.)* The codec is
+one signed delta byte per sample plus a 4-bit shift exponent per 16 samples — 10 bits per sample,
+so the ROM's 24.3 M referenced positions come to about **29 MB**. FLAC over the *baked* PCM lands
+at roughly **36–42 MB**, because SF2 has no ping-pong and the bake appends a descending leg to
+every one of the 549 ping-pong runs (§1). Carrying the codec means carrying the traversal too, and
+a delta-domain traversal costs no extra bytes at all — so the honest gap is around 25%, in the
+ROM format's favour.
+
+It is still not worth it, on the two reasons below. But the trade is a real one and the size column
+is not the argument against it.
 
 **It has no random access.** The predictor has no leak and integrates from the data start; the
 preamble deltas between the 32-sample exponent-block boundary and the data start ride under the
@@ -134,9 +177,9 @@ no one of them is right for every use:
 
 | `--codec` | Container | Size | Fidelity | Read by |
 |---|---|---|---|---|
-| `pcm` | plain SF2, `smpl` (+ optional `sm24`) | ~46 MB | exact | everything |
-| `flac` | SF3-style, per-sample `fLaC` chunks | ~26–30 MB | lossless | **spessasynth only** |
-| `vorbis` | SF3, per-sample `OggS` chunks | ~12–18 MB | lossy | spessasynth, FluidSynth, most SF3 readers |
+| `pcm` | plain SF2, `smpl` (+ optional `sm24`) | **64.8 MB** (measured) | exact | everything |
+| `flac` | SF3-style, per-sample `fLaC` chunks | ~36–42 MB | lossless | **spessasynth only** |
+| `vorbis` | SF3, per-sample `OggS` chunks | ~17–25 MB | lossy | spessasynth, FluidSynth, most SF3 readers |
 
 `soundbank.c:468-480` dispatches each sample's compressed slice on magic bytes — `OggS` → Vorbis,
 `fLaC` → FLAC — so both compressed forms need no engine change beyond setting the `0x10` compression
@@ -144,11 +187,11 @@ flag in `sampleType`. Only the codec identity and the encoder differ; the rest o
 shared.
 
 **`pcm` is the reference output.** Build and verify against it first — it keeps the writer testable
-against a byte-exact decode, and 46 MB is not a problem locally. Compression is a post-pass over an
+against a byte-exact decode, and 64.8 MB is not a problem locally. Compression is a post-pass over an
 already-correct bank.
 
-**`flac` is the default for local use.** Lossless against the decode, at the same size the original
-ADPCM would have been, which is the result that makes carrying the Roland codec pointless.
+**`flac` is the default for local use.** Lossless against the decode, and about 25% larger than the
+original ADPCM would have been — a real cost, paid for a file that unmodified software can read.
 
 **`vorbis` is the default for anything shared.** Canonical SF3 is Vorbis-only, so a Vorbis bank
 loads in FluidSynth and a FLAC one does not. Per-sample FLAC in SF3 is a spessasynth extension and
@@ -437,7 +480,7 @@ the export is for.
     Elsewhere LFO1 degrades to pitch-only vibrato.
 18. **Per-sample FLAC chunks are a spessasynth extension.** Canonical SF3 is Vorbis-only, so
     `--codec flac` produces a bank only spessasynth reads. `--codec vorbis` is portable but lossy,
-    and `--codec pcm` is portable and exact at 46 MB; §3 has the trade.
+    and `--codec pcm` is portable and exact at 64.8 MB; §3 has the trade.
 
 ### Deliberate approximations
 
