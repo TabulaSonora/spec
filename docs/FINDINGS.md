@@ -4687,3 +4687,37 @@ This closes the question the dead-branch finding opened. The full picture for a 
 
 Note also, from the same dig, that the sixteen *interpolated* coefficients are a different set from
 the 33-tap matrices: those are the global effect levels, and CC#91/93/94 move none of them.
+
+## CC#71 is wired after all, and it is worth 9 dB `[confirmed]`
+
+A port here records TVF resonance (CC#71 / NRPN `01 21` / `40 1x 33`) as deliberately unimplemented,
+on the grounds that the byte it writes — `part+0x3e7` — is written by four handlers and **read by
+nothing**, while only its patch-level sibling `part+0x456` reaches the resonance path. That reading
+does not survive measurement.
+
+Driving CC#71 and reading the engine's own resonance byte at `voice+0xee` through `scdec svfmel`:
+
+| CC#71 | 0 | 32 | 64 | 96 | 120 | 127 |
+|---|---|---|---|---|---|---|
+| `voice+0xee` | 127 | 112 | 48 | **4** | **4** | **4** |
+| filter `q` | 1.984 | 1.750 | 0.750 | 0.0625 | 0.0625 | 0.0625 |
+
+So the control moves the byte across its whole range and parks it on the floor. Rendered, a single
+note at CC#74 neutral spans **9.2 dB** between CC#71 0 and 127 — RMS 0.01417 to 0.04093 — against a
+flat 0.02470 from an engine that ignores it. The two agree only at the neutral 0x40.
+
+Note the direction: more CC#71 means a *smaller* byte and a *lower* q. Whatever `part+0x3e7` is for,
+the resonance the filter runs on tracks this controller.
+
+**Identical in GS and XG.** Both modes give the same three numbers, so this is not an XG routing
+difference — it is the filter, in every mode.
+
+Which also answers what an XG file does differently to the filter, since that is where this came up:
+nothing, in the engine. What differs is how hard the files lean on it. The Cave Story XG set sends
+CC#74 once a part; `MM6_-_MrX2010XG.mid` sends it **3288 times on each of two channels**, sweeping
+to 1, and sets CC#71 to 100, 126 and 90 on others. An engine that halves the cutoff law or drops
+CC#71 will pass the first and fail the second, which is roughly what happened: MM6 sits at 0.57
+envelope correlation with the 1-4 kHz band 3 to 7 dB light, and the fix to the cutoff law moved it
+barely at all.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
