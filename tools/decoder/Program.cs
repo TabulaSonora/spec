@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -668,6 +668,123 @@ unsafe
             File.WriteAllBytes(irOut, bytes);
         }
         Console.WriteLine($"revir type={irType} -> {irOut} ({irCount} frames, interleaved f32)");
+        return;
+    }
+    // choir mode: the chorus network's IMPULSE RESPONSE, the same way `revir` takes the reverb's --
+    //   by calling the module's own `fx_chorus_stage_l` (0x1800851c0) with a controlled input. Same
+    //   contract: 32 samples per call from `input`, 32 floats of L at `out` and 32 of R at
+    //   `out+0x80`, and the ring cursor advanced by the caller.
+    //
+    //   The chorus is swept by a free-running LFO, so its response is only reproducible from a
+    //   known phase: this prints the phase accumulator (0x181a62af8) and its increment beside the
+    //   capture, and a reimplementation has to be started from the same phase for a sample-exact
+    //   comparison to mean anything.
+    //   args: dll choir <out.f32> <samples> [choType]
+    if (args.Length > 1 && args[1] == "choir")
+    {
+        string irOut = args[2];
+        int irCount = int.Parse(args[3]);
+        int irType = args.Length > 4 ? int.Parse(args[4]) : -1;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset();
+        if (irType >= 0) SendSysEx(Dt1(0x40, 0x01, 0x38, (byte)irType));
+        void CCch(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+        CCch(0, 0); CCch(32, 0); CCch(7, 127); CCch(10, 64); CCch(91, 0); CCch(93, 127);
+        shortIn((uint)(0xC0 | (12 << 8)), 0);
+        flush();
+        var cw = new float[512]; var cwr = new float[512];
+        fixed (float* pl = cw, pr = cwr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)(0x90 | (60 << 8) | (100 << 16)), 0); flush();
+        fixed (float* pl = cw, pr = cwr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)(0x80 | (60 << 8) | (64 << 16)), 0); flush();
+        fixed (float* pl = cw, pr = cwr) for (int i = 0; i < 250; i++) process(pl, pr, 512);
+
+        var choProc = (delegate* unmanaged[Cdecl]<long,float*,long,void>)(b + 0x851c0);
+        long Vc(long va) => b + (va - 0x180000000L);
+        // The sweep LFO free-runs, so a capture is only comparable against a reimplementation
+        // started from the same phase. Rather than ask the other side to adopt this one's phase,
+        // pin the engine to zero -- where a reimplementation's accumulator naturally starts.
+        *(int*)Vc(0x181a62af8) = 0;
+        Console.WriteLine($"lfoPhase={*(int*)Vc(0x181a62af8)} (pinned) lfoInc={*(int*)Vc(0x181a62afc)}"
+            + $" gainIn={*(float*)Vc(0x181a6ef70)} gainOut={*(float*)Vc(0x181a6f0f0)} cursor={*(uint*)Vc(0x181a62a34):X}");
+        var cin = new float[32]; var cout = new float[64];
+        fixed (float* ip = cin, op = cout)
+        {
+            var samples = new float[irCount * 2];
+            int written = 0;
+            for (int block = 0; written < irCount; block++)
+            {
+                for (int k = 0; k < 32; k++) ip[k] = 0f;
+                if (block == 0) ip[0] = 1f;
+                choProc(0, ip, (long)op);
+                *(uint*)Vc(0x181a62a34) = (*(uint*)Vc(0x181a62a34) - 0x20) & 0xFFFF;
+                for (int k = 0; k < 32 && written < irCount; k++, written++)
+                { samples[written * 2] = op[k]; samples[written * 2 + 1] = op[32 + k]; }
+            }
+            var bytes = new byte[samples.Length * 4];
+            Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+            File.WriteAllBytes(irOut, bytes);
+        }
+        Console.WriteLine($"choir type={irType} -> {irOut} ({irCount} frames, interleaved f32)");
+        return;
+    }
+    // dlyir mode: the GS system delay's IMPULSE RESPONSE, taken from the live engine the same way
+    //   `revir` and `choir` take theirs. The delay's processor is `fx_chorus_stage_r`
+    //   (0x180085460), whose Ghidra name is misleading: it is not the chorus's right channel, it is
+    //   the delay -- three taps (0x181a629f4/f8/fc) with their own gains, a feedback path, a
+    //   pre-LPF, and a send into the reverb, working a region of the shared delay memory 0x8000
+    //   below the chorus's. It reads the chorus's send-to-delay output (0x181a22960) as well as its
+    //   own bus, so that is zeroed here.
+    //
+    //   The delay is OFF until a macro selects it -- the power-on delay level is zero -- which is
+    //   why a part's delay send appears to do nothing on a bare GS reset. The macro goes first.
+    //   args: dll dlyir <out.f32> <samples> [dlyType]
+    if (args.Length > 1 && args[1] == "dlyir")
+    {
+        string irOut = args[2];
+        int irCount = int.Parse(args[3]);
+        int irType = args.Length > 4 ? int.Parse(args[4]) : 0;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset();
+        SendSysEx(Dt1(0x40, 0x01, 0x50, (byte)irType));       // delay macro
+        SendSysEx(Dt1(0x40, 0x11, 0x2C, 0x7F));               // part 1 delay send
+        void CCd2(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+        CCd2(0, 0); CCd2(32, 0); CCd2(7, 127); CCd2(10, 64); CCd2(91, 0); CCd2(93, 0);
+        shortIn((uint)(0xC0 | (12 << 8)), 0);
+        flush();
+        var dw = new float[512]; var dwr = new float[512];
+        fixed (float* pl = dw, pr = dwr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)(0x90 | (60 << 8) | (100 << 16)), 0); flush();
+        fixed (float* pl = dw, pr = dwr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        shortIn((uint)(0x80 | (60 << 8) | (64 << 16)), 0); flush();
+        fixed (float* pl = dw, pr = dwr) for (int i = 0; i < 400; i++) process(pl, pr, 512);
+
+        var dlyProc = (delegate* unmanaged[Cdecl]<long,float*,long,float*,void>)(b + 0x85460);
+        long Vd(long va) => b + (va - 0x180000000L);
+        Console.WriteLine($"taps c={*(short*)Vd(0x181a629f4)} l={*(short*)Vd(0x181a629f8)} r={*(short*)Vd(0x181a629fc)}"
+            + $" gC={*(float*)Vd(0x181a62a2c)} gL={*(float*)Vd(0x181a62a30)} gR={*(float*)Vd(0x181a62a28)}"
+            + $" fb={*(float*)Vd(0x181a62a24)} lpfIn={*(float*)Vd(0x181a629ec)} lpfFb={*(float*)Vd(0x181a629e8)}"
+            + $" gainIn={*(float*)Vd(0x181a6f1f0)} gainOut={*(float*)Vd(0x181a6f170)}");
+        var din = new float[32]; var dout = new float[64];
+        fixed (float* ip = din, op = dout)
+        {
+            var samples = new float[irCount * 2];
+            int written = 0;
+            for (int block = 0; written < irCount; block++)
+            {
+                for (int k = 0; k < 32; k++) ip[k] = 0f;
+                if (block == 0) ip[0] = 1f;
+                for (int i = 0; i < 32; i++) *(float*)(Vd(0x181a22960) + i * 4) = 0f;
+                dlyProc(0, ip, 0, op);
+                *(uint*)Vd(0x181a62a34) = (*(uint*)Vd(0x181a62a34) - 0x20) & 0xFFFF;
+                for (int k = 0; k < 32 && written < irCount; k++, written++)
+                { samples[written * 2] = op[k]; samples[written * 2 + 1] = op[32 + k]; }
+            }
+            var bytes = new byte[samples.Length * 4];
+            Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+            File.WriteAllBytes(irOut, bytes);
+        }
+        Console.WriteLine($"dlyir type={irType} -> {irOut} ({irCount} frames, interleaved f32)");
         return;
     }
     // efxdump mode: select an insertion-EFX type over SysEx in the LIVE engine and dump the block's
