@@ -403,9 +403,9 @@ differs, from the engine's own behaviour:
 |---|---|---|---|
 | CC64 half-damper | none | release rate scaled by roughly `1 − v/128`, but **only on the 57 piano tones** (tone header `0x0d` bit 2) | per-instrument `imod`, not `DMOD` — see below |
 | CC72/73/75 envelope modify | → `volEnv` release/attack/decay | also moves the **filter** envelope, and only on partials with bit 4 of block byte `0x0e` set | the `volEnv` half in `DMOD`; the `modEnv` half as `imod` on opted-in partials |
-| CC71 resonance | → `initialFilterQ`, amount 250 | own curve; the engine's damping is reciprocal-Q, so 0x40 is exactly 1.0 and smaller is more resonant | `DMOD`, fitted amount, sign checked |
-| CC74 brightness | → `initialFilterFc`, 9600 cents | own warp and a resonance-dependent ceiling | `DMOD`, fitted amount |
-| CC76/77/78 vibrato delay/rate/depth | **none** | bias LFO1's table indices | `DMOD`, to `delayVibLFO` and the extended `SS_GEN_VIB_LFO_RATE` (62) |
+| CC71 resonance | → `initialFilterQ`, amount 250 | **the engine never reads the byte** — see below | `DMOD`, *removed* |
+| CC74 brightness | → `initialFilterFc`, 9600 cents | own warp and a resonance-dependent ceiling | `DMOD`, **4522**, replacing the default |
+| CC76/77/78 vibrato rate/depth/delay | **none** | bias LFO1's table indices | `DMOD`, **1100 / 557 / 11796** |
 | mod wheel | → `vibLfoToPitch`, 50 cents | default depth `0x0a` through the cents table, total clamped to ±6000 milli-semitones | `DMOD`, fitted amount |
 | velocity → attenuation | one concave curve, 960 cB | **one of sixteen** curves, selected per partial (block `0x2e` low nibble) | not representable; see §9 |
 
@@ -414,6 +414,41 @@ switch), so a sixteen-row table is approximated by whichever of four fits least 
 per-partial, so it cannot live in `DMOD` at all. Second, `DMOD` replaces the entire default set, so
 anything from the built-in 17 that is still wanted must be copied across; a `DMOD` chunk holding only
 the additions silently removes velocity-to-attenuation and the rest.
+
+### The GS amounts, transcribed `[measured]`
+
+Each is the excursion a full controller sweep produces from neutral, taken at the **median base
+index** across the mapped library — a bank-wide default can carry one number, and the median is the
+one that is least wrong most often.
+
+| Controller | Engine law | Median base | Excursion | Amount |
+|---|---|---|---|---|
+| CC#74 cutoff | `(cc − 0x40) × 0x100` cutoff units | cutoff base byte 62 | 391.5 Hz → 5333.3 Hz | **4522** cents |
+| CC#76 vib rate | 1 index step per controller step | rate index 52 | 5.20 Hz → 16.20 Hz | **1100** (Hz/100) |
+| CC#77 vib depth | 2 index steps, into the cents table | depth index 0 | 0 → 5570 milli-semitones | **557** cents |
+| CC#78 vib delay | 2 index steps, into the delay table | delay index 0 | 10 ms → 9.10 s | **11796** timecents |
+
+**CC#71 is removed, not retuned.** The GS resonance byte is written by the CC handler, the NRPN
+handler, the SysEx handler and the reset path, it reads back over a dump — and nothing in the engine
+reads it. Its patch-level sibling *is* wired into the resonance path, so this is a route left
+unconnected rather than a parameter the module has no use for. Keeping the reader's CC#71 default
+would give the bank a resonance sweep the module does not have.
+
+Three traps, all of which produce a file that loads cleanly and behaves wrongly:
+
+- **The per-generator ranges apply to the accumulated value, not to what a zone stores.** The reader
+  builds a voice from the spec defaults, overrides with the instrument's global zone then its local
+  zone, sums the preset zone's offsets, sums every modulator's contribution, and applies the
+  per-type limits *once, at the end* (`soundbank.c:761`, `compute_modulator.c:146` — whose comment
+  cites a `sustainVolEnv` of −461 arriving from preset-plus-instrument summing as the case the late
+  clamp exists for). Clamping at write time can only discard an intermediate the accumulation is
+  entitled to.
+- **So an amount past its generator's range is still the right amount.** `vibLfoRate` is limited to
+  ±1000 and the measured excursion is 1100; 1100 is what belongs in the file. Writing 1000 rescales
+  the whole curve to be wrong everywhere in order to be right at a rail the reader enforces anyway —
+  at CC#76 = 96 the engine gives ≈5.5 Hz, an amount of 1100 gives 5.5, and 1000 gives 5.0.
+- **Identical modulators in one list are summed** (SF2 §9.5). A GS amount that duplicates one of the
+  reader's defaults must *replace* it: emitting both makes a full CC#74 worth 9600 + 4522 cents.
 
 ### Per-instrument modulators `[implemented]`
 
