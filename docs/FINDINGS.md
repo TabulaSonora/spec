@@ -3479,28 +3479,36 @@ computed once per block.
 It is implemented in NativeTS (`TvfChain::coefficients`, which returns both coefficients together
 because the engine couples them).
 
-**The ramps are now modelled too** `[implemented, unverified against the oracle]`. `CoefficientRamp`
-gives `f` and `q` one exponential smoother each — `(target − current) × rate >> 13` once a
-millisecond, rate `4096 / (2i)`, so a time constant of `4i` ms — and the clamp moved inside, applied
-per sample against the damping the ramp has actually reached. So the transient crossing described
-above can now fire, where before the pair was always consistent by construction.
+**The ramps were modelled and the implementation reverted** `[still unimplemented]`. `CoefficientRamp`
+gave `f` and `q` one exponential smoother each — `(target − current) × rate >> 13` once a
+millisecond, rate `4096 / (2i)`, so a time constant of `4i` ms — with the clamp moved inside and
+applied per sample against the damping the ramp had actually reached, so the transient crossing
+described above could fire. It worked and it was reverted, because it was carrying an engine-wide
+behaviour change for nothing: the per-partial rate word lives in a voice field not tied back to any
+tone-table byte, so one guessed index had to stand for all of them, and the oracle fixtures were
+absent, so it was never checked against the DLL.
 
-Two caveats. The per-partial rate word lives in a voice field not yet tied back to a tone-table
-byte, so a single index stands for all of them, defaulted to the table's fastest. And the oracle
-fixtures were absent when this landed, so it is unverified against the DLL.
+It should come back when the rate word is pinned and there is an oracle to check it against. The
+mechanism is real; the implementation was premature.
 
-**It was implemented to test a hypothesis that turned out to be wrong**, which is worth recording so
+**It was built to test a hypothesis that turned out to be wrong**, which is the part worth keeping so
 nobody re-runs it. The idea was that refreshing coefficients once per 320-sample control block put a
 10 ms discontinuity in the filter state, and that the resulting splatter — at 100 Hz, harmonically
 unrelated to any note, so landing *between* the harmonics — was the elevated noise floor seen when
 comparing a render against an exported SoundFont ([SOUNDFONT_EXPORT.md](SOUNDFONT_EXPORT.md)).
-Ramping moves that floor by **0 to 4 dB and mostly by nothing**. The floor is real and remains about
-10 dB above the SoundFont's.
+Ramping moves that floor by **0 to 4 dB and mostly by nothing**.
 
-The likelier source, measured in passing: the **4-tap resampler's own error**. At the ratio the test
-note actually plays, 0.790817, a pure tone comes back with its worst spur 72.7 dB down at 1046 Hz in
-and 99.4 dB down at 261 Hz. One partial does not account for the floor; six or seven summing
-plausibly do. Unproven, and where the next look should start.
+The cause was found elsewhere and is not a defect in either side: **the two filters have entirely
+different stopbands.** At a matched 2088 Hz cutoff this engine's Chamberlin SVF falls 16 dB between
+4 and 13 kHz — 2.6 dB/octave — where a conforming SF2 reader's RBJ biquad falls 39, the textbook 12.
+The SVF levels out instead of rolling off. That accounts for the whole of the gap, and it is
+recorded as a structural limit of the export rather than something to fix.
+
+A second candidate was also ruled out on the way. The **4-tap resampler** produces 14–45 dB more
+inter-harmonic junk than linear interpolation above 4 kHz *on a synthetic tone* — and none at all on
+the real sample, where it is within 2 dB of linear and above 6 kHz is the cleaner of the two. Wave
+7's own broadband content sits above either interpolator's artefacts, so the synthetic test was
+measuring a signal that had nothing up there to begin with.
 
 **Consequences for the earlier reading.** The amplitude limiter described in the previous section
 does not exist, so there is no unimplemented stage "that will matter for loud voices" — the loud-voice
