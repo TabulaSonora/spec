@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1128,6 +1128,36 @@ unsafe
             }
         }
         Console.WriteLine($"{hits} candidates");
+        return;
+    }
+    // panramp mode: trace the per-voice PAN gain pair across a CC10 jump. Unlike the volume fader,
+    //   pan does not go through voice_ctrl_ramp_b at all -- voice_expr_smooth slews the 0..127
+    //   *position* and the L/R gains fall out of a table pair, landing as two per-voice scalars at
+    //   DAT_181a1d930 / DAT_181a1da30. args: dll panramp <prog> <note> <vel> <chunk> <npoints> [map] [cc10after]
+    if (args.Length > 1 && args[1] == "panramp")
+    {
+        int pg=args.Length>2?int.Parse(args[2]):19, nt=args.Length>3?int.Parse(args[3]):96, vel=args.Length>4?int.Parse(args[4]):110;
+        int chunk=args.Length>5?int.Parse(args[5]):32; int npts=args.Length>6?int.Parse(args[6]):400;
+        int map=args.Length>7?int.Parse(args[7]):4; int after=args.Length>8?int.Parse(args[8]):127;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCp(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        if(map>=1&&map<=4){ GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map); } else Gm1On();
+        CCp(7,127);CCp(10,64);CCp(91,0);CCp(93,0);
+        shortIn((uint)(0xC0|(pg<<8)),0);
+        var l5=new float[512]; var r5=new float[512];
+        flush();
+        fixed(float* pl=l5,pr=r5) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
+        fixed(float* pl=l5,pr=r5) for(int i=0;i<40;i++) process(pl,pr,512);
+        long gl=b+0x1a1d930, gr=b+0x1a1da30;
+        Console.WriteLine($"panramp prog={pg} note={nt} chunk={chunk} cc10 64 -> {after}");
+        Console.WriteLine("sample,left,right");
+        int t=0;
+        for(int i=0;i<3;i++){ Console.WriteLine($"{t},{*(float*)gl:0.00000000},{*(float*)gr:0.00000000}");
+            fixed(float* pl=l5,pr=r5) process(pl,pr,(uint)chunk); t+=chunk; }
+        CCp(10,after); flush();
+        for(int i=0;i<npts;i++){ Console.WriteLine($"{t},{*(float*)gl:0.00000000},{*(float*)gr:0.00000000}");
+            fixed(float* pl=l5,pr=r5) process(pl,pr,(uint)chunk); t+=chunk; }
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
