@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1396,6 +1396,63 @@ unsafe
             var progs=kv.Value;
             string list = progs.Count>12 ? $"{progs.Count} programs" : string.Join(",",progs);
             Console.WriteLine($"  {kv.Key}  <- {list}");
+        }
+        return;
+    }
+    // peek mode: dump raw bytes at a module offset, after a GS reset and a note. For inspecting a
+    //   symbol before trusting it -- a "base" global may be the array itself or a pointer to it,
+    //   and dereferencing the wrong one just crashes. args: dll peek <off hex> [count] [cc91]
+    if (args.Length > 1 && args[1] == "peek")
+    {
+        long off=Convert.ToInt64(args[2],16);
+        int count=args.Length>3?int.Parse(args[3]):64;
+        int rev=args.Length>4?int.Parse(args[4]):64;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCp2(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCp2(7,127);CCp2(10,64);CCp2(91,rev);
+        shortIn((uint)(0xC0|(19<<8)),0); flush();
+        var lc=new float[512]; var rc=new float[512];
+        fixed(float* pl=lc,pr=rc) for(int i=0;i<4;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(96<<8)|(110<<16)),0); flush();
+        fixed(float* pl=lc,pr=rc) for(int i=0;i<4;i++) process(pl,pr,512);
+        Console.WriteLine($"peek +0x{off:x} (cc91={rev}):");
+        for(int i=0;i<count;i+=16){
+            Console.Write($"  +0x{(off+i):x}  ");
+            for(int k=0;k<16 && i+k<count;k++) Console.Write($"{*(byte*)(b+off+i+k):x2} ");
+            Console.WriteLine();
+        }
+        // and the same bytes read as 64-bit words, in case this is a pointer table
+        for(int i=0;i<Math.Min(count,32);i+=8){
+            ulong v=*(ulong*)(b+off+i);
+            Console.WriteLine($"  as u64 +0x{(off+i):x} = 0x{v:x}   (module-relative 0x{(v>=(ulong)b ? (long)(v-(ulong)b) : -1):x})");
+        }
+        return;
+    }
+    // partdump mode: follow g_part_array_base @181a222a0 -- which holds a HEAP pointer, the structs
+    //   being malloc'd by engine_alloc_init_voices -- and print the fields the bus-assign code reads
+    //   for each part slot. CC#91 is set to a distinctive value so the right slot identifies itself
+    //   by its reverb-send byte. args: dll partdump [cc91] [slots]
+    if (args.Length > 1 && args[1] == "partdump")
+    {
+        int rev=args.Length>2?int.Parse(args[2]):90;
+        int slots=args.Length>3?int.Parse(args[3]):20;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCd(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCd(7,127);CCd(10,64);CCd(91,rev);CCd(93,77);
+        shortIn((uint)(0xC0|(19<<8)),0); flush();
+        var ld=new float[512]; var rd=new float[512];
+        fixed(float* pl=ld,pr=rd) for(int i=0;i<4;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(96<<8)|(110<<16)),0); flush();
+        fixed(float* pl=ld,pr=rd) for(int i=0;i<4;i++) process(pl,pr,512);
+        long arr=*(long*)(b+0x1a222a0);
+        Console.WriteLine($"g_part_array_base -> 0x{arr:x}  (cc91={rev}, cc93=77)");
+        Console.WriteLine("slot  +0x13  +0x3e2(cho) +0x3e3(rev) +0x44a(dly) +0x45c");
+        for(int i=0;i<slots;i++){
+            long q=arr+(long)i*0x488;
+            Console.WriteLine($"{i,4}  {*(byte*)(q+0x13),5}  {*(byte*)(q+0x3e2),10}" +
+                $" {*(byte*)(q+0x3e3),11} {*(byte*)(q+0x44a),11} {*(byte*)(q+0x45c),6}");
         }
         return;
     }

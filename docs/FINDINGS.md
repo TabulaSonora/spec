@@ -4532,35 +4532,43 @@ at the superseded control-RAMP section collides with the manifest's `g_env_start
 VA. The `4096/(8i)` table is not in the exported set under any name, and none of the rates above
 came from it — they are all constants at their call sites (`0xCC` for the volume ramp) or measured.
 
-## `part+0x13`, the chorus/delay send gate: not found, and why the obvious searches cannot find it
+## `part+0x13` is the part's own INDEX, so the chorus/delay send branches are dead code `[confirmed]`
 
-The byte that decides whether a voice's fourth slot is a chorus send, a delay send, or a direct bus
-route is read at `+0x13` off the pointer at `voice+0x128`. Its **value in a default GS part is 1**,
-which is not a guess: the `else` branch computes `bVar4 - 0x1f0`, and `1 - 0x1f0` is `0xFE11`, whose
-low six bits are 17 and whose `>> 6` is 1016 — exactly the `(0.9922, 17)` slot every capture shows.
-Both measured numbers fall out of the branch, so the reading is sound. What is missing is only what
-*writes* it.
+`g_part_array_base` @`181a222a0` is a **pointer**, not the array: `engine_alloc_init_voices` mallocs
+the part structs and stores the heap address there. Following it and walking the 0x488 stride
+settles the question outright.
 
-Ruled out by sweep, none of which moves the slot off bus 17:
+| slot | `+0x13` | `+0x3e2` chorus | `+0x3e3` reverb | note |
+|---|---|---|---|---|
+| 0 | 0 | 0 | 40 | GS default |
+| 1 | 1 | **77** | **90** | channel 0 — both bytes are the CC#93 / CC#91 just sent |
+| 2..31 | 2..31 | 0 | 40 | GS default |
+| 32+ | — | — | — | not part data |
 
-- every part parameter `40 1x NN`, `40 2x NN`, `40 3x NN` and `40 4x NN` for `NN` in `00`-`7f`, at
-  value `0x40` (`scdec busscan`);
-- all 128 programs (`scdec progscan`) — so it is not a property of the tone either, which had been
-  the leading theory once the part sweeps came up empty.
+Two things fall out. Channel 0 is slot **1**, so the array is indexed by GS block number, not by
+channel. And `+0x13` is simply **the part's own index** — 0 through 31, one per slot.
 
-**Why the memory searches failed, which is the useful part.** `engine_alloc_init_voices` @`18007fb20`
-*mallocs* the voice and effect struct arrays. Those structs are on the heap, not in the module image,
-so scanning module-relative offsets cannot reach them and never could. Two candidate bases were
-tried and both are wrong:
+The engine has exactly 32 parts, and 31 is `0x1f`. So in the voice bus-assign,
 
-- a base found by watching a byte follow CC#91 through three values (`scdec partfind`). It survives
-  the three-value filter and is still a false positive — under a different setup its `+0x3e3` reads
-  254 rather than the CC#91 value, and poking its `+0x13` changes nothing (`scdec pokebyte`);
-- `g_part_array_base` @`181a222a0` as SYMBOLS.md gives it. Its `+0x3e3` does not track CC#91 either,
-  and poking `+0x13` there has no effect. Whether the symbol is stale or the offsets belong to a
-  different struct than the bus-assign code implies is itself unresolved.
+```
+if ('\x1f' < (char)part[+0x13]) { ... chorus (bus 0x3d) or delay (bus 0x30) ... }
+else                            sendWord = part[+0x13] - 0x1f0
+```
 
-The next step is therefore not another scan. It is to recover the heap pointer — read whatever
-global `engine_alloc_init_voices` stores its allocation in, index the voice array, and dereference
-`voice+0x128` to get the struct's real address. Then `+0x13` can be read and poked with certainty
-instead of guessed at, and the sweeps above become unnecessary.
+the condition **can never be true**. The chorus and delay branches are dead code in this build, and
+a voice's third slot is always the direct route — `index - 0x1f0`, whose low six bits are
+`0x10 + index`, so part *n* feeds bus `16 + n`. Channel 0 is part 1 and feeds bus 17 at gain
+1016/1024, which is exactly the `(0.9922, 17)` slot every capture showed.
+
+**Chorus and delay therefore never reach a bus per voice.** That is why no sweep found a way to make
+them: there is none. They are applied downstream, in the 33-bus send matrix `fx_process_block` runs,
+from the part's `+0x3e2` and `+0x44a`. That matrix is unmeasured; `fx_reg_write_slew` exists and is
+the obvious place to look for whether it smooths its coefficients the way the voice path smooths
+its own.
+
+The port follows: only the reverb send is slewed per voice, the other two pass through.
+
+Retracted with this: the earlier note that SYMBOLS.md's `g_part_array_base` was "in doubt". The
+symbol is right — it was read as the array when it is a pointer to it, and dereferencing a heap
+pointer that had not been allocated yet is what crashed the first attempt.
+
