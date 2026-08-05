@@ -4416,3 +4416,41 @@ parameter inert**, and the divergence is a whole-part note delay of up to 24 sec
 rounding difference. Wiring it needs a part field defaulting to `0x40`, the clamped three-term
 index above, and the removal of any `clock == 0 → no delay` short cut, since a non-neutral bias
 arms the clock on its own. A `clock == 0xff` short cut must stay.
+
+## The EFX algorithm ABI, and the `undefined4` that is a float `[confirmed]`
+
+All 67 insertion-effect processors in `g_fx_algo_dispatch` share one seven-argument shape, called
+once per sample from `fx_process_block`'s inner loop:
+
+| Argument | What it is |
+| --- | --- |
+| 1 | the left input sample, already doubled by the caller |
+| 2 | the right input sample, already doubled |
+| 3 | pointer to the left output slot |
+| 4 | pointer to the right output slot, `0x20` floats past the third |
+| 5 | base of the state buffer, moved down one float per sample |
+| 6 | base of the delay buffer, moved the same way |
+| 7 | the coefficient file `g_fx_coef_f32` |
+
+The caller halves both outputs after the call, which is the other half of the doubling on the way
+in. The two delay lines are advanced by `fx_delayline_wrap` **before** each call, not after.
+
+**The first two arguments arrive in the integer argument registers, carrying the float's bit
+pattern — not in the floating-point registers.** That is what the decompiler is saying when it
+types them `undefined4`: the body never does arithmetic on either one, it only stores the raw four
+bytes into the state buffer (`*(undefined4 *)(state + 0x1f8) = arg2`), and the float interpretation
+happens later, when a subsequent line reads that same slot back as a `float`. The type is not
+missing information — it is the information.
+
+This matters to anyone calling these functions directly to capture a reference response, which is
+the only way to compare a modulated algorithm against a reimplementation (the modulators
+free-run, so a rendered note compares two different points of the same sweep). Declaring the two
+inputs as floats compiles, links and runs, and produces garbage **from the second sample onward**:
+the first output is computed entirely from buffer state and so comes out correct, which hides the
+mistake exactly long enough to send you looking at the buffer arithmetic instead. Pass them as
+32-bit integers holding the bit pattern and the whole thing falls into place.
+
+With that ABI honoured and both delay buffers reset to the `1e-05` seed the allocator fills them
+with, a reimplementation can be checked sample for sample rather than statistically. Five
+algorithms measured this way came out bit-identical (Thru, Overdrive, Rotary) or at the
+float-against-double floor (EFX Reverb `6e-08`, OD / OD2 `4e-06`).
