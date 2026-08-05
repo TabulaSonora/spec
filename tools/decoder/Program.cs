@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1057,6 +1057,77 @@ unsafe
                 for(int k=0;k<16 && rec<nsamp;k++){ Console.WriteLine($"{rec},{*(float*)(gb+k*4):0.00000000},{v0}"); rec++; } }
             fixed(float* pl=l,pr=r) process(pl,pr,16);
         }
+        return;
+    }
+    // volramp mode: trace the per-voice PART-VOLUME gain -- voice_ctrl_ramp_b's output, found by
+    //   volscan at DAT_181a1cbb0 and only four floats wide -- across a single CC7 step. The buffer
+    //   is a zero-order hold rewritten each call, so one read per rendered chunk is one point on
+    //   the glide. args: dll volramp <prog> <note> <vel> <chunk> <npoints> [map] [cc7after]
+    if (args.Length > 1 && args[1] == "volramp")
+    {
+        int pg=args.Length>2?int.Parse(args[2]):19, nt=args.Length>3?int.Parse(args[3]):96, vel=args.Length>4?int.Parse(args[4]):110;
+        int chunk=args.Length>5?int.Parse(args[5]):16; int npts=args.Length>6?int.Parse(args[6]):200;
+        int map=args.Length>7?int.Parse(args[7]):4; int after=args.Length>8?int.Parse(args[8]):0;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCr(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        if(map>=1&&map<=4){ GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map); } else Gm1On();
+        CCr(7,127);CCr(10,64);CCr(91,0);CCr(93,0);
+        shortIn((uint)(0xC0|(pg<<8)),0);
+        var l4=new float[512]; var r4=new float[512];
+        flush();
+        fixed(float* pl=l4,pr=r4) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
+        fixed(float* pl=l4,pr=r4) for(int i=0;i<40;i++) process(pl,pr,512);   // settle fully
+        long gb=b+0x1a1cbb0;
+        Console.WriteLine($"volramp prog={pg} note={nt} chunk={chunk} cc7 127 -> {after}");
+        Console.WriteLine("sample,gain");
+        int t=0;
+        // a few points at rest first, then the step
+        for(int i=0;i<4;i++){ Console.WriteLine($"{t},{*(float*)gb:0.00000000}");
+            fixed(float* pl=l4,pr=r4) process(pl,pr,(uint)chunk); t+=chunk; }
+        CCr(7,after); flush();
+        for(int i=0;i<npts;i++){ Console.WriteLine($"{t},{*(float*)gb:0.00000000}");
+            fixed(float* pl=l4,pr=r4) process(pl,pr,(uint)chunk); t+=chunk; }
+        return;
+    }
+    // volscan mode: find the per-voice PART-VOLUME gain buffer by observation rather than by
+    //   address. Hold a note, snapshot a memory window, move CC7, snapshot again, and report every
+    //   float that sat near 1.0 and then moved by the ratio the squared volume law predicts.
+    //   args: dll volscan <prog> <note> <vel> [map] [cc7after]
+    if (args.Length > 1 && args[1] == "volscan")
+    {
+        int pg=args.Length>2?int.Parse(args[2]):19, nt=args.Length>3?int.Parse(args[3]):96, vel=args.Length>4?int.Parse(args[4]):110;
+        int map=args.Length>5?int.Parse(args[5]):4; int after=args.Length>6?int.Parse(args[6]):64;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCs(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        if(map>=1&&map<=4){ GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map); } else Gm1On();
+        CCs(7,127);CCs(10,64);CCs(91,0);CCs(93,0);
+        shortIn((uint)(0xC0|(pg<<8)),0);
+        var l3=new float[512]; var r3=new float[512];
+        flush();
+        fixed(float* pl=l3,pr=r3) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
+        fixed(float* pl=l3,pr=r3) for(int i=0;i<40;i++) process(pl,pr,512);   // settle fully
+
+        long lo=b+0x1a10000, hi=b+0x1a20000; int n=(int)((hi-lo)/4);
+        var before=new float[n];
+        for(int i=0;i<n;i++) before[i]=*(float*)(lo+i*4L);
+        CCs(7,after); flush();
+        fixed(float* pl=l3,pr=r3) for(int i=0;i<8;i++) process(pl,pr,512);    // well past any glide
+        double want = (double)after*after/(127.0*127.0);
+        Console.WriteLine($"volscan prog={pg} note={nt} cc7 127 -> {after}, expected ratio {want:0.0000}");
+        int hits=0;
+        for(int i=0;i<n;i++){
+            float a=before[i], c=*(float*)(lo+i*4L);
+            if(a>0.90f && a<1.01f && c>0f){
+                double ratio=c/a;
+                if(Math.Abs(ratio-want)/want < 0.03){
+                    Console.WriteLine($"  +0x{(i*4):x6}  (VA 0x1{(0x81a10000+i*4L):x})  {a:0.000000} -> {c:0.000000}  ratio {ratio:0.0000}");
+                    if(++hits>=40) break;
+                }
+            }
+        }
+        Console.WriteLine($"{hits} candidates");
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
