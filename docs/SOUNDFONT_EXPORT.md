@@ -64,8 +64,17 @@ Known to be missing or provisional, beyond the structural limits in §9:
   partial's velocity window, so the bank played fortissimo at every velocity. Fixed; 2500–6000 fell
   to +1.86 dB and 6000–14000 to −11.49.
 
-  **800–2500 Hz remains at +9.9 dB and has not moved through any change.** It is a separate cause
-  and it is still open.
+  The 800–2500 Hz residual that survived that turned out **not to be a level difference at all**.
+  The bank was playing **11.5 cents sharp**, so probing at the engine's harmonic frequencies
+  compared a harmonic peak on one side against its skirt on the other, and the band metric reported
+  it as ~10 dB. SF2's `chPitchCorrection` compensates for a *recording error* — it is added to
+  playback — so a sample sitting sharp of its nominal root needs a **negative** correction, and the
+  exporter was emitting a positive one. The error was twice each sample's own offset, bank-wide.
+  Fixed; the fundamental now lands within 1.3 cents and every band improved.
+
+  What remains is coherent rather than mysterious: the bank is *darker* than the engine at the top
+  (−3.2 dB at 2.5–6 kHz, −9.5 above), which is exactly the `cutoff_hz` corner offset measured in §6
+  and deliberately not yet corrected.
 - **The envelope fitting rule is a first attempt.** "Attack to the peak, decay to the last target,
   fold the rest" is defensible and its error is measured (§5), but no alternative has been tried
   against it, and the selection rule is where the audible quality lives.
@@ -73,6 +82,12 @@ Known to be missing or provisional, beyond the structural limits in §9:
   median case; a patch far from the median gets a response scaled wrongly.
 - **Velocity response is approximated over 0–127** rather than over each partial's own window, so
   narrow-window partials are under-served.
+- **The engine's stretched tuning is not reproduced.** Its per-key `g_kf_pitch` curve leaves about
+  two cents of drift across the keyboard after the root correction is right; SF2's `scaleTuning` is
+  a linear scale where that is a table.
+- **`pitch_key_follow` is not emitted at all.** A partial that tracks the keyboard at less than 100%
+  — the Seashore effect is the documented case — is exported as though it tracked fully, which is
+  the wrong pitch for every note away from its key centre. `scaleTuning` is the generator for it.
 - **Per-key drum reverb, chorus and delay depths are unread** — kit planes `0x300`/`0x380`/`0x400`.
 - **Alternate articulations are dropped** outright (§4).
 - **Vorbis quality is untuned**; the measured 0.0049 RMS is whatever VBR quality 0.5 produced.
