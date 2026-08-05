@@ -4454,3 +4454,55 @@ With that ABI honoured and both delay buffers reset to the `1e-05` seed the allo
 with, a reimplementation can be checked sample for sample rather than statistically. Five
 algorithms measured this way came out bit-identical (Thru, Overdrive, Rotary) or at the
 float-against-double floor (EFX Reverb `6e-08`, OD / OD2 `4e-06`).
+
+## Three anti-zipper smoothers, and two of them were named backwards `[confirmed]`
+
+Every per-voice mix control the engine exposes is smoothed, and the three do it in three different
+ways. Nothing about the shape of one predicts another, which is why the earlier reading of the
+tables alone got the first of them eight times too fast.
+
+| control | function | what is smoothed | rate | full scale |
+|---|---|---|---|---|
+| part volume, expression | `voice_ctrl_ramp_b` @`18005e990` | the **gain**, in an accumulator | 2.49% of remaining error, every 8 samples | ~45 ms |
+| pan | `voice_pan_slew` @`180083db0` | the **position**, 0-127 | 2 units a control tick | 0.62 s |
+| reverb / chorus / delay send | `voice_send_slew` @`180083be0` | the **gain word**, 0-1023 | 8 units a control tick | 0.40 s |
+
+Only the first is a per-sample buffer. Pan and the sends land as per-voice *scalars* — four of them,
+at `DAT_181a1d930`/`1da30` (the pan pair) and `DAT_181a1db30`/`1dc30` (two send slots) — each
+decoded `(word >> 6) / 1024` with the same `1e-05` floor the ramps use, and each carrying a 6-bit
+bus number in the low bits, mirrored at `DAT_181a6e4b0` / `DAT_181a6e7b0`.
+
+**The two slew functions had each other's names.** SYMBOLS.md had `180083db0` as
+`voice_expr_smooth`, "slew expression/level via curve tbls"; it touches neither expression nor
+level. It reads the part pan byte at `+0x3dd` and the kit's `+0x280` pan plane, slews the position,
+and indexes the `g_pitch_split_fine`/`coarse` pair for the left and right gains. Its neighbour
+`180083be0` was `voice_pan_smooth`, "slew pan/send toward target" — that one is the sends, off
+`+0x3e2`/`+0x3e3` and the kit's `+0x300`/`+0x380`/`+0x400` planes. Both renamed, in
+`RenameBulk2607.java` and here.
+
+### How the rates were measured
+
+`scdec volramp`, `panramp` and `sendramp` read the engine's own scalars across a controller step.
+Getting there needed `volscan` / `ccscan`, which *find* the word by observation — snapshot memory,
+move the controller, snapshot again, and keep what changed — because the labels could not be
+trusted and, in the sends' case, a second snapshot at the *same* setting is needed to subtract the
+floats that are merely audio.
+
+- Volume: the gain falls by a constant **ratio**, 0.90403 per 32-sample call, which is
+  `(1 - 204/8192)^4`. A constant ratio means the step is rescaled from the live error each update;
+  four updates a call gives the 8-sample cadence. At rest the value creeps 1/16384 every 64 samples
+  — eight pushes of the minimum step — which pins the same cadence a second way. The fade lands on
+  exactly `1e-05` and holds, so the ramp deactivates on arrival rather than walking past its target.
+- Pan: CC#10 64 -> 127 is **32 steps of 2 units**, one every 320 samples, 310 ms end to end.
+- Sends: CC#91 0 -> 127 is **40 steps of 8/1024 of gain**, one every 320 samples, 390 ms.
+
+**Caveat on the sends.** Only the *reverb* send was isolated. A CC#93 or CC#94 change moves no
+stable float anywhere in `0x1a10000`-`0x1a30000`, so where chorus and delay reach the bus is not
+pinned — the two send slots hold one live send and one constant in every capture taken. They go
+through the same function in the decompile and are given the same rate in the port, but that is
+inference, not measurement.
+
+Unrelated correction while in here: the `4096/(8i)` rate table this document calls `DAT_1819a7a30`
+at the superseded control-RAMP section collides with the manifest's `g_env_startphase` at that same
+VA. The `4096/(8i)` table is not in the exported set under any name, and none of the rates above
+came from it — they are all constants at their call sites (`0xCC` for the volume ramp) or measured.

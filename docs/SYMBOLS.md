@@ -637,8 +637,8 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1800839e0` | `tva_env_stage3_load` | TVA twin: target <- voice+0x1d6, time voice+0x1ca |
 | `180083a60` | `tva_env_stage4_hold` | TVA-env stage 4 (terminal): pins interp start phase voice+0xe to `g_env_startphase_b[10]`; the ramp stops advancing |
 | `180083a70` | `env_ramp_segment` |  |
-| `180083be0` | `voice_pan_smooth` | slew pan/send toward target |
-| `180083db0` | `voice_expr_smooth` | slew expression/level via curve tbls |
+| `180083be0` | `voice_send_slew` | slew send gain word 8/1024 per tick (~400 ms full scale) |
+| `180083db0` | `voice_pan_slew` | slew pan POSITION 2/tick; L/R from g_pitch_split pair |
 | `180083f00` | `tvf_cutoff_compute` | TVF cutoff pipeline stages + add-LFO |
 | `180083fc0` | `tvf_env_cutoff_update` | TVF env ramp + cutoff compute |
 | `180084350` | `tvf_cutoff_add_lfo` |  |
