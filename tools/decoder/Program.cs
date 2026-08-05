@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1615,6 +1615,43 @@ unsafe
             fixed(float* pl=lh,pr=rh) process(pl,pr,(uint)chunk); t+=chunk; }
         return;
     }
+    // xgvoices mode: which tone does XG resolve a (program, bank LSB) pair to? Same idea as
+    //   "voices", but in XG mode and with the LSB set, since XG's variations hang off the bank LSB
+    //   rather than the MSB. Prints each sounding voice's wave, which is what identifies the tone.
+    //   args: dll xgvoices <prog> <lsb> [note] [vel]
+    if (args.Length > 1 && args[1] == "xgvoices")
+    {
+        int pg=int.Parse(args[2]), lsb=int.Parse(args[3]);
+        int nt=args.Length>4?int.Parse(args[4]):60, vel=args.Length>5?int.Parse(args[5]):100;
+        long fbX=b+0x1a1b5b8; var lx=new float[512]; var rx=new float[512];
+        void CCx2(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        SendSysEx(new byte[]{0xF0,0x43,0x10,0x4C,0x00,0x00,0x7E,0x00,0xF7});
+        flush(); fixed(float* pl=lx,pr=rx) for(int i=0;i<6;i++) process(pl,pr,512);
+        CCx2(120,0); flush(); fixed(float* pl=lx,pr=rx) process(pl,pr,512);
+        CCx2(0,0); CCx2(32,lsb); CCx2(7,127); CCx2(10,64); CCx2(91,0); CCx2(93,0);
+        shortIn((uint)(0xC0|(pg<<8)),0);
+        shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
+        fixed(float* pl=lx,pr=rx) for(int i=0;i<4;i++) process(pl,pr,512);
+        Console.Write($"prog={pg} lsb={lsb}:");
+        int cnt=0;
+        for(int v=0;v<64;v++){ byte fl=*(byte*)(fbX+v*0x50); if((fl&1)==0) continue;
+            uint wc=*(uint*)(b+0x1a6fb60+v*4);
+            Console.Write($"  wave={wc:X4}"); cnt++; }
+        Console.WriteLine($"   ({cnt} voices)");
+        return;
+    }
+    // xgsweep mode: REMOVED, and deliberately left as a note rather than a working mode.
+    //
+    //   The obvious way to sweep XG's (program, bank LSB) resolution is to loop in one process,
+    //   playing a note per cell and counting the voices flagged active at DAT_181a1b5b8 + v*0x50.
+    //   That does not work: bit 0 of that byte is *allocated*, not *sounding*. It is clear on the
+    //   first note after init and never returns to zero afterwards, so from the second cell on the
+    //   count is the running total and every one-partial tone reads as two. All-sound-off does not
+    //   clear it and neither does waiting -- a guard loop that waits for zero simply spins out.
+    //
+    //   A sweep built that way reported 31.5% of pairs disagreeing with a port's own resolution.
+    //   All of it was the artefact. Use xgvoices, one process per query, which starts from a clean
+    //   allocator every time and agrees with itself.
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
     //   given host rate, to see if the engine resamples (and filters) even at 32000. args: dll outfilt [hostRate]
     if (args.Length > 1 && args[1] == "outfilt")
