@@ -55,13 +55,17 @@ Known to be missing or provisional, beyond the structural limits in §9:
   send effects only the engine render carries, and no time alignment. **Use it relatively** — change
   one thing in the exporter and see which way the number moves — never as a verdict.
 
-  Its first result shows both why it is useful and why it is not sufficient. `Piano 1` at note 60,
-  velocity 100 returns an envelope correlation of **0.9956** with its peak inside one control tick,
-  which is the fitting working. It also returns **+9.8 dB at 800–2500 Hz, +15.0 at 2500–6000 and
-  +7.2 above** — the bank is far brighter than the engine. That is a large real signal and it is
-  **not attributable yet**: it could be the filter opening past the module's ceiling (§6 warns of
-  exactly that), or it could be the engine's own 4-tap interpolator, which is a lowpass and
-  measurably not an identity. Telling those apart is work the harness does not do.
+  Its first use found a real defect, which is the case for keeping it. `Piano 1` at note 60,
+  velocity 100 returned an envelope correlation of **0.9956** — the fitting working — alongside
+  **+9.8 dB at 800–2500 Hz, +15.0 at 2500–6000 and +7.2 above**. Running that down ruled out the
+  interpolator (band-averaged −0.14 dB where +9.6 was needed), ruled out the filter fit (trajectory
+  within 5% of the engine across the held portion), ruled out the sample (both sides resolve wave 7
+  at root key 64) — and found that every velocity-dependent parameter was baked at the *top* of each
+  partial's velocity window, so the bank played fortissimo at every velocity. Fixed; 2500–6000 fell
+  to +1.86 dB and 6000–14000 to −11.49.
+
+  **800–2500 Hz remains at +9.9 dB and has not moved through any change.** It is a separate cause
+  and it is still open.
 - **The envelope fitting rule is a first attempt.** "Attack to the peak, decay to the last target,
   fold the rest" is defensible and its error is measured (§5), but no alternative has been tried
   against it, and the selection rule is where the audible quality lives.
@@ -524,6 +528,30 @@ own velocity window, and those spans measure **0 to 868 cB** across the library.
 illustration — its first partial wants 80 cB and its second 360, where the default gave both 960.
 It remains an approximation, because the modulator's curve spans the whole 0–127 range while the
 partial's crossfade spans only its window, so a narrow window is under-served.
+
+### `cutoff_hz` is not the filter's corner `[measured]`
+
+`TvfChain::cutoff_hz` calls itself diagnostic — *"the filter never needs it"* — and the exporter
+nevertheless sets `initialFilterFc` from it. Driving sines through `TvfChain::apply` at a fixed
+cutoff and reading the steady-state gain puts the real −3 dB point consistently **above** what the
+function reports:
+
+| cutoff units | `cutoff_hz()` | measured −3 dB | ratio |
+|---|---|---|---|
+| 12000 | 163.5 Hz | 202.4 Hz | 1.238 |
+| 15564 | 365.3 Hz | 449.8 Hz | 1.231 |
+| 18000 | 631.7 Hz | 741.1 Hz | 1.173 |
+| 21000 | 1243.1 Hz | 1491.0 Hz | 1.199 |
+| 23857 | 2369.1 Hz | 3314.5 Hz | 1.399 |
+| 26000 | 3844.8 Hz | 6034.2 Hz | 1.569 |
+
+The slope is an ordinary 12 dB/octave two-pole, so this is a corner offset rather than a shape
+difference: the engine's filter is **1.17× to 1.57× brighter than the number the exporter writes**,
+which is 270 to 750 cents. Every `initialFilterFc` in the bank is that much too low.
+
+**This has not been corrected**, deliberately. It would raise the whole bank's cutoff, which the A/B
+harness says helps one band and hurts another, and applying a correction derived from a model that
+does not yet explain the residual below would be guessing with extra steps.
 
 **Half-damper must not be a bank default.** Only the 57 piano tones respond to a partly-pressed
 pedal; every other tone quantises CC#64 to fully up or fully down before it reaches the release
