@@ -4572,3 +4572,50 @@ Retracted with this: the earlier note that SYMBOLS.md's `g_part_array_base` was 
 symbol is right — it was read as the array when it is a pointer to it, and dereferencing a heap
 pointer that had not been allocated yet is what crashed the first attempt.
 
+
+## `fx_process_block` slews its matrix coefficients, and they are the global effect levels `[confirmed]`
+
+The function opens with the smoother, before any audio is touched:
+
+```
+for (i = 0; i < 16; i++) {                      // 16 coefficients
+    current = g_fx_matrix_current[i];           // DAT_181a6ead0, int16
+    target  = g_fx_matrix_target[i];            // DAT_181a6f2f0, int16
+    for (step = 0; step < 16; step++) {         // 16 sub-steps a block
+        current += (target - current) * 0x300 >> 16;
+        *out++ = *out++ = current * 3.0517578e-05 * 2;   // a stereo pair, into DAT_181a6eaf0
+    }
+    g_fx_matrix_current[i] = current;
+}
+```
+
+So each coefficient closes `0x300/0x10000` — **1.172%** — of its remaining error per sub-step, sixteen
+sub-steps to a 32-sample block, and the sixteen interpolated values are written out as stereo pairs
+for the block to use. An exponential approach, the same family as the part fader, and like it a
+per-sample buffer rather than a held scalar.
+
+Measured on `40 01 33` (reverb level) 0 -> 127, reading both arrays a block at a time:
+
+| block | current | error | ratio |
+|---|---|---|---|
+| 0 | 0 | 32512 | |
+| 1 | 5594 | 26918 | 0.82794 |
+| 2 | 10229 | 22283 | 0.82781 |
+| 3 | 14069 | 18443 | 0.82767 |
+| 4 | 17248 | 15264 | 0.82763 |
+
+`(1 - 0x300/0x10000)^16` is **0.82811**; the measured ratio is **0.8279**. Time constant 170 samples,
+**5.3 ms**, settled inside 25 ms. (The ratio tightens slightly toward the end as integer truncation
+carries the last steps, so fit the early blocks.)
+
+**But these are the global effect levels, not the per-part sends.** `40 01 33` moves coefficient 6
+and `40 01 3a` moves coefficient 12; CC#91, CC#93 and CC#94 move none of the sixteen, current or
+target. So this is not where a part's chorus and delay sends are applied, and where those land
+remains open — the one thing this whole line of digging has not reached. What it does establish is
+that the GS effect *levels* are smoothed, which a port applying them instantly gets wrong by 25 ms
+of zipper on every level change.
+
+Also worth recording, since the name invites the opposite conclusion: `fx_reg_write_slew`
+@`1800621f0` is **not** a temporal smoother. It walks the register from its shadowed value to the
+new one a step at a time in a busy loop, calling `fx_reg_write` for each intermediate value, all
+inside one call. That is a register-glitch guard, not a ramp, and nothing waits between the steps.
