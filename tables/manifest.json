@@ -666,6 +666,32 @@
       "section_adjust": null,
       "match": "full",
       "purpose": "wave descriptors: ROM coords, root key, loop"
+    },
+    {
+      "name": "tone_indirect_bank64_a8bf0.bin",
+      "symbol": "g_tone_indirect_bank64",
+      "subsystem": "PATCH",
+      "dtype": "u8",
+      "shape": "11x128",
+      "size": 1408,
+      "file_offset": "0x19a7bf0",
+      "va": "0x1819a8bf0",
+      "section_adjust": "0x1000",
+      "match": "full",
+      "purpose": "bank 0x40 indirection: program -> (lut1, lut2, lut3 index) + 8 part-parameter overrides"
+    },
+    {
+      "name": "tone_indirect_bank65_a9800.bin",
+      "symbol": "g_tone_indirect_bank65",
+      "subsystem": "PATCH",
+      "dtype": "u8",
+      "shape": "11x128",
+      "size": 1408,
+      "file_offset": "0x19a8800",
+      "va": "0x1819a9800",
+      "section_adjust": "0x1000",
+      "match": "full",
+      "purpose": "bank 0x41 indirection, same 11-plane shape"
     }
   ],
   "live_regions": [
