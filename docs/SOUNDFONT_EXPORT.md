@@ -331,16 +331,36 @@ descriptor flag byte at `+0x0a`:
 | Mode | flag | count | share | treatment |
 |---|---|---|---|---|
 | forward | 0 | 2,757 | 64.7% | direct |
-| ping-pong | bit 0 | 612 | 14.4% | bake: mirror the loop region into a forward loop |
+| ping-pong | bit 0 | 612 | 14.4% | bake one round trip of the real traversal into a forward loop |
 | reverse | bit 2 | 218 | 5.1% | bake: reverse the data, remap the loop points |
 | flag bit 1 set | 2 | 672 | 15.8% | takes no part in the sampler dispatch; ignore |
 
 No descriptor sets both bit 0 and bit 2, so the two bakes are independent. 876 descriptors have the
 loop point at or past the physical end and are effectively one-shot.
 
-Baking ping-pong costs one extra loop length of sample data per affected wave. It is exact for a
-loop played an even number of times and drifts by at most one traversal at note-off, which is
-inaudible against the release.
+### Ping-pong bakes exactly, but not by mirroring `[measured]`
+
+**Do not mirror the decoded PCM.** The traversal loops in the *delta* domain: `WaveReader::generate`
+in NativeTS walks the index up to `data_end`, back down to `loop_start` and up again, while the
+predictor keeps **adding** deltas on every leg rather than subtracting them on the way back. The
+descending leg is therefore the wave inverted and time-reversed, which is not its mirror. Measured
+over all 612 ping-pong waves, the descending leg matches the forward samples read backwards on
+**none** of them, with a worst-case error around 0.47 on a ±1 signal.
+
+What it *is* is periodic. A round trip re-applies the delta at each turnaround — the index is
+unchanged when the leg flips, so that sample is integrated twice — which makes the period
+
+```
+2 * (data_end - loop_start) + 2
+```
+
+and not `2 * (data_end - loop_start)`. At that period the traversal repeats to within 1e-6 on **all
+612 of 612** waves, with no measurable DC drift from pass to pass.
+
+So the bake is exact and cheap: generate one full round trip through the engine's own ping-pong
+path, emit it as an ordinary forward loop of that period, and set `sampleModes` to loop. It costs
+`data_end - loop_start + 2` extra samples per affected wave. Getting the period wrong by those two
+samples is not a subtle error — it moves the pass-to-pass difference from zero to 0.09–0.41.
 
 Other baking the exporter must do:
 
@@ -421,7 +441,8 @@ the export is for.
 
 ### Deliberate approximations
 
-19. Ping-pong loops are baked to forward loops; reverse waves are baked reversed.
+19. Reverse waves are baked reversed. (Ping-pong is *not* in this list: §7 measures it as exactly
+    periodic, so its bake is lossless — it only costs sample data.)
 20. The four-stage attenuation chain is collapsed into one static `initialAttenuation`, so the
     velocity-dependent part of it is frozen at the fitting velocity.
 21. Envelope rate key-follow becomes a linear slope, from a table.
