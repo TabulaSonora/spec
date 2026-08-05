@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -600,6 +600,37 @@ unsafe
             shortIn((uint)(0x80|(ntn<<8)),0); flush();
             fixed(float* pl=ln,pr=rn) for(int i=0;i<40;i++) process(pl,pr,320);
         }
+        return;
+    }
+    // efxdump mode: select an insertion-EFX type over SysEx in the LIVE engine and dump the block's
+    //   programmed state -- the float coefficient file `g_fx_coef_f32` (0x181a1af70, 0x180 floats),
+    //   the reverb tap program (0x181a0f108, 34 ints) and the register mirror (0x181a73cc0 + 0x200,
+    //   0x180 words). This is the ground truth a reimplementation's register machine diffs against:
+    //   a wrong curve, width kind or preset slice shows up as the exact register that differs.
+    //   args: dll efxdump <typeMsbHex> <typeLsbHex> <out.bin> [p1Hex p2Hex ...]
+    if (args.Length > 1 && args[1] == "efxdump")
+    {
+        int msb = Convert.ToInt32(args[2], 16), lsb = Convert.ToInt32(args[3], 16);
+        string outp = args[4];
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        var el = new float[512]; var er = new float[512];
+        GsReset(); flush();
+        fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        SendSysEx(Dt1(0x40, 0x03, 0x00, (byte)msb, (byte)lsb)); flush();
+        fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        for (int p = 5; p + 1 < args.Length; p += 2)
+        {
+            SendSysEx(Dt1(0x40, 0x03, (byte)Convert.ToInt32(args[p], 16),
+                          (byte)Convert.ToInt32(args[p + 1], 16)));
+            flush();
+            fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        }
+        var dump = new byte[0x180 * 4 + 34 * 4 + 0x180 * 4];
+        System.Runtime.InteropServices.Marshal.Copy((nint)(b + 0x1a1af70), dump, 0, 0x180 * 4);
+        System.Runtime.InteropServices.Marshal.Copy((nint)(b + 0x1a0f108), dump, 0x180 * 4, 34 * 4);
+        System.Runtime.InteropServices.Marshal.Copy((nint)(b + 0x1a73cc0 + 0x200), dump, 0x180 * 4 + 34 * 4, 0x180 * 4);
+        File.WriteAllBytes(outp, dump);
+        Console.WriteLine($"efxdump {msb:X2} {lsb:X2} -> {outp}");
         return;
     }
     // ampramp mode: read the per-voice GAIN WORD (the amp value voice_ctrl_ramp_a hands the sampler,
