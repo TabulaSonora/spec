@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1652,6 +1652,42 @@ unsafe
     //   A sweep built that way reported 31.5% of pairs disagreeing with a port's own resolution.
     //   All of it was the artefact. Use xgvoices, one process per query, which starts from a clean
     //   allocator every time and agrees with itself.
+    // svfmel mode: svfcoef for a MELODIC part. Same fields -- the engine's own summed cutoff at
+    //   voice+0xcc, the resonance byte at +0xee, and the f/q coefficients the filter runs on -- but
+    //   on channel 0 with a bank LSB, so CC#74's effect on a tone-map voice can be read directly
+    //   rather than inferred from level. args: dll svfmel <prog> <lsb> <note> <vel> <cc74> [cc71] [xg]
+    if (args.Length > 1 && args[1] == "svfmel")
+    {
+        int pgm=int.Parse(args[2]), lsb=int.Parse(args[3]), nt=int.Parse(args[4]);
+        int vel=int.Parse(args[5]), c74=int.Parse(args[6]);
+        int c71=args.Length>7?int.Parse(args[7]):64;
+        bool xg=args.Length<=8 || args[8]!="gs";
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbm=b+0x1a1b5b8;
+        var getVCm=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcm=getVCm(0);
+        float* fc=(float*)(b+(0x181a1cb70L-0x180000000L));
+        float* qc=(float*)(b+(0x181a1d1f0L-0x180000000L));
+        var lm=new float[512]; var rm=new float[512];
+        if(xg) SendSysEx(new byte[]{0xF0,0x43,0x10,0x4C,0x00,0x00,0x7E,0x00,0xF7});
+        else GsReset();
+        flush(); fixed(float* pl=lm,pr=rm) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCm(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        CCm(0,0); CCm(32,lsb); CCm(7,127); CCm(10,64); CCm(91,0); CCm(93,0);
+        CCm(74,c74); CCm(71,c71);
+        shortIn((uint)(0xC0|(pgm<<8)),0); flush();
+        Console.WriteLine("cc74,voice,f_coef,q_coef,cutoff_cc,qraw_dc,resobyte_ee,type_f5");
+        shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
+        for(int t=0;t<3;t++) fixed(float* pl=lm,pr=rm) process(pl,pr,320);
+        for(int v=0;v<64;v++){
+            if((*(byte*)(fbm+v*0x50)&1)==0) continue;
+            long pv=vcm+(long)v*0x220;
+            int lane=v&3, grp=v>>2;
+            Console.WriteLine($"{c74},{v},{fc[grp*16+lane]:0.000000},{qc[grp*16+lane]:0.000000},"
+                             +$"{*(int*)(pv+0xcc)},{*(int*)(pv+0xdc)},{*(byte*)(pv+0xee)},{*(byte*)(pv+0x1f5)}");
+        }
+        return;
+    }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
     //   given host rate, to see if the engine resamples (and filters) even at 32000. args: dll outfilt [hostRate]
     if (args.Length > 1 && args[1] == "outfilt")
