@@ -72,11 +72,26 @@ Known to be missing or provisional, beyond the structural limits in §9:
   exporter was emitting a positive one. The error was twice each sample's own offset, bank-wide.
   Fixed; the fundamental now lands within 1.3 cents and every band improved.
 
-  What remains is the bank being *darker* than the engine at the top — −3.2 dB at 2.5–6 kHz, −9.5
-  above. That was attributed to a `cutoff_hz` corner offset, and §6 now records that there is no
-  such offset: both filters place −3 dB at ~1.2–1.3× their stated cutoff. **The cause is unknown**,
-  and part of it may not be real — the band metric probes six geometric frequencies per band, which
-  on a harmonic signal is sensitive to a pitch difference of even a cent.
+  The remaining "darkness at the top" turned out to be **mostly an artefact of comparing two
+  synthesisers' noise floors**. Above about 4 kHz neither side is measuring signal: at the thirtieth
+  harmonic the engine's peak stands 5.2 dB above its own inter-harmonic floor and the bank's stands
+  0.5 dB above its own. The engine's floor is the higher by roughly 10 dB, and that is what the
+  harness was reporting.
+
+  The likely source is named in `TvfChain::apply`'s own documentation — the filter's coefficients
+  refresh once per 320-sample control block, and the module's anti-zipper ramps that slew them over
+  2–40 ms are not modelled. Stepping coefficients at 100 Hz splatters, and 100 Hz is not
+  harmonically related to a 261 Hz note, so it lands between the harmonics where it was found.
+
+  Three things were checked rather than assumed on the way, and all three agree: the **filters**
+  (the reader's own modulation envelope reads 0.8975 at half a second, matching the exporter's model,
+  putting the bank's cutoff at 2088 Hz against the engine's 2111), the **sample** (opening the bank's
+  filter with CC#74 recovers every harmonic and overshoots the engine by 26 dB at 10 kHz, so the
+  high end is in the data and it is the filter that removes it on both sides), and the **passband**
+  (below ~1.6 kHz the two differ by 2.4–3.4 dB, which is the level offset and nothing else).
+
+  **So the harness should not be read above ~4 kHz on a note that is quiet up there.** That is a
+  limitation of the comparison, not a defect in either side.
 - **The envelope fitting rule is a first attempt.** "Attack to the peak, decay to the last target,
   fold the rest" is defensible and its error is measured (§5), but no alternative has been tried
   against it, and the selection rule is where the audible quality lives.
