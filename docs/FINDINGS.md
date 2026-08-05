@@ -4346,3 +4346,73 @@ selector `0x7d` with bank `0x40`, and `g_bank_to_row[0x7d]` is `0xff` — an ind
 column table. Either something downstream special-cases that selector, or it is a second
 out-of-bounds read. It is worth a targeted probe against the oracle before an implementation mirrors
 either branch.
+
+## Two unclaimed GS part-parameter addresses, resolved: `40 1x 26` and `40 1x 38` `[confirmed]`
+
+Sweeping every GS part-parameter address against the live DLL — write a value, watch which byte of
+the part struct moves (`scdec partmap`) — confirmed the whole published block and left exactly two
+addresses that move a byte no reimplementation here claimed. An address map copied from
+documentation cannot be checked any other way: a wrong or missing entry is silent, because the
+message is accepted and lands somewhere nothing reads.
+
+### `40 1x 26` → `part+0x446` — recognised and ignored `[confirmed]`
+
+The handler sits in the chain immediately after the three Rx-switch bits at `23H`/`24H`/`25H` and
+stores the data byte as a **boolean**: any nonzero value becomes 1, zero becomes 0, with no clamp
+and no range rejection. Default 0. Measured: writing `0x33` leaves `0x01` behind.
+
+**Nothing reads it.** The offset occurs exactly once in the entire binary, and that occurrence is
+the write. There is no voice-side read through the part pointer, no getter, no copy path, and no
+wide access straddling it — the neighbouring `0x444`/`0x445` are the shadow bank/program pair
+accessed as separate bytes, and the `u16` nearby begins at `0x448`. No Control Change and no NRPN
+reaches it either.
+
+There is no match in the published Roland part-parameter list, which has nothing between
+`24H Rx Bank Select LSB` and `2CH Delay Send Level`. Structurally it looks like a fourth receive
+switch inherited from a hardware model and never implemented in the software engine `[guess]` —
+but the part that matters is `[confirmed]`: it is stored and never consulted. **Recognising the
+address and dropping the value is bit-identical to the module.**
+
+### `40 1x 38` → `part+0x44b` — a ninth tone-modify slot that delays note starts `[confirmed]`
+
+The eight GS tone-modify parameters `30H`–`37H` write `part+0x3e4`–`part+0x3eb`. The run does not
+stop there: `38H` continues it into `part+0x44b`, a plain unclamped store with a centre default of
+`0x40`, readable back and untouched by program change.
+
+It has the same two-byte shape as its eight neighbours. The parallel block `40 4x 30`–`40 4x 38`
+writes `part+0x453`–`part+0x45b`, and the tone loader fills `0x453`–`0x45a` per program while
+**forcing `0x45b` back to `0x40` on every program change** — so the ninth slot has a persistent
+user offset and a per-program default that no shipped tone populates.
+
+What it modifies is the **envelope hold clock** (see `block[0x00]`/`block[0x01]` above). At every
+note-on, per partial:
+
+```
+index  = clamp(part[0x45b] + part[0x44b] + (clock & 0x7f) − 0x80, 0, 0x7f)
+period = (velocity_scale(velocity, block[0x01]) · g_rate_curve[index] >> 8) / 10   ticks
+```
+
+so `40 1x 38` is a **bipolar bias on the partial start-delay time**, `0x40` meaning no change. That
+is more than a trim on a rare feature, because `g_rate_curve[0]` is exactly **0**:
+
+- At the neutral `0x40`/`0x40`, a partial whose clock byte is 0 computes index 0, period 0, and
+  never arms — which is why a bias-free implementation can skip the whole computation and still
+  agree. **Raising `40 1x 38` above `0x40` arms the clock on partials that have no built-in delay
+  at all**, delaying every voice on the part. Index `0x3f` is 1909 ms and the curve reaches
+  **24 000 ms** at `0x7f`, before velocity scaling.
+- Lowering it below `0x40` shortens or cancels the delays of the partials that do carry one.
+- An armed voice renders nothing while it waits — envelopes, LFOs and the wave read position are
+  all frozen — and a note-off during the delay kills the voice unsounded.
+- The bias does **not** reach the hold-forever layers. A clock byte of `0xff` short-circuits before
+  the sum; only that exact value does, so a high-bit-set byte with any other low bits still takes
+  the biased path.
+
+Exactly one reader exists, in the note-on partial setup, and no Control Change or NRPN reaches the
+byte. Roland publishes no name for `38H` — the documented tone-modify run ends at `37H Vibrato
+Delay` — so the *name* is ours while the behaviour is traced end to end `[confirmed]`.
+
+**An implementation that models the hold clock but hard-codes the neutral bias will render this
+parameter inert**, and the divergence is a whole-part note delay of up to 24 seconds rather than a
+rounding difference. Wiring it needs a part field defaulting to `0x40`, the clamped three-term
+index above, and the removal of any `clock == 0 → no delay` short cut, since a non-neutral bias
+arms the clock on its own. A `clock == 0xff` short cut must stay.
