@@ -1439,10 +1439,16 @@ unsafe
     {
         int rev=args.Length>2?int.Parse(args[2]):90;
         int slots=args.Length>3?int.Parse(args[3]):20;
+        // "xg" resets with XG System On instead of a GS reset, to read XG's own part defaults.
+        string mode=args.Length>4?args[4]:"gs";
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         void CCd(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
-        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
-        CCd(7,127);CCd(10,64);CCd(91,rev);CCd(93,77);
+        if(mode=="xg"){ SendSysEx(new byte[]{0xF0,0x43,0x10,0x4C,0x00,0x00,0x7E,0x00,0xF7}); }
+        else { GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4); }
+        flush();
+        var lw=new float[512]; var rw=new float[512];
+        fixed(float* pl=lw,pr=rw) for(int i=0;i<8;i++) process(pl,pr,512);
+        if(rev>=0){ CCd(7,127);CCd(10,64);CCd(91,rev);CCd(93,77); }
         shortIn((uint)(0xC0|(19<<8)),0); flush();
         var ld=new float[512]; var rd=new float[512];
         fixed(float* pl=ld,pr=rd) for(int i=0;i<4;i++) process(pl,pr,512);
@@ -1450,11 +1456,12 @@ unsafe
         fixed(float* pl=ld,pr=rd) for(int i=0;i<4;i++) process(pl,pr,512);
         long arr=*(long*)(b+0x1a222a0);
         Console.WriteLine($"g_part_array_base -> 0x{arr:x}  (cc91={rev}, cc93=77)");
-        Console.WriteLine("slot  +0x13  +0x3e2(cho) +0x3e3(rev) +0x44a(dly) +0x45c");
+        Console.WriteLine("slot  vol(3dc) exp(464) pan(3dd) cho(3e2) rev(3e3) dly(44a)");
         for(int i=0;i<slots;i++){
             long q=arr+(long)i*0x488;
-            Console.WriteLine($"{i,4}  {*(byte*)(q+0x13),5}  {*(byte*)(q+0x3e2),10}" +
-                $" {*(byte*)(q+0x3e3),11} {*(byte*)(q+0x44a),11} {*(byte*)(q+0x45c),6}");
+            Console.WriteLine($"{i,4}  {*(byte*)(q+0x3dc),7} {*(byte*)(q+0x464),7}" +
+                $" {*(byte*)(q+0x3dd),8} {*(byte*)(q+0x3e2),8} {*(byte*)(q+0x3e3),8}" +
+                $" {*(byte*)(q+0x44a),8}");
         }
         return;
     }
