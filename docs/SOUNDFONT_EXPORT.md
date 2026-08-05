@@ -24,8 +24,46 @@ velocity and tuning mapping, playable anywhere, with envelopes fitted as closely
 allows. For anything that has to be right, render through the engine
 ([COMPARING_RENDERS.md](COMPARING_RENDERS.md)).
 
+And see the status section below before relying on any of it: the work is exploratory and a good
+deal of it is unfinished.
+
 Measurements in this document were taken from `tables/` and the pinned `SCCore.dll`
 ([DLL_LAYOUT.md](DLL_LAYOUT.md)); each is reproducible from the table files named beside it.
+
+## Status: exploratory, and unfinished `[2026-08-05]`
+
+**This is exploration, not a deliverable.** An exporter exists, it produces a bank that the target
+reader loads and every stage of it has been measured — but nobody has listened to the result, and
+until someone has, none of the fitting choices below are more than reasoned guesses that happen to
+have good numbers attached.
+
+What has been verified is narrower than it looks. Each stage was checked against the *engine's own
+data structures* — sample runs against the sampler's traversal, generators and modulators against
+spessasynth's reader, mapping counts against the lookup tables. **No rendered comparison exists.**
+The bank has never been played through a synth and set beside `tabula-sonora render` of the same
+material, which is the only test that could show whether the envelope fitting sounds like the Sound
+Canvas or merely measures well.
+
+Known to be missing or provisional, beyond the structural limits in §9:
+
+- **No committed tests.** Every measurement in this document came from throwaway drivers. The
+  exporter has no coverage in the repository's suite, so nothing currently stops a regression.
+- **No A/B harness**, per above. This is the biggest gap and the obvious next thing.
+- **The envelope fitting rule is a first attempt.** "Attack to the peak, decay to the last target,
+  fold the rest" is defensible and its error is measured (§5), but no alternative has been tried
+  against it, and the selection rule is where the audible quality lives.
+- **The GS modulator amounts are single numbers standing in for per-patch laws** (§6). Each is the
+  median case; a patch far from the median gets a response scaled wrongly.
+- **Velocity response is approximated over 0–127** rather than over each partial's own window, so
+  narrow-window partials are under-served.
+- **Per-key drum reverb, chorus and delay depths are unread** — kit planes `0x300`/`0x380`/`0x400`.
+- **Alternate articulations are dropped** outright (§4).
+- **Vorbis quality is untuned**; the measured 0.0049 RMS is whatever VBR quality 0.5 produced.
+- **The capital-tone fallback expansion has not been tested against real files** — the counts match
+  the lookup tables, but no MIDI file has been played through the generated maps.
+
+Treat the numbers here as reproducible facts about the data and the format, and the *conclusions*
+about how good the result sounds as untested.
 
 ## 1. Scale of the sound set
 
