@@ -90,8 +90,8 @@ suggested — the drum kits pull in the remainder. So the export covers essentia
 ROM ([HARDWARE_ROMS.md](HARDWARE_ROMS.md)).
 
 Add the specification's 46-sample gaps and the finished PCM is 64.8 MB; the written SF2 with all
-generators is **68.5 MB**. Scaling §3's codec estimates by the same factor puts FLAC at roughly
-**36–42 MB** and Ogg Vorbis at roughly **17–25 MB**.
+generators and modulators is **69.3 MB**, or **37.3 MB** as FLAC and **30.0 MB** as Ogg Vorbis
+(§3 has the measured table).
 
 The native rate is **32 kHz** — the control tick is 100 Hz over 320-sample blocks.
 
@@ -151,11 +151,11 @@ verbatim. Three reasons not to, in order of weight:
 **It wins on size, and that is not enough.** *(Corrected: an earlier version of this section claimed
 it did not win. That was wrong, and wrong in the bespoke format's favour to admit.)* The codec is
 one signed delta byte per sample plus a 4-bit shift exponent per 16 samples — 10 bits per sample,
-so the ROM's 24.3 M referenced positions come to about **29 MB**. FLAC over the *baked* PCM lands
-at roughly **36–42 MB**, because SF2 has no ping-pong and the bake appends a descending leg to
-every one of the 549 ping-pong runs (§1). Carrying the codec means carrying the traversal too, and
-a delta-domain traversal costs no extra bytes at all — so the honest gap is around 25%, in the
-ROM format's favour.
+so the ROM's 24.3 M referenced positions come to about **29 MB**. FLAC over the *baked* PCM measures
+**33.0 MB**, because SF2 has no ping-pong and the bake appends a descending leg to every one of the
+549 ping-pong runs (§1). Carrying the codec means carrying the traversal too, and a delta-domain
+traversal costs no extra bytes at all — so the measured gap is about **14%**, in the ROM format's
+favour.
 
 It is still not worth it, on the two reasons below. But the trade is a real one and the size column
 is not the argument against it.
@@ -177,9 +177,21 @@ no one of them is right for every use:
 
 | `--codec` | Container | Size | Fidelity | Read by |
 |---|---|---|---|---|
-| `pcm` | plain SF2, `smpl` (+ optional `sm24`) | **64.8 MB** (measured) | exact | everything |
-| `flac` | SF3-style, per-sample `fLaC` chunks | ~36–42 MB | lossless | **spessasynth only** |
-| `vorbis` | SF3, per-sample `OggS` chunks | ~17–25 MB | lossy | spessasynth, FluidSynth, most SF3 readers |
+`[measured]` — sample data, then the finished file with all generators and maps:
+
+| `--codec` | Container | Sample data | File | Fidelity | Read by |
+|---|---|---|---|---|---|
+| `pcm` | plain SF2, `smpl` | 64.8 MB | **69.3 MB** | exact | everything |
+| `flac` | SF3-style, per-sample `fLaC` chunks | 33.0 MB | **37.3 MB** | **bit-exact** | **spessasynth only** |
+| `vorbis` | SF3, per-sample `OggS` chunks | 25.7 MB | **30.0 MB** | rms 0.0049 | spessasynth, FluidSynth, most SF3 readers |
+
+FLAC comes out at **51% of PCM**, better than the 55–65% estimated above and better than the
+36–42 MB §1 projected from it. Encoding the bank takes about 13 seconds, Vorbis about 20.
+
+"Bit-exact" is measured, not assumed: decoding both banks back through the reader and comparing
+gives a worst difference of 0.000000 over 678,071 compared points. It did not start that way — the
+first measurement showed exactly one 16-bit LSB, which was not the codec but the writer's
+float-to-integer conversion *truncating* where the encoder's *rounded*. Both round now.
 
 `soundbank.c:468-480` dispatches each sample's compressed slice on magic bytes — `OggS` → Vorbis,
 `fLaC` → FLAC — so both compressed forms need no engine change beyond setting the `0x10` compression
@@ -190,8 +202,8 @@ shared.
 against a byte-exact decode, and 64.8 MB is not a problem locally. Compression is a post-pass over an
 already-correct bank.
 
-**`flac` is the default for local use.** Lossless against the decode, and about 25% larger than the
-original ADPCM would have been — a real cost, paid for a file that unmodified software can read.
+**`flac` is the default for local use.** Lossless against the decode, and about 14% larger than the
+original ADPCM's ~29 MB — a real cost, paid for a file that unmodified software can read.
 
 **`vorbis` is the default for anything shared.** Canonical SF3 is Vorbis-only, so a Vorbis bank
 loads in FluidSynth and a FLAC one does not. Per-sample FLAC in SF3 is a spessasynth extension and
@@ -389,7 +401,7 @@ differs, from the engine's own behaviour:
 
 | Controller | Built-in default | GS behaviour | Where it belongs |
 |---|---|---|---|
-| CC64 half-damper | none | release rate scaled by roughly `1 − v/128`, but **only on the 57 piano tones** (tone header `0x0d` bit 2) | per-instrument `imod`, not `DMOD` — every other tone quantises the pedal to 0 or 0x7f |
+| CC64 half-damper | none | release rate scaled by roughly `1 − v/128`, but **only on the 57 piano tones** (tone header `0x0d` bit 2) | per-instrument `imod`, not `DMOD` — see below |
 | CC72/73/75 envelope modify | → `volEnv` release/attack/decay | also moves the **filter** envelope, and only on partials with bit 4 of block byte `0x0e` set | the `volEnv` half in `DMOD`; the `modEnv` half as `imod` on opted-in partials |
 | CC71 resonance | → `initialFilterQ`, amount 250 | own curve; the engine's damping is reciprocal-Q, so 0x40 is exactly 1.0 and smaller is more resonant | `DMOD`, fitted amount, sign checked |
 | CC74 brightness | → `initialFilterFc`, 9600 cents | own warp and a resonance-dependent ceiling | `DMOD`, fitted amount |
@@ -402,6 +414,36 @@ switch), so a sixteen-row table is approximated by whichever of four fits least 
 per-partial, so it cannot live in `DMOD` at all. Second, `DMOD` replaces the entire default set, so
 anything from the built-in 17 that is still wanted must be copied across; a `DMOD` chunk holding only
 the additions silently removes velocity-to-attenuation and the rest.
+
+### Per-instrument modulators `[implemented]`
+
+What cannot live in `DMOD` lives in each instrument's **global zone**, and the merge rule is what
+makes that work: the reader takes the instrument zone's modulators, then *unique* global-zone ones,
+then *unique* bank defaults (`ss_preset_get_synthesis_data`). A global modulator whose source and
+destination match a default therefore **replaces** it rather than stacking with it.
+
+| What | Where it goes | Population |
+|---|---|---|
+| velocity → `initialAttenuation`, at the partial's own span | every instrument | 3,387 |
+| CC#64 → `releaseVolEnv` (half-damper) | the 57 piano tones' instruments | 104 |
+| CC#72/73/75 → `modEnv` attack/decay/release | partials with bit 4 of block `0x0e` | 2,203 |
+
+The velocity one is the substantive change. The default set applies a uniform 960 cB concave
+response to every voice; the engine crossfades between a partial's own two edge levels across its
+own velocity window, and those spans measure **0 to 868 cB** across the library. `Piano 1` is a fair
+illustration — its first partial wants 80 cB and its second 360, where the default gave both 960.
+It remains an approximation, because the modulator's curve spans the whole 0–127 range while the
+partial's crossfade spans only its window, so a narrow window is under-served.
+
+**Half-damper must not be a bank default.** Only the 57 piano tones respond to a partly-pressed
+pedal; every other tone quantises CC#64 to fully up or fully down before it reaches the release
+ramp, so a bank-wide CC#64 → release lengthens the whole library's tails.
+
+One negative result, recorded because a zero here looks like a bug. The velocity crossfade *can*
+run backwards — `level_at_high` below `level_at_low`, a partial fading in from the top of its
+window — and both the engine and the exporter handle it. **No mapped partial uses it:** of 2,644,
+2,639 rise with velocity, 5 are flat, none invert, and no velocity window is stored reversed
+either. The direction handling is defensive rather than load-bearing.
 
 ## 7. Loop modes and sample baking
 
@@ -486,8 +528,9 @@ the export is for.
 4. **Velocity crossfade between partials is a hard split.** The engine crossfades a partial's level
    between its window edges through a selected curve; `velRange` is a boundary. Approximating it
    costs 3–4 velocity bands per partial and multiplies every zone count in §2.
-5. **Sixteen velocity response curves become one of four modulator shapes**, and being per-partial
-   they cannot be centralised in `DMOD`.
+5. **Sixteen velocity response curves become one of four modulator shapes.** Being per-partial they
+   cannot be centralised in `DMOD`; §6 emits them per instrument instead, but the curve is still one
+   of four and its range is 0–127 rather than the partial's own velocity window.
 6. **The hold clock does not survive.** `delayVolEnv` covers the delayed-start case; the one-shot
    form (`0xff`, the `.o` variation tones — held for the voice's whole life, with note-off taking a
    fast fade rather than the release) has no expression.
