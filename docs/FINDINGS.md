@@ -4720,4 +4720,89 @@ CC#71 will pass the first and fail the second, which is roughly what happened: M
 envelope correlation with the 1-4 kHz band 3 to 7 dB light, and the fix to the cutoff law moved it
 barely at all.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+### Why it read as unimplemented `[confirmed]`
+
+Worth recording, because the same trap is waiting on any other parameter in this range. The audit
+that concluded `part+0x3e7` was read by nothing searched for the **hex** spelling. Ghidra prints
+that offset in *decimal* — and `0x3e8` with it, alone among the eight modify bytes — so all eleven
+reads spell it `999` and a search for `0x3e7` finds only the four writes, which are spelled in hex.
+
+Two of the eleven are synthesis, and both reach it through the voice's **heap** part pointer at
+`voice+0x128`:
+
+- voice setup, which seeds `voice+0xee` at note-on
+- `FUN_1800845c0`, stage A, which recomputes it on every control tick
+
+The second is why the control is live rather than latched: a resonance sweep bends notes that are
+already sounding, exactly as the cutoff offset does.
+
+The law, confirmed exact at all eighteen points of a CC#71 sweep across both of program 38's
+partials (own resonance bytes 48 and 18), with `q = byte / 64` throughout:
+
+```
+voice+0xee = clamp((0x80 - part[0x456] - part[0x3e7]) * 2 + voice[0x1f4], 4, 0x7f)
+```
+
+Both part bytes **subtract**, which is the direction trap: raising CC#71 lowers the byte, and the
+byte is reciprocal-Q, so raising the controller raises the resonance. `part+0x456` is the user-tone
+sibling and is neutral on any standard file, so the live law reduces to `(0x40 - cc71) * 2`.
+
+## The drum NRPN set is six planes, and none of them is a filter `[confirmed]`
+
+GS documents per-key drum NRPNs under MSBs that include `0x14` filter cutoff and `0x15` filter
+resonance. This module accepts neither. `nrpn_apply` **enumerates** MSBs `0x02`–`0x17`, `0x19` and
+`0x1B` in a single fall-through group that stores nothing, so these are recognised-and-dropped
+rather than unrecognised — including `0x19`, drum pitch fine.
+
+What it does accept, with the plane each writes into the per-key record:
+
+| MSB | parameter | plane |
+|---|---|---|
+| `0x18` | pitch coarse | `+0x180`, kit-relative: `+ value - 0x40`, clamped 0–0x7F |
+| `0x1A` | TVA level | `+0x100` |
+| `0x1C` | panpot | `+0x280` |
+| `0x1D` | reverb send | `+0x300` |
+| `0x1E` | chorus send | `+0x380`, and flag bit 3 at `+0x480` |
+| `0x1F` | delay send | `+0x400`, and flag bit 3 at `+0x480` |
+
+Measured with `scdec drumnrpn`, which sweeps every MSB from 0 to 0x3F and diffs the **whole**
+0x50C-byte record either side of each — so a plane nobody has named yet would still show up. None
+did. The record hangs off `part+0x18`, which is heap, so the probe reaches it through a sounding
+voice rather than off any static address.
+
+Note that `0x1E` and `0x1F` both write flag bit 3 at `+0x480` with **opposite polarity**: chorus
+sets it when the value is zero, delay when it is non-zero. Last writer wins. This looks like a
+module bug rather than a design, but it is the behaviour.
+
+## XG System On turns Rx NRPN off on every part `[confirmed]`
+
+The same sweep run after XG System On writes **nothing at all**, for any MSB. The handlers are the
+same; the gate is shut. Reading the Rx word at `part+0x3d6` across the part array:
+
+| | Rx word | Rx NRPN (bit 15) |
+|---|---|---|
+| after GS reset | `0xFFFF` | on |
+| after XG System On | `0x7FFF` | **off** |
+
+On every part, not only the drum ones. `xg_system_on` sets `g_xg_mode` *before* it calls
+`engine_all_parts_reset`, so this is the part **default** differing by mode rather than a separate
+clearing step — which is why no write to `part+0x3d6` appears in the XG entry path.
+
+The consequence is the whole GS NRPN set: the eight `01 xx` modify offsets and all six drum planes
+are dead in XG mode. Only XG Multi Part `08 nn 37`, Rcv NRPN, reopens the route — one of the sixteen
+Rcv switches at `30`–`3F` that `xg_part_rx_switches` maps onto the Rx word.
+
+## XG Drum Setup drops its filter parameters `[confirmed]`
+
+XG defines a per-key filter cutoff (`0x0B`) and resonance (`0x0C`) in its Drum Setup block.
+`xg_drum_setup_param` is an exhaustive sixteen-way switch, and only eight of the sixteen store
+anything: pitch coarse (`00`, into `+0x180`), level (`02`), alternate group (`03`), pan (`04`),
+reverb (`05`), chorus (`06`) and the two Rx bits (`09`, `0A`, into `+0x480`). Pitch fine (`01`),
+variation send (`07`), key assign (`08`), **filter cutoff (`0B`)**, **filter resonance (`0C`)** and
+EG attack/decay1/decay2 (`0D`–`0F`) advance the address cursor and return.
+
+Confirmed rather than read off the listing, with `scdec xgdrumfilt`: on the same message frame,
+Level moves the plane `100 -> 3` and Pan `64 -> 3`, while `0B` and `0C` leave every plane, the
+voice's resonance byte and both filter coefficients bit-identical. The positive control matters here
+— without one, "nothing changed" cannot be told apart from "the message never arrived".

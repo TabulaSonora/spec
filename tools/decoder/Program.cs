@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1456,12 +1456,13 @@ unsafe
         fixed(float* pl=ld,pr=rd) for(int i=0;i<4;i++) process(pl,pr,512);
         long arr=*(long*)(b+0x1a222a0);
         Console.WriteLine($"g_part_array_base -> 0x{arr:x}  (cc91={rev}, cc93=77)");
-        Console.WriteLine("slot  vol(3dc) exp(464) pan(3dd) cho(3e2) rev(3e3) dly(44a)");
+        Console.WriteLine("slot  vol(3dc) exp(464) pan(3dd) cho(3e2) rev(3e3) dly(44a)  rx(3d6) nrpn");
         for(int i=0;i<slots;i++){
             long q=arr+(long)i*0x488;
+            ushort rxw=*(ushort*)(q+0x3d6);
             Console.WriteLine($"{i,4}  {*(byte*)(q+0x3dc),7} {*(byte*)(q+0x464),7}" +
                 $" {*(byte*)(q+0x3dd),8} {*(byte*)(q+0x3e2),8} {*(byte*)(q+0x3e3),8}" +
-                $" {*(byte*)(q+0x44a),8}");
+                $" {*(byte*)(q+0x44a),8}   0x{rxw:X4} {((rxw&0x8000)!=0?"on":"OFF"),4}");
         }
         return;
     }
@@ -1686,6 +1687,125 @@ unsafe
             Console.WriteLine($"{c74},{v},{fc[grp*16+lane]:0.000000},{qc[grp*16+lane]:0.000000},"
                              +$"{*(int*)(pv+0xcc)},{*(int*)(pv+0xdc)},{*(byte*)(pv+0xee)},{*(byte*)(pv+0x1f5)}");
         }
+        return;
+    }
+    // drumnrpn mode: which NRPN MSBs actually write a drum part's per-key record? Sweeps every MSB
+    //   from 0 to 0x3f, snapshotting the *whole* 0x50c-byte record either side of one NRPN and
+    //   reporting the byte offsets that moved -- so a plane nobody has named yet still shows up.
+    //   The record hangs off part+0x18, which is heap, so this reads it through a sounding voice
+    //   rather than off any static address.
+    //   args: dll drumnrpn <note> [value] [gs|xg] [prog]
+    if (args.Length > 1 && args[1] == "drumnrpn")
+    {
+        int ntn=int.Parse(args[2]);
+        int valn=args.Length>3?int.Parse(args[3]):0x50;
+        bool xgn=args.Length>4 && args[4]=="xg";
+        int pgn=args.Length>5?int.Parse(args[5]):0;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbn=b+0x1a1b5b8;
+        var getVCn=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcn=getVCn(0);
+        var ln=new float[512]; var rn=new float[512];
+        void CCn(int c,int v)=>shortIn((uint)((0xB0|9)|(c<<8)|(v<<16)),0);
+        if(xgn) SendSysEx(new byte[]{0xF0,0x43,0x10,0x4C,0x00,0x00,0x7E,0x00,0xF7}); else GsReset();
+        flush(); fixed(float* pl=ln,pr=rn) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCn(7,127); CCn(10,64); CCn(91,0); CCn(93,0);
+        shortIn((uint)((0xC0|9)|(pgn<<8)),0); flush();
+        fixed(float* pl=ln,pr=rn) process(pl,pr,512);
+        // Strike once so a voice exists to reach the part -- and so the record is the live one.
+        shortIn((uint)((0x90|9)|(ntn<<8)|(110<<16)),0); flush();
+        fixed(float* pl=ln,pr=rn) for(int i=0;i<3;i++) process(pl,pr,320);
+        long mapn=0, partn=0;
+        for(int v=0;v<64;v++){ if((*(byte*)(fbn+v*0x50)&1)==0) continue;
+            partn=*(long*)(vcn+(long)v*0x220+0x128); mapn=*(long*)(partn+0x18); break; }
+        if(mapn==0){ Console.WriteLine("no sounding voice -- cannot reach the record"); return; }
+        const int RecLen=0x50c;
+        var snap=new byte[RecLen];
+        void Snap(){ System.Runtime.InteropServices.Marshal.Copy((nint)mapn,snap,0,RecLen); }
+        // The gates nrpn_apply tests before writing: Rx NRPN is bit 15 of the Rx word at part+0x3d6,
+        // Rx CC is bit 11, and the drum test is part+0x12 bit 5 set with the low five bits not all
+        // set. A sweep that writes nothing means one of these, not a missing handler.
+        ushort rxn=*(ushort*)(partn+0x3d6);
+        Console.WriteLine($"mode={(xgn?"xg":"gs")} note={ntn} value=0x{valn:X2} record=0x{mapn:X}"
+            +$" rx=0x{rxn:X4} rxNRPN={(rxn&0x8000)!=0} rxCC={(rxn&0x800)!=0}"
+            +$" flags=0x{*(byte*)(partn+0x12):X2}");
+        for(int msb=0;msb<=0x3f;msb++){
+            Snap();
+            var before=(byte[])snap.Clone();
+            CCn(99,msb); CCn(98,ntn); CCn(6,valn); flush();
+            fixed(float* pl=ln,pr=rn) process(pl,pr,512);
+            Snap();
+            var moved=new System.Collections.Generic.List<string>();
+            for(int i=0;i<RecLen;i++)
+                if(before[i]!=snap[i]) moved.Add($"+0x{i:X3}({before[i]}->{snap[i]})");
+            if(moved.Count>0) Console.WriteLine($"  MSB 0x{msb:X2}: {string.Join(" ",moved)}");
+        }
+        Console.WriteLine("done");
+        return;
+    }
+    // xgdrumfilt mode: does an XG Drum Setup message reach a drum voice's filter? Strikes a drum
+    //   key in XG mode and reads the voice's resonance byte (+0xee) and both SVF coefficients, then
+    //   sends one XG Drum Setup parameter (3n rr pp) and strikes again. A parameter the module
+    //   stores moves the readback; one it parses and drops leaves every field identical.
+    //   Read off the *voice*, through its heap part pointer, rather than off any static: the drum
+    //   setup records live behind a pointer the module allocates, so a static dump cannot see them.
+    //   args: dll xgdrumfilt <note> <param> <value> [prog]
+    //   param is the XG Drum Setup parameter: 0b filter cutoff, 0c filter resonance, 02 level.
+    if (args.Length > 1 && args[1] == "xgdrumfilt" || args[1] == "drumnrpn")
+    {
+        int ntx=int.Parse(args[2]);
+        int prmx=Convert.ToInt32(args[3],16);
+        int valx=int.Parse(args[4]);
+        int pgx=args.Length>5?int.Parse(args[5]):0;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbx=b+0x1a1b5b8;
+        var getVCx=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcx=getVCx(0);
+        float* fcx=(float*)(b+(0x181a1cb70L-0x180000000L));
+        float* qcx=(float*)(b+(0x181a1d1f0L-0x180000000L));
+        var lx=new float[512]; var rx=new float[512];
+        void CCx(int c,int v)=>shortIn((uint)((0xB0|9)|(c<<8)|(v<<16)),0);
+        SendSysEx(new byte[]{0xF0,0x43,0x10,0x4C,0x00,0x00,0x7E,0x00,0xF7});
+        flush(); fixed(float* pl=lx,pr=rx) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCx(7,127); CCx(10,64); CCx(91,0); CCx(93,0);
+        shortIn((uint)((0xC0|9)|(pgx<<8)),0); flush();
+        fixed(float* pl=lx,pr=rx) process(pl,pr,512);
+        void Strikex(){
+            shortIn((uint)((0x90|9)|(ntx<<8)|(110<<16)),0); flush();
+            fixed(float* pl=lx,pr=rx) for(int i=0;i<3;i++) process(pl,pr,320);
+        }
+        void Showx(string tag){
+            bool any=false;
+            for(int v=0;v<64;v++){
+                if((*(byte*)(fbx+v*0x50)&1)==0) continue;
+                long pv=vcx+(long)v*0x220;
+                int lane=v&3, grp=v>>2;
+                Console.WriteLine($"{tag} voice{v}: reso_ee={*(byte*)(pv+0xee)} f={fcx[grp*16+lane]:0.000000}"
+                    +$" q={qcx[grp*16+lane]:0.000000} cutoff_cc={*(int*)(pv+0xcc)} type_f5={*(byte*)(pv+0x1f5)}");
+                if(!any){
+                    // The positive control. The per-key planes hang off the part, which hangs off
+                    // the voice -- all heap. A parameter the module stores moves one of these, so a
+                    // run where every plane is also unchanged means the message never landed at all
+                    // rather than that this particular parameter is dropped.
+                    long part=*(long*)(pv+0x128);
+                    long map=*(long*)(part+0x18);
+                    Console.WriteLine($"{tag}  planes[{ntx}]: level={*(byte*)(map+0x100+ntx)}"
+                        +$" pitch={*(sbyte*)(map+0x180+ntx)} group={*(byte*)(map+0x200+ntx)}"
+                        +$" pan={*(byte*)(map+0x280+ntx)} rev={*(byte*)(map+0x300+ntx)}"
+                        +$" cho={*(byte*)(map+0x380+ntx)} flags=0x{*(byte*)(map+0x480+ntx):X2}");
+                }
+                any=true;
+            }
+            if(!any) Console.WriteLine($"{tag}: no sounding voice");
+        }
+        Strikex(); Showx("before");
+        // 3n rr pp vv -- setup 0, key rr, parameter pp.
+        SendSysEx(new byte[]{0xF0,0x43,0x10,0x4C,0x30,(byte)ntx,(byte)prmx,(byte)valx,0xF7});
+        flush(); fixed(float* pl=lx,pr=rx) process(pl,pr,512);
+        // Note off and re-strike, so a parameter that is only read at note-on still shows up.
+        shortIn((uint)((0x80|9)|(ntx<<8)|(64<<16)),0); flush();
+        fixed(float* pl=lx,pr=rx) for(int i=0;i<12;i++) process(pl,pr,512);
+        Strikex(); Showx("after ");
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
