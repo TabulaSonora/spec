@@ -72,9 +72,11 @@ Known to be missing or provisional, beyond the structural limits in §9:
   exporter was emitting a positive one. The error was twice each sample's own offset, bank-wide.
   Fixed; the fundamental now lands within 1.3 cents and every band improved.
 
-  What remains is coherent rather than mysterious: the bank is *darker* than the engine at the top
-  (−3.2 dB at 2.5–6 kHz, −9.5 above), which is exactly the `cutoff_hz` corner offset measured in §6
-  and deliberately not yet corrected.
+  What remains is the bank being *darker* than the engine at the top — −3.2 dB at 2.5–6 kHz, −9.5
+  above. That was attributed to a `cutoff_hz` corner offset, and §6 now records that there is no
+  such offset: both filters place −3 dB at ~1.2–1.3× their stated cutoff. **The cause is unknown**,
+  and part of it may not be real — the band metric probes six geometric frequencies per band, which
+  on a harmonic signal is sensitive to a pitch difference of even a cent.
 - **The envelope fitting rule is a first attempt.** "Attack to the peak, decay to the last target,
   fold the rest" is defensible and its error is measured (§5), but no alternative has been tried
   against it, and the selection rule is where the audible quality lives.
@@ -85,9 +87,8 @@ Known to be missing or provisional, beyond the structural limits in §9:
 - **The engine's stretched tuning is not reproduced.** Its per-key `g_kf_pitch` curve leaves about
   two cents of drift across the keyboard after the root correction is right; SF2's `scaleTuning` is
   a linear scale where that is a table.
-- **`pitch_key_follow` is not emitted at all.** A partial that tracks the keyboard at less than 100%
-  — the Seashore effect is the documented case — is exported as though it tracked fully, which is
-  the wrong pitch for every note away from its key centre. `scaleTuning` is the generator for it.
+- ~~`pitch_key_follow` is not emitted~~ — **fixed**; it is `scaleTuning`, and 948 zones carry it.
+  11.2% of mapped partials follow at something other than 100%.
 - **Per-key drum reverb, chorus and delay depths are unread** — kit planes `0x300`/`0x380`/`0x400`.
 - **Alternate articulations are dropped** outright (§4).
 - **Vorbis quality is untuned**; the measured 0.0049 RMS is whatever VBR quality 0.5 produced.
@@ -544,29 +545,32 @@ illustration — its first partial wants 80 cB and its second 360, where the def
 It remains an approximation, because the modulator's curve spans the whole 0–127 range while the
 partial's crossfade spans only its window, so a narrow window is under-served.
 
-### `cutoff_hz` is not the filter's corner `[measured]`
+### `cutoff_hz` and the corner — a correction `[measured]`
 
-`TvfChain::cutoff_hz` calls itself diagnostic — *"the filter never needs it"* — and the exporter
-nevertheless sets `initialFilterFc` from it. Driving sines through `TvfChain::apply` at a fixed
-cutoff and reading the steady-state gain puts the real −3 dB point consistently **above** what the
-function reports:
+An earlier version of this section reported that `TvfChain::cutoff_hz` understated the filter's
+corner by 1.17×–1.57×, and concluded that every `initialFilterFc` in the bank was 270–750 cents too
+low. **That conclusion was wrong**, and it was wrong because only one side was measured.
 
-| cutoff units | `cutoff_hz()` | measured −3 dB | ratio |
+The engine's −3 dB point does sit above `cutoff_hz`'s number:
+
+| cutoff units | `cutoff_hz()` | engine −3 dB | ratio |
 |---|---|---|---|
 | 12000 | 163.5 Hz | 202.4 Hz | 1.238 |
 | 15564 | 365.3 Hz | 449.8 Hz | 1.231 |
 | 18000 | 631.7 Hz | 741.1 Hz | 1.173 |
 | 21000 | 1243.1 Hz | 1491.0 Hz | 1.199 |
 | 23857 | 2369.1 Hz | 3314.5 Hz | 1.399 |
-| 26000 | 3844.8 Hz | 6034.2 Hz | 1.569 |
 
-The slope is an ordinary 12 dB/octave two-pole, so this is a corner offset rather than a shape
-difference: the engine's filter is **1.17× to 1.57× brighter than the number the exporter writes**,
-which is 270 to 750 cents. Every `initialFilterFc` in the bank is that much too low.
+But **so does the reader's**, by very nearly the same factor. Driving sines through
+`ss_lowpass_filter_apply` at `initialFilterQ` = 0 puts its −3 dB point at **1.204×–1.296×** the
+`initialFilterFc` it was given. Both filters state a *design* cutoff and both place −3 dB above it,
+which is what a two-pole at Q ≈ 1 does — 1.272× exactly, for an ideal one. The engine's `Q = 64 /
+resonance_byte` is 1.0 at the neutral resonance byte, so the ratio is expected physics rather than
+a units error.
 
-**This has not been corrected**, deliberately. It would raise the whole bank's cutoff, which the A/B
-harness says helps one band and hurts another, and applying a correction derived from a model that
-does not yet explain the residual below would be guessing with extra steps.
+`cutoff_hz` is therefore the right number to write into `initialFilterFc`, and the corner offset
+does not exist. The lesson is the cheap one: a ratio measured against one implementation says
+nothing until the other is measured the same way.
 
 **Half-damper must not be a bank default.** Only the 57 piano tones respond to a partly-pressed
 pedal; every other tone quantises CC#64 to fully up or fully down before it reaches the release
