@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1687,6 +1687,56 @@ unsafe
             Console.WriteLine($"{c74},{v},{fc[grp*16+lane]:0.000000},{qc[grp*16+lane]:0.000000},"
                              +$"{*(int*)(pv+0xcc)},{*(int*)(pv+0xdc)},{*(byte*)(pv+0xee)},{*(byte*)(pv+0x1f5)}");
         }
+        return;
+    }
+    // voicesolo mode: capture one voice's contribution to the output on its own.
+    //   Every input to the mix is verifiable through other modes; the *output* of a single voice is
+    //   not, because the engine sums them. This holds every other sounding voice's four mix-slot
+    //   gains at zero, re-zeroing before each chunk because the engine rewrites them every control
+    //   tick, and writes the result as raw interleaved float32 -- the same format render-note emits,
+    //   so a port's per-partial render can be compared against the engine's directly.
+    //   args: dll voicesolo <prog> <note> <vel> <map> <voiceIndex> <seconds> <out.f32>
+    if (args.Length > 1 && args[1] == "voicesolo")
+    {
+        int pgv=int.Parse(args[2]), ntv=int.Parse(args[3]), vlv=int.Parse(args[4]);
+        int mpv=int.Parse(args[5]), wantv=int.Parse(args[6]);
+        double secv=double.Parse(args[7], System.Globalization.CultureInfo.InvariantCulture);
+        string outv=args[8];
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbv=b+0x1a1b5b8;
+        float* slotv=(float*)(b+(0x181a1d930L-0x180000000L));
+        var lv2=new float[512]; var rv2=new float[512];
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpv); flush();
+        fixed(float* pl=lv2,pr=rv2) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCv2(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        CCv2(0,0); CCv2(32,0); CCv2(7,127); CCv2(10,64); CCv2(91,0); CCv2(93,0);
+        shortIn((uint)(0xC0|(pgv<<8)),0); flush();
+        fixed(float* pl=lv2,pr=rv2) process(pl,pr,512);
+        shortIn((uint)(0x90|(ntv<<8)|(vlv<<16)),0); flush();
+
+        const int chunk=32;
+        int total=(int)(secv*32000);
+        var outBytes=new System.IO.BinaryWriter(System.IO.File.Create(outv));
+        // The voice indices are decided on the first chunk and then held: a voice that stops
+        // sounding must stay muted rather than silently rejoining the mix.
+        int[] keep=null;
+        for(int done=0; done<total; done+=chunk){
+            if(keep==null){
+                var live=new System.Collections.Generic.List<int>();
+                for(int v=0;v<64;v++) if((*(byte*)(fbv+v*0x50)&1)!=0) live.Add(v);
+                if(live.Count>0) keep=live.ToArray();
+            }
+            if(keep!=null){
+                for(int i=0;i<keep.Length;i++){
+                    if(i==wantv) continue;
+                    for(int k=0;k<4;k++) slotv[k*0x40+keep[i]]=0f;
+                }
+            }
+            fixed(float* pl=lv2,pr=rv2) process(pl,pr,chunk);
+            for(int i=0;i<chunk;i++){ outBytes.Write(lv2[i]); outBytes.Write(rv2[i]); }
+        }
+        outBytes.Close();
+        Console.WriteLine($"voicesolo prog={pgv} note={ntv} voice={wantv} of {(keep==null?0:keep.Length)} -> {outv} ({total} frames)");
         return;
     }
     // partialmix mode: how loud is each of a tone's partials, relative to the others? Plays one
