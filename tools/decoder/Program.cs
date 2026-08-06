@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1689,6 +1689,93 @@ unsafe
         }
         return;
     }
+    // jitterprobe mode: does the module draw a random pitch offset for this tone, and which partial
+    //   byte switches it on? `partial_compute_pitch` @`18005fc20` reads the depth from the partial
+    //   block's **+0x12**, and only when that byte is non-zero calls `prng_lfsr` and folds the draw
+    //   into the base pitch it writes to voice+0x1f8 and voice+0x218. A port reading a different
+    //   byte disagrees on 220 of the 4,726 partial blocks, so a tone from that disagreeing set
+    //   answers the question directly.
+    //
+    //   The measurement is note-to-note *variance*, not a value: the LFSR is not reset between
+    //   notes, so a jittered partial writes a different base pitch every time and an unjittered one
+    //   repeats its base pitch exactly. That makes the result independent of the generator's seed
+    //   and of any port's idea of it. It also puts one voice per partial on the generator instead
+    //   of a whole song's worth, which is the draw-order confound this exists to avoid.
+    //
+    //   Reads 0x1fc/0x200 alongside as the control: those come from the wave descriptor before the
+    //   jitter branch, so they must stay constant across repeats even when 0x1f8/0x218 do not.
+    //   args: dll jitterprobe <prog> <note> <vel> <map> [bankMsb] [repeats]
+    if (args.Length > 1 && args[1] == "jitterprobe")
+    {
+        int pgj=int.Parse(args[2]), ntj=int.Parse(args[3]), vlj=int.Parse(args[4]);
+        int mpj=int.Parse(args[5]);
+        int bkj=args.Length>6?int.Parse(args[6]):0;
+        int repj=args.Length>7?int.Parse(args[7]):12;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbj=b+0x1a1b5b8;
+        var getVCj=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcj=getVCj(0);
+        var lj=new float[512]; var rj=new float[512];
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpj); flush();
+        fixed(float* pl=lj,pr=rj) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCj(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        CCj(0,bkj); CCj(32,0); CCj(7,127); CCj(10,64); CCj(91,0); CCj(93,0);
+        shortIn((uint)(0xC0|(pgj<<8)),0); flush();
+        fixed(float* pl=lj,pr=rj) for(int i=0;i<2;i++) process(pl,pr,512);
+        Console.WriteLine($"jitterprobe prog={pgj} note={ntj} vel={vlj} map={mpj} bankMsb={bkj}"
+            + $" repeats={repj}");
+        // Keyed by *allocation order within the repeat*, not by voice index and not by wave. The
+        // allocator hands a note's partials out in slot order, so the k-th active voice is the
+        // k-th partial on every repeat, while the absolute voice index walks forward as notes are
+        // reused. Keying on the wave number instead looks safe and is not: a unison patch gives
+        // both its partials the same wave (TB Lead and MG unison both do), and the two are then
+        // pooled, so the static detune between them reads as a spread and the tone is called
+        // jittered when neither partial moved.
+        var seen=new SortedDictionary<int,List<(int rep,uint wave,int w1f8,int w218,int w1fc)>>();
+        for(int rep=0; rep<repj; ++rep){
+            shortIn((uint)(0x90|(ntj<<8)|(vlj<<16)),0); flush();
+            fixed(float* pl=lj,pr=rj) for(int t=0;t<2;t++) process(pl,pr,320);
+            int ord=0;
+            for(int v=0;v<64;v++){
+                if((*(byte*)(fbj+v*0x50)&1)==0) continue;
+                long pv=vcj+(long)v*0x220;
+                uint wave=*(uint*)(b+0x1a6fb60+v*4);
+                if(!seen.TryGetValue(ord, out var list)){ list=new(); seen[ord]=list; }
+                list.Add((rep,wave,*(int*)(pv+0x1f8),*(int*)(pv+0x218),*(int*)(pv+0x1fc)));
+                ++ord;
+            }
+            // Release, then All Sound Off: a release tail alone outlives any plausible gap on a pad
+            // or a bell, and a voice still sounding on the next repeat is read twice and reported
+            // as a repeat that jittered when it did not.
+            shortIn((uint)(0x80|(ntj<<8)|(64<<16)),0);
+            CCj(120,0); flush();
+            fixed(float* pl=lj,pr=rj) for(int t=0;t<8;t++) process(pl,pr,512);
+        }
+        foreach(var kv in seen){
+            var vals=kv.Value;
+            var d218=new SortedSet<int>(); foreach(var e in vals) d218.Add(e.w218);
+            var d1f8=new SortedSet<int>(); foreach(var e in vals) d1f8.Add(e.w1f8);
+            var d1fc=new SortedSet<int>(); foreach(var e in vals) d1fc.Add(e.w1fc);
+            var waves=new SortedSet<uint>(); foreach(var e in vals) waves.Add(e.wave);
+            int lo=int.MaxValue, hi=int.MinValue;
+            foreach(var x in d218){ if(x<lo) lo=x; if(x>hi) hi=x; }
+            // A clean run is exactly one reading per repeat. More means a voice outlived its
+            // All Sound Off and shifted every later ordinal, which would pool two partials again;
+            // say so rather than let it pass as a spread.
+            string health = vals.Count==repj ? "" : $"  [!! {vals.Count} readings for {repj} repeats,"
+                + " ordinals are not aligned -- do not read the spread]";
+            var wl=new List<string>(); foreach(var w in waves) wl.Add($"0x{w:X4}");
+            Console.WriteLine($"  partial#{kv.Key} (wave {string.Join("/", wl)}):"
+                + $" {vals.Count} readings, {d218.Count} distinct base pitches (voice+0x218),"
+                + $" {d1f8.Count} distinct voice+0x1f8, {d1fc.Count} distinct voice+0x1fc{health}");
+            Console.WriteLine($"    spread {hi-lo} mst  [{lo} .. {hi}]"
+                + $" -> {(d218.Count>1 ? "JITTERED" : "constant, no draw")}");
+            var parts=new List<string>();
+            foreach(var e in vals) parts.Add($"{e.rep}:{e.w218}");
+            Console.WriteLine($"    per repeat  {string.Join(" ", parts)}");
+        }
+        return;
+    }
     // pitchword mode: did the engine adopt each voice's second-fine-tune pitch, or not?
     //   partial_compute_pitch writes voice+0x1fc (root*1000 - fine + 0x400) and
     //   voice+0x200 (that, minus desc[0x0e], plus 0x400). voices_control_update then copies
@@ -1767,7 +1854,18 @@ unsafe
         Console.WriteLine($"  g_part_array_base    = 0x{*(long*)(b+0x1a222a0):x}");
         for(int ch=0; ch<4; ch++)
             Console.WriteLine($"  ch{ch}: 0x3a2 raw={*(short*)(PartPm(ch)+0x3a2)}"
-                + $" 0x3ba scaled={*(short*)(PartPm(ch)+0x3ba)}");
+                + $" 0x3ba scaled={*(short*)(PartPm(ch)+0x3ba)}"
+                + $" 0x448 tune={*(ushort*)(PartPm(ch)+0x448)}"
+                + $" -> {((int)(*(ushort*)(PartPm(ch)+0x448)) * 1000) >> 13} mst"
+                + $" (with -0x7e8: {(((int)(*(ushort*)(PartPm(ch)+0x448)) * 1000) >> 13) - 0x7e8})"
+                // voice_pitch_keyfollow gates its whole branch on this byte: 0x80 is neutral and
+                // takes the early return, anything else adds a further term scaled by the
+                // partial's +0x161 row of DAT_1819a7900.
+                + $" 0x3db keyfollow={*(byte*)(PartPm(ch)+0x3db)}"
+                + $" ({(*(byte*)(PartPm(ch)+0x3db) == 0x80 ? "neutral" : "ACTIVE")})"
+                // The gate on the pitch key-follow curve row: partial_compute_pitch takes row 2
+                // only when the voice's +0x169 is zero, and +0x169 is copied from this byte.
+                + $" | 0x10 gate={*(byte*)(PartPm(ch)+0x10)}");
         shortIn((uint)(0x90|chPm|(ntPm<<8)|(vlPm<<16)),0); flush();
         for(int tk=0;tk<tkPm;tk++) fixed(float* pl=lPm,pr=rPm) process(pl,pr,320);
         Console.WriteLine($"  after note: ch{chPm} 0x3a2 raw={*(short*)(PartPm(chPm)+0x3a2)}"
@@ -1781,7 +1879,10 @@ unsafe
             long pv=vcPm+(long)v*0x220;
             long rp=b+(0x181a1cbf0L-0x180000000L)+(long)v*0x18;
             int cur=*(int*)(rp+8), tgt=*(int*)(rp+0xc);
-            Console.WriteLine($"  voice{v}: base 0x1fc={*(int*)(pv+0x1fc)} 0x200={*(int*)(pv+0x200)}");
+            long blk=*(long*)(pv+0x150);
+            Console.WriteLine($"  voice{v}: base 0x1fc={*(int*)(pv+0x1fc)} 0x200={*(int*)(pv+0x200)}"
+                + $" | voice 0x168={*(byte*)(pv+0x168)} 0x169={*(byte*)(pv+0x169)}"
+                + $" | block+0x17={*(byte*)(blk+0x17)} block+0x13={*(byte*)(blk+0x13)}");
             Console.WriteLine($"           pitchramp cur={cur} tgt={tgt}"
                 + $"  = {cur*375.0/512.0:0.0} / {tgt*375.0/512.0:0.0} mst");
         }
