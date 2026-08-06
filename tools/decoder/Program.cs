@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1852,6 +1852,11 @@ unsafe
         long PartPm(int ch)=>(*(long*)(b+0x1a222a0))+(long)ch*0x488;
         Console.WriteLine($"replayed {sent} sysex; channel {chPm} note {ntPm} vel {vlPm} map {mpPm} cc1 {cc1Pm}");
         Console.WriteLine($"  g_part_array_base    = 0x{*(long*)(b+0x1a222a0):x}");
+        // The pitch key-follow gate, across every part: partial_compute_pitch falls back to curve
+        // row 2 when the voice's +0x169 is zero, and +0x169 is copied from this byte.
+        Console.Write("  part+0x10 gate:");
+        for(int ch=0; ch<16; ch++) Console.Write($" {ch}={*(byte*)(PartPm(ch)+0x10)}");
+        Console.WriteLine();
         for(int ch=0; ch<4; ch++)
             Console.WriteLine($"  ch{ch}: 0x3a2 raw={*(short*)(PartPm(ch)+0x3a2)}"
                 + $" 0x3ba scaled={*(short*)(PartPm(ch)+0x3ba)}"
@@ -2168,6 +2173,62 @@ unsafe
         shortIn((uint)((0x80|9)|(ntx<<8)|(64<<16)),0); flush();
         fixed(float* pl=lx,pr=rx) for(int i=0;i<12;i++) process(pl,pr,512);
         Strikex(); Showx("after ");
+        return;
+    }
+    // gsdrumnrpn mode: the GS counterpart of drumnrpn above. That one drives the drum setup over XG
+    //   SysEx; this one drives it over the GS NRPN a plain MIDI file actually sends -- CC#99 the
+    //   parameter, CC#98 the key, CC#6 the value -- and dumps the same per-key planes before and
+    //   after, so a write that lands can be told apart from one that does not.
+    //   args: dll gsdrumnrpn <note> <nrpnMsbDec> <valueDec> [prog] [rxNrpn]
+    if (args.Length > 1 && args[1] == "gsdrumnrpn")
+    {
+        int ntg=int.Parse(args[2]);
+        int prmg=int.Parse(args[3]);
+        int valg=int.Parse(args[4]);
+        int pgg=args.Length>5?int.Parse(args[5]):0;
+        bool rxg=args.Length>6 && args[6]=="1";
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbg=b+0x1a1b5b8;
+        var getVCg=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcg=getVCg(0);
+        var lg=new float[512]; var rg=new float[512];
+        void CCg(int c,int v)=>shortIn((uint)((0xB0|9)|(c<<8)|(v<<16)),0);
+        GsReset();
+        flush(); fixed(float* pl=lg,pr=rg) for(int i=0;i<8;i++) process(pl,pr,512);
+        if(rxg) SendSysEx(Dt1(0x40,(byte)(0x10|BlockNum(9)),0x0A,0x01));
+        CCg(7,127); CCg(10,64); CCg(91,0); CCg(93,0);
+        shortIn((uint)((0xC0|9)|(pgg<<8)),0); flush();
+        fixed(float* pl=lg,pr=rg) process(pl,pr,512);
+        void Strikeg(){
+            shortIn((uint)((0x90|9)|(ntg<<8)|(110<<16)),0); flush();
+            fixed(float* pl=lg,pr=rg) for(int i=0;i<3;i++) process(pl,pr,320);
+        }
+        void Showg(string tag){
+            for(int v=0;v<64;v++){
+                if((*(byte*)(fbg+v*0x50)&1)==0) continue;
+                long pv=vcg+(long)v*0x220;
+                long part=*(long*)(pv+0x128);
+                long map=*(long*)(part+0x18);
+                Console.WriteLine($"{tag} voice{v} planes[{ntg}]: level={*(byte*)(map+0x100+ntg)}"
+                    +$" pitch={*(sbyte*)(map+0x180+ntg)} group={*(byte*)(map+0x200+ntg)}"
+                    +$" pan={*(byte*)(map+0x280+ntg)} rev={*(byte*)(map+0x300+ntg)}"
+                    +$" cho={*(byte*)(map+0x380+ntg)} flags=0x{*(byte*)(map+0x480+ntg):X2}");
+                // The pan the voice actually resolved, and the part panpot it started from. If the
+                // plane moves and this does not, the write lands and the read side is at fault.
+                Console.WriteLine($"{tag}   voice pan f8={*(short*)(pv+0xf8)}"
+                    +$" gainL={*(ushort*)(pv+0xf4)} gainR={*(ushort*)(pv+0xf6)}"
+                    +$" partPanpot={*(byte*)(part+0x3dd)} rxFlags=0x{*(ushort*)(part+0x3d6):X4}"
+                    +$" part12=0x{*(byte*)(part+0x12):X2}");
+                return;
+            }
+            Console.WriteLine($"{tag}: no sounding voice");
+        }
+        Strikeg(); Showg("before");
+        CCg(99,prmg); CCg(98,ntg); CCg(6,valg); flush();
+        fixed(float* pl=lg,pr=rg) process(pl,pr,512);
+        shortIn((uint)((0x80|9)|(ntg<<8)|(64<<16)),0); flush();
+        fixed(float* pl=lg,pr=rg) for(int i=0;i<12;i++) process(pl,pr,512);
+        Strikeg(); Showg("after ");
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
