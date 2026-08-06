@@ -1807,6 +1807,11 @@ unsafe
             if((*(byte*)(fbw+v*0x50)&1)==0) continue;
             long pv=vcw+(long)v*0x220;
             int w1fc=*(int*)(pv+0x1fc), w200=*(int*)(pv+0x200);
+            // +0xb8 is the increment `voice_pitch_block_init` finally writes -- what the resampler
+            // is actually driven by, and the one number directly comparable with this port's
+            // `pitch_word`. +0x1f8 is the absolute pitch it was derived from.
+            Console.WriteLine($"  voice{v}: ramp+0xb8={*(uint*)(pv+0xb8)} abs+0x1f8={*(int*)(pv+0x1f8)}"
+                            + $" env+0x64={*(int*)(pv+0x64)}");
             Console.WriteLine($"  voice{v}: 0x1fc={w1fc} 0x200={w200} delta={w200-w1fc}"
                 + $" state16c={*(byte*)(pv+0x16c)} flag4={*(byte*)(pv+4)} retrig1b0={*(byte*)(pv+0x1b0)}"
                 + $" -> {(w1fc==w200 ? "ADOPTED" : "not adopted")}");
