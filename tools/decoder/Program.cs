@@ -2697,10 +2697,13 @@ unsafe
         double hsl=double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
         string csvl=args.Length>5?args[5]:"lfotrace.csv"; int vll=args.Length>6?int.Parse(args[6]):100;
         int bkl=args.Length>7?int.Parse(args[7]):0;   // CC0 bank MSB (the SFX "variations")
+        int mpl=args.Length>8?int.Parse(args[8]):0;  // tone map 1-4; 0 leaves the GS reset default
         setSR((float)SRl); setBS(512); activate((float)SRl,512); setThr();
         var getLFO=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c340);
         var ll=new float[512]; var rl=new float[512];
-        GsReset(); flush(); fixed(float* pl=ll,pr=rl) for(int i=0;i<8;i++) process(pl,pr,512);
+        GsReset();
+        if(mpl>=1&&mpl<=4) for(int c=0;c<16;c++) ToneMap0(c,mpl);
+        flush(); fixed(float* pl=ll,pr=rl) for(int i=0;i<8;i++) process(pl,pr,512);
         void CCl(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
         CCl(0,bkl);CCl(32,0);CCl(7,127);CCl(10,64);CCl(91,0);CCl(93,0);
         shortIn((uint)(0xC0|(pgl<<8)),0); flush();
