@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1689,6 +1689,43 @@ unsafe
         }
         return;
     }
+    // pitchword mode: did the engine adopt each voice's second-fine-tune pitch, or not?
+    //   partial_compute_pitch writes voice+0x1fc (root*1000 - fine + 0x400) and
+    //   voice+0x200 (that, minus desc[0x0e], plus 0x400). voices_control_update then copies
+    //   0x200 over 0x1fc *once*, on the first control tick, but only when the one-shot flag at
+    //   voice+4 is set and the retrigger flag at voice+0x1b0 is clear. So reading the two words
+    //   after a few ticks says directly whether the term was adopted for that voice: equal means
+    //   adopted, different means not.
+    //   args: dll pitchword <prog> <note> <vel> <map> [ticks]
+    if (args.Length > 1 && args[1] == "pitchword")
+    {
+        int pgw=int.Parse(args[2]), ntw=int.Parse(args[3]), vlw=int.Parse(args[4]);
+        int mpw=int.Parse(args[5]);
+        int ticks=args.Length>6?int.Parse(args[6]):4;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbw=b+0x1a1b5b8;
+        var getVCw=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcw=getVCw(0);
+        var lw2=new float[512]; var rw2=new float[512];
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpw); flush();
+        fixed(float* pl=lw2,pr=rw2) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCw(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        CCw(0,0); CCw(32,0); CCw(7,127); CCw(10,64); CCw(91,0); CCw(93,0);
+        shortIn((uint)(0xC0|(pgw<<8)),0); flush();
+        fixed(float* pl=lw2,pr=rw2) process(pl,pr,512);
+        shortIn((uint)(0x90|(ntw<<8)|(vlw<<16)),0); flush();
+        for(int t=0;t<ticks;t++) fixed(float* pl=lw2,pr=rw2) process(pl,pr,320);
+        Console.WriteLine($"prog {pgw} note {ntw} vel {vlw} map {mpw} after {ticks} ticks");
+        for(int v=0;v<64;v++){
+            if((*(byte*)(fbw+v*0x50)&1)==0) continue;
+            long pv=vcw+(long)v*0x220;
+            int w1fc=*(int*)(pv+0x1fc), w200=*(int*)(pv+0x200);
+            Console.WriteLine($"  voice{v}: 0x1fc={w1fc} 0x200={w200} delta={w200-w1fc}"
+                + $" state16c={*(byte*)(pv+0x16c)} flag4={*(byte*)(pv+4)} retrig1b0={*(byte*)(pv+0x1b0)}"
+                + $" -> {(w1fc==w200 ? "ADOPTED" : "not adopted")}");
+        }
+        return;
+    }
     // voicesolo mode: capture one voice's contribution to the output on its own.
     //   Every input to the mix is verifiable through other modes; the *output* of a single voice is
     //   not, because the engine sums them. This holds every other sounding voice's four mix-slot
@@ -1736,7 +1773,19 @@ unsafe
             for(int i=0;i<chunk;i++){ outBytes.Write(lv2[i]); outBytes.Write(rv2[i]); }
         }
         outBytes.Close();
-        Console.WriteLine($"voicesolo prog={pgv} note={ntv} voice={wantv} of {(keep==null?0:keep.Length)} -> {outv} ({total} frames)");
+        // Peak and where it lands. A per-voice phase or timing error shows up here as a shifted
+        // offset long before it is visible in a spectrum, and the offset is directly comparable
+        // against the same figure from a port's own per-partial render.
+        {
+            var raw = System.IO.File.ReadAllBytes(outv);
+            float peak = 0f; int at = 0;
+            for (int i = 0; i + 3 < raw.Length; i += 8) {
+                float v = System.Math.Abs(BitConverter.ToSingle(raw, i));
+                if (v > peak) { peak = v; at = i / 8; }
+            }
+            Console.WriteLine($"voicesolo prog={pgv} note={ntv} voice={wantv} of {(keep==null?0:keep.Length)}"
+                + $" -> {outv} ({total} frames)  peak {peak:0.000000} at sample {at}");
+        }
         return;
     }
     // partialmix mode: how loud is each of a tone's partials, relative to the others? Plays one
