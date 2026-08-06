@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1723,6 +1723,67 @@ unsafe
             Console.WriteLine($"  voice{v}: 0x1fc={w1fc} 0x200={w200} delta={w200-w1fc}"
                 + $" state16c={*(byte*)(pv+0x16c)} flag4={*(byte*)(pv+4)} retrig1b0={*(byte*)(pv+0x1b0)}"
                 + $" -> {(w1fc==w200 ? "ADOPTED" : "not adopted")}");
+        }
+        return;
+    }
+    // pitchmat mode: what pitch does the module compute for a note once a file's own control-matrix
+    //   SysEx has been replayed into it? `part_mod_depth_recalc` sums the five matrix sources into
+    //   part+0x3a2 and writes the scaled milli-semitone result to part+0x3ba, so those two words are
+    //   the module's own answer rather than an inference from the audio. Reads the sounding voice's
+    //   pitch words beside them.
+    //   args: dll pitchmat <hexfile> <channel> <note> <vel> <map> [cc1] [ticks]
+    if (args.Length > 1 && args[1] == "pitchmat")
+    {
+        var linesPm = File.ReadAllLines(args[2]);
+        int chPm=int.Parse(args[3]), ntPm=int.Parse(args[4]), vlPm=int.Parse(args[5]);
+        int mpPm=int.Parse(args[6]);
+        int cc1Pm=args.Length>7?int.Parse(args[7]):-1;
+        int tkPm=args.Length>8?int.Parse(args[8]):8;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbPm=b+0x1a1b5b8;
+        var getVCPm=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcPm=getVCPm(0);
+        var lPm=new float[512]; var rPm=new float[512];
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpPm); flush();
+        fixed(float* pl=lPm,pr=rPm) for(int i=0;i<8;i++) process(pl,pr,512);
+
+        int sent=0;
+        foreach(var line in linesPm){
+            var s=line.Trim(); if(s.Length==0||s.StartsWith("#")) continue;
+            var parts=s.Split(new[]{' ','\t'}, StringSplitOptions.RemoveEmptyEntries);
+            var msg=new byte[parts.Length];
+            for(int i=0;i<parts.Length;i++) msg[i]=Convert.ToByte(parts[i],16);
+            SendSysEx(msg); ++sent;
+        }
+        flush();
+        fixed(float* pl=lPm,pr=rPm) for(int i=0;i<4;i++) process(pl,pr,512);
+        if(cc1Pm>=0){ shortIn((uint)(0xB0|chPm|(1<<8)|(cc1Pm<<16)),0); flush(); }
+        fixed(float* pl=lPm,pr=rPm) for(int i=0;i<4;i++) process(pl,pr,512);
+
+        // The part array lives on the heap and the base is re-read every time rather than cached:
+        // a reset or a reallocation between renders would leave a stale pointer reading nothing.
+        long PartPm(int ch)=>(*(long*)(b+0x1a222a0))+(long)ch*0x488;
+        Console.WriteLine($"replayed {sent} sysex; channel {chPm} note {ntPm} vel {vlPm} map {mpPm} cc1 {cc1Pm}");
+        Console.WriteLine($"  g_part_array_base    = 0x{*(long*)(b+0x1a222a0):x}");
+        for(int ch=0; ch<4; ch++)
+            Console.WriteLine($"  ch{ch}: 0x3a2 raw={*(short*)(PartPm(ch)+0x3a2)}"
+                + $" 0x3ba scaled={*(short*)(PartPm(ch)+0x3ba)}");
+        shortIn((uint)(0x90|chPm|(ntPm<<8)|(vlPm<<16)),0); flush();
+        for(int tk=0;tk<tkPm;tk++) fixed(float* pl=lPm,pr=rPm) process(pl,pr,320);
+        Console.WriteLine($"  after note: ch{chPm} 0x3a2 raw={*(short*)(PartPm(chPm)+0x3a2)}"
+            + $" 0x3ba scaled={*(short*)(PartPm(chPm)+0x3ba)}");
+        // The live pitch, which is what the resampler is finally driven by: g_voice_ramp_pitch
+        // carries the base plus every modulation term -- matrix, LFO, envelope -- so comparing it
+        // against a port's own ratio tests the whole chain rather than one term of it.
+        // 1 unit = 375/512 milli-semitones.
+        for(int v=0;v<64;v++){
+            if((*(byte*)(fbPm+v*0x50)&1)==0) continue;
+            long pv=vcPm+(long)v*0x220;
+            long rp=b+(0x181a1cbf0L-0x180000000L)+(long)v*0x18;
+            int cur=*(int*)(rp+8), tgt=*(int*)(rp+0xc);
+            Console.WriteLine($"  voice{v}: base 0x1fc={*(int*)(pv+0x1fc)} 0x200={*(int*)(pv+0x200)}");
+            Console.WriteLine($"           pitchramp cur={cur} tgt={tgt}"
+                + $"  = {cur*375.0/512.0:0.0} / {tgt*375.0/512.0:0.0} mst");
         }
         return;
     }
