@@ -1703,6 +1703,7 @@ unsafe
         int chunk=args.Length>9?int.Parse(args[9]):32;
         int reads=args.Length>10?int.Parse(args[10]):48;
         bool xgs=args.Length<=11 || args[11]!="gs";
+        int c71b=args.Length>12?int.Parse(args[12]):-1;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         long fbs=b+0x1a1b5b8;
         var getVCs=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
@@ -1722,8 +1723,10 @@ unsafe
         int lane=-1, grp=-1;
         for(int v=0;v<64;v++){ if((*(byte*)(fbs+v*0x50)&1)==0) continue; lane=v&3; grp=v>>2; break; }
         if(lane<0){ Console.WriteLine("no sounding voice"); return; }
-        CCs(74,c74b); flush();
-        fixed(float* pl=ls,pr=rs) process(pl,pr,320);
+        CCs(74,c74b); if(c71b>=0) CCs(71,c71b); flush();
+        // Far enough past the control tick that the retarget has happened and the ramp is still
+        // running, so target and step can be read rather than inferred from the decoded trace.
+        fixed(float* pl=ls,pr=rs) process(pl,pr,448);
         // The cutoff ramp's own state -- the thing the revert of the ported ramps was blocked on.
         // The flag word carries the divider index in bits 3-4 and the rate sits at +0x2 of the
         // per-voice slot, neither tied back to any tone-table byte. Reading them off a live voice
@@ -1731,9 +1734,15 @@ unsafe
         {
             long slot = b + (0x181a10740L - 0x180000000L) + (long)(grp * 4 + lane) * 0x18;
             ushort flag = *(ushort*)slot;
-            Console.WriteLine($"ramp: flag=0x{flag:X4} divider_index={(flag >> 3) & 3} active={flag & 1}"
+            Console.WriteLine($"rampC(f): flag=0x{flag:X4} divider_index={(flag >> 3) & 3} active={flag & 1}"
                 + $" rate={*(short*)(slot + 2)} current={*(int*)(slot + 8)}"
                 + $" target={*(int*)(slot + 12)} step={*(int*)(slot + 16)}");
+            // voice_ctrl_ramp_d's own slot, the damping side. Same layout, different law.
+            long slotd = b + (0x181a0fb40L - 0x180000000L) + (long)(grp * 4 + lane) * 0x18;
+            ushort flagd = *(ushort*)slotd;
+            Console.WriteLine($"rampD(q): flag=0x{flagd:X4} divider_index={(flagd >> 3) & 3} active={flagd & 1}"
+                + $" rate={*(short*)(slotd + 2)} current={*(int*)(slotd + 8)}"
+                + $" target={*(int*)(slotd + 12)} accum={*(int*)(slotd + 16)}");
         }
         Console.WriteLine($"sample,f,q  (cc74 {c74a} -> {c74b} at sample 0, chunk {chunk})");
         for(int i=0;i<reads;i++){
