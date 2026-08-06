@@ -1881,8 +1881,15 @@ unsafe
             int cur=*(int*)(rp+8), tgt=*(int*)(rp+0xc);
             long blk=*(long*)(pv+0x150);
             Console.WriteLine($"  voice{v}: base 0x1fc={*(int*)(pv+0x1fc)} 0x200={*(int*)(pv+0x200)}"
-                + $" | voice 0x168={*(byte*)(pv+0x168)} 0x169={*(byte*)(pv+0x169)}"
-                + $" | block+0x17={*(byte*)(blk+0x17)} block+0x13={*(byte*)(blk+0x13)}");
+                + $" | voice 0x168={*(byte*)(pv+0x168)} 0x169={*(byte*)(pv+0x169)}");
+            // The whole partial parameter block, so a port's own view can be aligned against it
+            // byte for byte rather than one index at a time.
+            Console.Write("  block:");
+            for(int i=0;i<0x40;i++){
+                if(i%16==0) Console.Write($"\n    {i:X2}: ");
+                Console.Write($"{*(byte*)(blk+i):X2} ");
+            }
+            Console.WriteLine();
             Console.WriteLine($"           pitchramp cur={cur} tgt={tgt}"
                 + $"  = {cur*375.0/512.0:0.0} / {tgt*375.0/512.0:0.0} mst");
         }
