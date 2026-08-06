@@ -1952,6 +1952,9 @@ unsafe
     if (args.Length > 1 && args[1] == "predtrace")
     {
         int pg=args.Length>2?int.Parse(args[2]):12, nt=args.Length>3?int.Parse(args[3]):60, nsamp=args.Length>4?int.Parse(args[4]):700, map=args.Length>5?int.Parse(args[5]):4;
+        // Which of a multi-partial tone's voices to follow. Tracing only the first cannot see a
+        // *relative* decode error between two partials, which is the case this was extended for.
+        int want=args.Length>6?int.Parse(args[6]):0;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         long fbP=b+0x1a1b5b8, ssP=b+0x1a1b570;
         void CCp(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
@@ -1962,7 +1965,8 @@ unsafe
         fixed(float* pl=l,pr=r) for(int i=0;i<8;i++) process(pl,pr,512);
         shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
         int v0=-1; for(int tr=0;tr<16 && v0<0;tr++){ fixed(float* pl=l,pr=r) process(pl,pr,16);
-            for(int v=0;v<64;v++){ if((*(byte*)(fbP+v*0x50)&1)!=0){ v0=v; break; } } }
+            int seen=0;
+            for(int v=0;v<64;v++){ if((*(byte*)(fbP+v*0x50)&1)!=0){ if(seen++==want){ v0=v; break; } } } }
         if(v0<0){ Console.WriteLine("no voice"); return; }
         long st=ssP+(long)v0*0x50;
         Console.WriteLine($"predtrace prog={pg} note={nt} voice={v0}");
