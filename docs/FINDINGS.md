@@ -5198,3 +5198,52 @@ part array, so its destination is elsewhere and is not yet identified.
 \note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is
 simply a second entry point into the same map has not been settled.
+
+## The reverb has no phase register; it has one shared ring and a handful of IIR states `[confirmed]`
+
+Seeding the chorus LFO's accumulator closed most of `panwet.mid`'s wet-placement gap, which raised
+the obvious next question: does the reverb have an equivalent register to seed? **It does not. It has
+no LFO at all.**
+
+`fx_reverb_process @ 180086140` is a plain Schroeder/Dattorro tank. Its per-sample state is:
+
+- `DAT_181a62aa0` — a DC blocker accumulator, the same `0.99804` / `-0.003919` design used
+  everywhere else,
+- `DAT_181a62aa4` — the input lowpass, `state * aa8 + aac * input`,
+- the allpass and tank states behind the pointers at `0x181a62ab0`–`0x181a62ad8`,
+- and a cursor it does **not** own.
+
+Nothing in it advances by a fixed increment the way `_DAT_181a62af8 += DAT_181a62afc` does in
+`fx_chorus_stage_l`. There is no phase to align.
+
+### One delay memory, one cursor, shared
+
+`g_fx_delay_mem` is a single 65536-entry ring and `DAT_181a62a34` is a single write cursor into it.
+`fx_chorus_stage_l`, `fx_chorus_stage_r` and `fx_reverb_process` all read that cursor at the top of
+their block loop, walk a local copy down one per sample across 32 samples, and `fx_process_block`
+decrements the global by `0x20` once afterwards to match. The effects occupy disjoint regions by tap
+offset — the reverb's input write is at `cursor + 0x1000`, which is where a port's own
+`input_tap` constant comes from.
+
+A reimplementation giving each effect its own ring and its own cursor is equivalent while the
+regions stay disjoint, but it is worth knowing they are one on the module: a reset that cleared the
+memory would clear all of them together.
+
+### How much is left for it to explain
+
+Measured, and the answer is "not much". 512 warm-up blocks is **exactly three chorus periods** —
+`512 * 512 * 192 = 3 * 2^24` — so warm-ups of 6 and 518 blocks enter a song with an identical chorus
+phase, and both readings confirm 2992128. Rendering `panwet.mid` at both:
+
+    warm-up   6 blocks   a3796064...
+    warm-up 518 blocks   1938cbee...
+    worst-window balance difference between them:  0.0289
+
+So state that free-runs *beyond* the chorus phase is real but small. Against the 0.1416 that a
+phase-aligned port still differs from the module by on the same file, it is at most a fifth. The
+remaining four fifths are not history at all — they are a genuine difference in where the wet is
+placed, and no amount of seeding will reach them.
+
+> Which makes "multiple state variables" the right description and the wrong lead. There is no
+> single register; there is ring content plus three or four IIR accumulators, all carrying whatever
+> the warm-up left. Seeding them would buy 0.03.
