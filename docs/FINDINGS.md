@@ -5215,6 +5215,43 @@ engine renders `darkness3.mid` at a peak of 20675 -- within one percent of the m
 `49` stripped (20488), and far from its real one (24253). The bulk dump is doing its job; the
 remaining gap is a family nothing here decodes.
 
+### A single flush drops everything past about 6 KB `[measured]`
+
+`darkness3.mid` plays a string ensemble on channel 9 through the module and a piano through this
+port. The file explains both sounds: its `48` bulk dump sets block 9 to program 48, Strings Ensemble
+1, and it also sends `PROG ch9 = 0`, Acoustic Grand Piano. What it does not explain is the winner --
+the plain program change is delivered *after* the dump by both sequencers.
+
+**The plain one never happens at all.** Removing it from the file leaves the module's render
+byte-identical, at every sampled point.
+
+It is not deferral, and it is not a type ordering. Sent by hand, the module honours arrival order
+exactly: dump then program change leaves program 0, program change then dump leaves 48 -- and the
+same either way with both queued before a single `TG_flushMidi`, so nothing about a bulk dump's
+buffer allocation delays its application.
+
+**It is capacity.** Feeding the file's own tick-0 burst and then a program change, the winner flips
+on the length of the prefix:
+
+| events fed first | trailing program change |
+|---|---|
+| 8, 20, 40, 44, 45, 46 | applied |
+| **47**, 48, 52, 60, 104 | **dropped** |
+
+Forty-six of these messages is 6,132 bytes and forty-seven is 6,270. Past that, a message enqueued
+before `TG_flushMidi` runs is discarded rather than queued, and the discard is right there in the
+flush -- it moves each ring entry to the ready buffer only `if (sVar4 < DAT_181a63492)` and drops it
+otherwise, with no error and no back-pressure.
+
+`darkness3.mid`'s tick-0 burst is 104 events: thirty `48` messages, thirty `49`, then nine program
+changes. Every one of those program changes falls past the limit, which is why blocks 5, 6, 9 and 12
+all end on the dump's programs -- 33, 48, 48 and 30 -- rather than the file's. Replaying the burst
+verbatim and reading the part bytes shows exactly that.
+
+**So a port that applies every event it is given renders these files differently, and correctly
+implementing the dump makes the divergence worse rather than better** -- the dump's programs are now
+right, and then the file's overwrite them.
+
 ### The module does not reorder SysEx against channel messages `[confirmed]`
 
 Worth settling before blaming an ordering for anything, because it is the obvious suspect whenever a

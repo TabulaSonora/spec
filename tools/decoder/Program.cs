@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1970,6 +1970,70 @@ unsafe
         Console.WriteLine($"  written again                    : {Read():x2}");
         Prog(zother);
         Console.WriteLine($"  after program change to kit {zother,-4} : {Read():x2}   <- a different kit");
+        return;
+    }
+
+    // progorder mode: when a bulk dump and a plain program change both name a part's patch, which
+    //   wins? `darkness3.mid` sets block 9 to program 48 in its `48` dump and also sends
+    //   `PROG ch9 = 0`, and the module plays the dump's choice -- removing the program change from
+    //   the file leaves its render byte-identical, so the plain one has no effect at all. Delivery
+    //   order says it should: both sequencers put track 0's SysEx before track 6's program change.
+    //
+    //   This reads the part's own bank and program bytes rather than inferring from audio, and can
+    //   send the two in either order.
+    //   args: dll progorder <hexfile> <block> <program> [progfirst]
+    if (args.Length > 1 && args[1] == "progorder")
+    {
+        string gpath = args[2];
+        int gblock = int.Parse(args[3]);
+        int gprog = int.Parse(args[4]);
+        bool gfirst = args.Length > 5 && args[5] == "progfirst";
+        // Whether to render a block between the two. A file does not: every event at tick 0 is
+        // enqueued before a single `process` call, so if the module resolves a whole flush in an
+        // order of its own rather than in arrival order, that only shows without the gap.
+        bool ggap = !(args.Length > 6 && args[6] == "nogap");
+        int gchan = gblock == 0 ? 9 : (gblock < 10 ? gblock - 1 : gblock);
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset(); flush();
+        var gl = new float[512]; var gr = new float[512];
+        fixed (float* pl = gl, pr = gr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        long garr = *(long*)(b + 0x1a222a0);
+        long gpart = garr + (long)gblock * 0x488;
+        void Show(string when) =>
+            Console.WriteLine($"  {when,-32} bank {*(byte*)(gpart + 0x3d4):x2}  "
+                              + $"program {*(byte*)(gpart + 0x3d5):x2} ({*(byte*)(gpart + 0x3d5)})");
+        void SendProg() { shortIn((uint)((0xC0 | gchan) | (gprog << 8)), 0);
+                          if (ggap) { flush(); fixed (float* pl = gl, pr = gr) process(pl, pr, 512); } }
+        void SendDump()
+        {
+            foreach (string line in File.ReadAllLines(gpath))
+            {
+                string hex = line.Trim();
+                if (hex.Length < 4) continue;
+                var msg = new byte[hex.Length / 2];
+                for (int i = 0; i < msg.Length; i++)
+                    msg[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+                // A channel message rather than SysEx: the file's own burst mixes both, and the
+                // whole point is to feed them in exactly the order the sequencer would.
+                if (msg[0] < 0xF0)
+                    shortIn((uint)(msg[0] | (msg.Length > 1 ? msg[1] << 8 : 0)
+                                   | (msg.Length > 2 ? msg[2] << 16 : 0)), 0);
+                else { fixed (byte* mp = msg) longIn(mp, 0); }
+            }
+            if (ggap) { flush(); fixed (float* pl = gl, pr = gr) process(pl, pr, 512); }
+        }
+
+        Console.WriteLine($"block {gblock} (channel {gchan + 1}), plain program {gprog}, "
+                          + (gfirst ? "program change FIRST" : "dump FIRST"));
+        Show("after GS reset");
+        if (gfirst) { SendProg(); if (ggap) Show("after the program change"); SendDump(); if (ggap) Show("after the dump"); }
+        else { SendDump(); if (ggap) Show("after the dump"); SendProg(); if (ggap) Show("after the program change"); }
+        if (!ggap)
+        {
+            flush();
+            fixed (float* pl = gl, pr = gr) process(pl, pr, 512);
+            Show("after one flush, both queued");
+        }
         return;
     }
 
