@@ -2703,6 +2703,10 @@ unsafe
         string csvl=args.Length>5?args[5]:"lfotrace.csv"; int vll=args.Length>6?int.Parse(args[6]):100;
         int bkl=args.Length>7?int.Parse(args[7]):0;   // CC0 bank MSB (the SFX "variations")
         int mpl=args.Length>8?int.Parse(args[8]):0;  // tone map 1-4; 0 leaves the GS reset default
+        // Optional second channel struck on the SAME tick, to settle what a batch of simultaneous
+        // note-ons costs the shared generator. Each LFO node initialised takes one draw at +0x7a,
+        // so reading both notes' nodes back tells you the count without inferring it from audio.
+        int ch2l=args.Length>9?int.Parse(args[9]):-1;
         setSR((float)SRl); setBS(512); activate((float)SRl,512); setThr();
         var getLFO=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c340);
         var ll=new float[512]; var rl=new float[512];
@@ -2710,8 +2714,13 @@ unsafe
         if(mpl>=1&&mpl<=4) for(int c=0;c<16;c++) ToneMap0(c,mpl);
         flush(); fixed(float* pl=ll,pr=rl) for(int i=0;i<8;i++) process(pl,pr,512);
         void CCl(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        void CCl2(int ch,int c,int v)=>shortIn((uint)((0xB0|ch)|(c<<8)|(v<<16)),0);
         CCl(0,bkl);CCl(32,0);CCl(7,127);CCl(10,64);CCl(91,0);CCl(93,0);
-        shortIn((uint)(0xC0|(pgl<<8)),0); flush();
+        shortIn((uint)(0xC0|(pgl<<8)),0);
+        if(ch2l>=0){ CCl2(ch2l,0,bkl);CCl2(ch2l,32,0);CCl2(ch2l,7,127);CCl2(ch2l,10,64);
+                     CCl2(ch2l,91,0);CCl2(ch2l,93,0);
+                     shortIn((uint)((0xC0|ch2l)|(pgl<<8)),0); }
+        flush();
         long pool=getLFO(0);
         Console.WriteLine($"  LFO pool @ 0x{pool:X}");
         // voices_control_update (line 73547) does pcVar11 = pool+1 then tests pcVar11[1], i.e.
@@ -2725,7 +2734,9 @@ unsafe
         var sbl=new System.Text.StringBuilder(
             "t_ms,obj,type,wavesel,rate,phase,out,delay_rate,delay_acc,fade_rate,fade_acc,"
            +"dep_tva,dep_tvf,dep_pitch,mod_tva,mod_tvf,mod_pitch,mod_pitch_sm\n");
-        shortIn((uint)(0x90|(ntl<<8)|(vll<<16)),0); flush();
+        shortIn((uint)(0x90|(ntl<<8)|(vll<<16)),0);
+        if(ch2l>=0) shortIn((uint)((0x90|ch2l)|(ntl<<8)|(vll<<16)),0);
+        flush();
         int ticks=(int)(hsl*100);
         for(int t=0;t<ticks;t++){
             fixed(float* pl=ll,pr=rl) process(pl,pr,320);      // exactly one 100 Hz control tick

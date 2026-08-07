@@ -4085,13 +4085,14 @@ A new harness mode `notebatch` renders a whole sweep of single notes in one proc
 otherwise dominates — writing raw interleaved float32 so nothing is rounded on the way out.
 
 > **Do not harvest a fixture that way.** `notebatch` puts a `GsReset()` between cases under a
-> comment asserting a case "must not depend on what preceded it", and for a tone with a random LFO
-> that is false: the shared LFO nodes carry their random registers at `+0x77`, a reset frees the
-> nodes without zeroing them, and the next case opens on the previous case's values. Measured, this
-> moved 45 of 238 cases by more than half a cent, the largest by 62.7. **Only the first case in a
-> `notebatch` file is genuinely isolated.** Harvest one case per process — that parallelises fine,
-> and wine start-up stops dominating once the cases run concurrently. Keep `notebatch` for a quick
-> look. See "The shared LFO node pool" below.
+> comment asserting that a case "must not depend on what preceded it", and that is false. **The GS
+> reset does not reseed `prng_lfsr`**, and every note-on spends `partials + 1` draws on it before a
+> parameter is read — one per LFO node the note claims. So the generator's position at the start of
+> case N is a function of every case before it, and that reaches the random pan and both pitch
+> jitters as well as the random LFO shapes. Measured, this moved 45 of 238 cases by more than half
+> a cent, the largest by 62.7. **Only the first case in a `notebatch` file is genuinely isolated.**
+> Harvest one case per process — that parallelises fine, and wine start-up stops dominating once the
+> cases run concurrently. Keep `notebatch` for a quick look. See "The shared LFO node pool" below.
 
 ## The XG fault, bisected: an unchecked part index, and the file is the one at fault `[confirmed]`
 
@@ -4875,15 +4876,33 @@ a LIFO freelist at `g_partial_shared_node_freelist` with a refcount at `+3`.
 - **LFO2 is one node per partial.**
 - Bit 5 of the tone header's `+0x0e` (`block[0x06]`) is the selector between the two behaviours.
 
-`partial_shared_node_alloc` resets only the link fields. `partial_shared_node_free` clears the tick
-gate and pushes the slot back. The random shapes' two registers at `+0x77` — the value last drawn
-and the value walking toward it — have **exactly one writer in the whole decompilation**, the
-per-tick save-back. Nothing zeroes them on claim, on free, or on `GsReset()`.
+`partial_shared_node_alloc` resets only the link fields and `partial_shared_node_free` clears the
+tick gate and pushes the slot back — but the node is **fully initialised at note-on regardless**.
+`note_on_voice_setup @ 18005f5c0` writes phase from the waveform byte's top two bits, zeroes out,
+the delay and fade accumulators and the slewed register, writes the rate and delay, and then:
 
-So a note that claims a recycled slot opens its sample-and-hold on whatever the previous note left
-there. Within a piece of music that is just what the instrument does. Across cases in a harvested
-fixture it is contamination, which is the entry above.
+```
+uVar14 = prng_lfsr();
+*(undefined2 *)(pcVar23 + 0x7a) = uVar14;
+```
 
-A port that starts these registers at zero is making a departure, not implementing the module —
-worth stating explicitly, because the departure is invisible until something compares two renders
-that ran in different orders.
+**`+0x7a` is the random shapes' held register, and it is seeded from the generator on every note.**
+Map `lfo_advance_waveform`'s globals onto the node and it falls out: out `+0x70`, phase `+0x72`,
+slewed `+0x78`, held `+0x7a`. An earlier revision of this entry put held at `+0x77` and concluded
+that a recycled node opens on the previous note's values; that was wrong, and `scdec lfotrace`
+disproves it directly — on `Bubble` a freshly claimed node reads **20373** at its first control tick
+with no wrap having happened, and 20373 is the first draw from the `0xEFA6`/`0x9C23` seeds.
+
+The write is unconditional, so a triangle spends a draw it will never read. That is what makes a
+note's cost `partials + 1`: one LFO1 node plus one LFO2 node per partial, each taking one value.
+Confirmed for a batch as well as a single note — two notes struck on the same tick on two channels
+seed their LFO1 nodes at draws **1 and 4**, the two LFO2 nodes of the first note taking 2 and 3. A
+batch of simultaneous notes costs the full sum, not one note's worth.
+
+The one branch that inherits is the **part-level** one. When `+0xa0` is non-zero — the case bit 5 of
+the waveform byte selects — phase, out, held and slewed are all copied from the parent node instead
+of initialised, which is how a part-level LFO outlives the note that claimed it.
+
+A port that starts these registers at zero is making a departure, not implementing the module — it
+silences the whole first cycle of a sample-and-hold, which on a slow LFO is a quarter of a second of
+the note.
