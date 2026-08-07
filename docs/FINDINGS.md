@@ -5195,6 +5195,30 @@ found.
 `49` is a separate question. It carries 2,738 file-hits in the same shape and writes nothing to the
 part array, so its destination is elsewhere and is not yet identified.
 
+### `49` is audible, and it is worth about 1.9 dB `[measured]`
+
+That "not yet identified" had been standing in for "probably minor". It is not. `darkness3.mid`
+sends the **complete `49` family** -- 29 messages, `49 00 00` through `49 1e 00` -- alongside its
+complete `48` dump, and rendering it through the module with those messages stripped changes the
+result outright:
+
+| module render | peak | RMS |
+|---|---|---|
+| as the file stands | 24253 | 2339 |
+| `49` messages removed | 20488 | 1875 |
+
+93,147 of 95,594 sampled points differ, and the level drops 1.9 dB. So `49` is not a status message
+or a duplicate of `48`; it changes what the module plays.
+
+**And it accounts for what this port is missing on that file.** With `48` fully implemented, this
+engine renders `darkness3.mid` at a peak of 20675 -- within one percent of the module's render with
+`49` stripped (20488), and far from its real one (24253). The bulk dump is doing its job; the
+remaining gap is a family nothing here decodes.
+
+`blkdiff` reports `49 xx 00` writing nothing to the part array, so the destination is somewhere
+else. The dispatcher's table is selected by `a1` in `sysex_select_param_map`, so start by following
+which table `0x49` picks rather than by probing the part array again.
+
 \note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is
 simply a second entry point into the same map has not been settled.
