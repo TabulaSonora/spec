@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3710,6 +3710,80 @@ unsafe
                     Console.Write($"   f32 {af:G6} -> {cf:G6}");
             }
             Console.WriteLine();
+        }
+        return;
+    }
+
+    // buscap mode: read memory between 32-sample blocks, while a note sounds.
+    //
+    // **It does not work for the send buses it was written for, and that is the finding.** A bus is
+    // filled by the send mix and consumed by its effect stage inside one block, and it is then
+    // *cleared*: stepping the engine a block at a time and reading `0x181a190f0` immediately after
+    // returns 2.0003e-05 every block with a note sounding, which is the module's not-quite-zero
+    // idiom rather than audio. Its source at `0x181a195f0` reads 9.7647e-06, the same. So a bus
+    // cannot be observed from outside `process` at all -- reading one means interrupting the module
+    // mid-call, which is patching rather than driving.
+    //
+    // What it is still good for is anything that persists across a block: rings, cursors, and
+    // coefficients caught part-way through a ramp.
+    //
+    // 32 is the engine's own block. `process(pl, pr, 32)` advances exactly one, which is what makes
+    // "immediately after" mean anything; asking for 512 runs sixteen of them and shows only the
+    // last. Two addresses are read each step so a source and its destination can be compared in the
+    // same pass -- `0x181a195f0` feeds the mix and `0x181a190f0` is the chorus's input.
+    //
+    //   args: dll buscap <vaA> <vaB> <floats> <blocks> [prog] [note] [cc] [ccval] [map]
+    if (args.Length > 1 && args[1] == "buscap")
+    {
+        long vaA   = Convert.ToInt64(args[2], 16);
+        long vaB   = Convert.ToInt64(args[3], 16);
+        int floats = args.Length > 4 ? int.Parse(args[4]) : 32;
+        int blocks = args.Length > 5 ? int.Parse(args[5]) : 24;
+        int pg     = args.Length > 6 ? int.Parse(args[6]) : 38;
+        int nt     = args.Length > 7 ? int.Parse(args[7]) : 60;
+        int cc     = args.Length > 8 ? int.Parse(args[8]) : 93;
+        int ccval  = args.Length > 9 ? int.Parse(args[9]) : 127;
+        int map    = args.Length > 10 ? int.Parse(args[10]) : 1;
+
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        void CCb(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+        GsReset();
+        if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
+        CCb(7, 110); CCb(10, 94); CCb(91, 0); CCb(93, 0); CCb(cc, ccval);
+        shortIn((uint)(0xC0 | (pg << 8)), 0);
+        flush();
+
+        var lb = new float[512]; var rb = new float[512];
+        // Settle before the note, so the send coefficient has finished its ramp.
+        fixed (float* pl = lb, pr = rb) for (int i = 0; i < 40; i++) process(pl, pr, 512);
+
+        shortIn((uint)(0x90 | (nt << 8) | (100 << 16)), 0); flush();
+
+        // Establish the note with full blocks before stepping. A 32-sample `process` does not
+        // appear to walk the MIDI ring -- stepping straight from the note-on leaves the part
+        // silent however long you step for, which reads as an empty bus rather than as a note that
+        // never started. `fxgain` does the same thing for the same reason.
+        fixed (float* pl = lb, pr = rb) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+
+        float* A = (float*)(b + (vaA - 0x180000000L));
+        float* B = (float*)(b + (vaB - 0x180000000L));
+        Console.WriteLine($"buscap cc{cc}={ccval} prog={pg} note={nt} map={map}, {floats} floats");
+        Console.WriteLine($"  A = 0x{vaA:X}   B = 0x{vaB:X}");
+        Console.WriteLine("  block   A rms      A peak     B rms      B peak");
+        var step = new float[32]; var stepR = new float[32];
+        for (int blk = 0; blk < blocks; blk++)
+        {
+            fixed (float* pl = step, pr = stepR) process(pl, pr, 32);
+            double ra = 0, rb2 = 0, pa = 0, pb = 0;
+            for (int i = 0; i < floats; i++)
+            {
+                double a = A[i], bb = B[i];
+                ra += a * a; rb2 += bb * bb;
+                if (Math.Abs(a) > pa) pa = Math.Abs(a);
+                if (Math.Abs(bb) > pb) pb = Math.Abs(bb);
+            }
+            Console.WriteLine($"  {blk,5}   {Math.Sqrt(ra / floats),-10:G5} {pa,-10:G5} "
+                              + $"{Math.Sqrt(rb2 / floats),-10:G5} {pb,-10:G5}");
         }
         return;
     }
