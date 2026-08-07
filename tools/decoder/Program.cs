@@ -379,7 +379,12 @@ unsafe
     //   loader writes `g_env_startphase_b[min(duration,10)]` there, and `voice_block_process` hands
     //   it on as `value + 0x4000` to the per-voice amplitude ramp's rate word -- so it is how fast
     //   the anti-zipper ramp chases the envelope, chosen per segment. The table is 512/n.
+    //   **Render in 32-sample chunks, not 16.** The gain buffer holds 16 entries and the engine
+    //   refills it once per 32-sample block, so a 16-sample call reads the same 16 values twice and
+    //   the trace comes out looking like a staircase of 32-sample treads that does not exist. One
+    //   entry is two output samples. Measured by rendering the same note both ways.
     //   args: dll envtrace <msb> <lsb> <prog> <note> <vel> <holdSamples> <traceSamples> [map] [ch]
+    //         [chunk]
     if (args.Length > 1 && args[1] == "envtrace")
     {
         int emsb = int.Parse(args[2]), elsb = int.Parse(args[3]), eprog = int.Parse(args[4]);
@@ -387,6 +392,7 @@ unsafe
         int ehold = int.Parse(args[7]), etrace = int.Parse(args[8]);
         int emap = args.Length > 9 ? int.Parse(args[9]) : 2;
         int ech = args.Length > 10 ? int.Parse(args[10]) & 15 : 0;
+        int echunk = args.Length > 11 ? int.Parse(args[11]) : 16;
         setSR(32000f); setBS(512); activate(32000f, 512); setThr();
         long efb = b + 0x1a1b5b8;
         var getVCe = (delegate* unmanaged[Cdecl]<int, long>)(b + 0x5c360);
@@ -431,16 +437,20 @@ unsafe
                 shortIn((uint)((0x80 | ech) | (enote << 8) | (64 << 16)), 0); flush();
                 released = true;
             }
-            fixed (float* pl = el, pr = er) process(pl, pr, 16);
-            var cols = new System.Collections.Generic.List<string>();
-            foreach (int v in voices)
-            {
-                long gb = b + 0x1a1d830 + (v & 3) * 0x40 + (v >> 2) * 4;
-                cols.Add($"{*(float*)(gb + 15 * 4):0.000000}");
-            }
+            fixed (float* pl = el, pr = er) process(pl, pr, (uint)echunk);
             long p0 = evc + (long)voices[0] * 0x220;
-            Console.WriteLine($"{done}," + string.Join(",", cols) + $",{*(ushort*)(p0 + 0x0e)}");
-            done += 16;
+            for (int k = 0; k < 16; k++)
+            {
+                var cols = new System.Collections.Generic.List<string>();
+                foreach (int v in voices)
+                {
+                    long gb = b + 0x1a1d830 + (v & 3) * 0x40 + (v >> 2) * 4;
+                    cols.Add($"{*(float*)(gb + k * 4):0.000000}");
+                }
+                Console.WriteLine($"{done + k}," + string.Join(",", cols)
+                                  + $",{*(ushort*)(p0 + 0x0e)}");
+            }
+            done += echunk;
         }
         return;
     }
