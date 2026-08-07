@@ -5215,6 +5215,31 @@ engine renders `darkness3.mid` at a peak of 20675 -- within one percent of the m
 `49` stripped (20488), and far from its real one (24253). The bulk dump is doing its job; the
 remaining gap is a family nothing here decodes.
 
+### The module does not reorder SysEx against channel messages `[confirmed]`
+
+Worth settling before blaming an ordering for anything, because it is the obvious suspect whenever a
+dump and a program change share a tick.
+
+**The module keeps one input ring.** `TG_ShortMidiIn` and `TG_LongMidiIn` both timestamp their
+message and enqueue it to the same `g_midi_in_ring_count`; `TG_flushMidi` moves what is due into the
+ready buffer, which drains to the per-port FIFOs in order. Nothing anywhere splits the queue by type
+or drains one class before another. Whatever order a host calls the two entry points in is the order
+the engine sees.
+
+**So the ordering is entirely the sequencer's, and the two here agree.** `SmfReader` sorts by
+`(tick, read order)` with the order counter running track by track, and `scdec`'s `Smf.Parse` sorts
+by exactly the same pair, assigned the same way. A format-1 file with its SysEx in track 0 and its
+program changes in tracks 2-10 therefore delivers **all the SysEx first** on both sides.
+
+That matters for `darkness3.mid`, which does precisely that: the `48` and `49` dumps at tick 0 in
+track 0, `PROG ch10 = 0` at tick 0 in track 7. Both engines receive the dump and then the program
+change, so any difference in what survives is a difference in *handling*, not in delivery.
+
+> One inconsistency inside `scdec` itself, worth knowing before trusting a probe: the `seq` mode
+> keeps short messages and SysEx in **two** lists and feeds every due short before any due SysEx,
+> which is not what `smf` does and not what the module does. `seq` is fine for what it was built for
+> and is the wrong tool for any question about ordering.
+
 ### `49` is the drum-set family, and the dispatch table has three dead entries `[confirmed]`
 
 `sysex_select_param_map @ 18006b4a0` switches on `a1`'s **low nibble** -- `0x40` takes case 0,
