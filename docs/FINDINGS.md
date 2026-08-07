@@ -5120,3 +5120,39 @@ XG tally is in the same output file.
 
 > The archive is not redistributable and neither are the files this picks. What belongs in the
 > repository is the method and this table.
+
+## GS voice reserve is inert on the SC-VA `[confirmed]`
+
+The census flagged `40 01 10`–`1F` as the most-sent parameter this port ignores: **2,641 of 131,997
+archive files set it**, more than any other dropped or unseen address. It is also the parameter that
+decides which part keeps its notes when the 64 voices run out, so it looked like the most valuable
+gap on the list.
+
+**It is not a gap. The module ignores it too.**
+
+Measured on a file that provably steals — 96 sustained notes across two parts, where the module's
+level rises only 1.5 dB from 48 notes where sounding all of them would give 3.0 — seven shapes of
+the message all render **byte-identical to sending nothing**:
+
+| what was sent | render |
+|---|---|
+| nothing | `b8380119…` |
+| block-ordered, 64 to channel 1 and 0 to channel 2 | `b8380119…` |
+| block-ordered, 0 and 64 — the opposite | `b8380119…` |
+| all sixteen bytes zero | `b8380119…` |
+| a flat 4 to every part, 64 total | `b8380119…` |
+| 64 in the first byte, whichever part that is | `b8380119…` |
+| sixteen single-byte DT1s, one per address | `b8380119…` |
+
+The variants cover the ways this could have been *apparently* inert while really being honoured: a
+wrong byte order (block versus channel), a wrong message shape (one DT1 of sixteen bytes versus
+sixteen of one), and a reservation landing on parts with no notes. None of them moves a sample.
+
+> Do not read `sysex_part_voice_reserve @ 180073dc0` as the handler for this. Its name is a guess
+> from the reverse engineering and the routine writes mono/poly bits at `part+0x3d9` and `part+0x12`
+> and calls `part_program_change` — an assign-mode parameter, not a reservation.
+
+So a file that reserves voices is asking for something the SC-VA does not provide, and a port that
+implements it would be *less* accurate, not more. Worth having written down: this is the second
+suspicion in the same census to resolve as the module agreeing with us, and a census produces
+suspicions much faster than it produces defects.
