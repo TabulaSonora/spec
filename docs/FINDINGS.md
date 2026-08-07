@@ -5341,6 +5341,37 @@ invisible to a diff. The ranges are what matter.)
 `darkness3.mid` sends `00`-`0e` and `10`-`1e`, fifteen messages a slot: seven pairs and one odd
 message on `+0x500`. **`0f` is never sent**, so the `+0x400` plane goes untouched by this file.
 
+### A drum program change clears the per-key setup, even to the kit already loaded `[measured]`
+
+Asked because this port resets `Part::drum_keys` whenever a drum program change resolves a kit, and
+`darkness3.mid` dumps its drum setup at tick 0 and sets programs at tick 0 -- so the dump survives
+about a block here. The module holds the same data in a buffer per *map* rather than per part, which
+left room for it to be conditional.
+
+It is not. `scdec drumreset` writes a value through `41 02 3c`, reads the buffer, sends a program
+change, and reads again:
+
+    after GS reset, before any write : 64
+    after the 41 write               : 30
+    after program change to kit 0    : 64      <- the kit already in force
+    written again                    : 30
+    after program change to kit 24   : 64      <- a different kit
+
+Both reseed. **So this port's unconditional reset is right**, and the earlier finding that a drum
+program change discards the overrides stands without qualification.
+
+Which leaves two measured facts in tension, and the tension is the useful part. Stripping only the
+`49` messages from `darkness3.mid` moves the module's render by 1.9 dB -- and that is controlled:
+rewriting the file through the same track writer while dropping *nothing* produces audio identical
+to the original at every sampled point, so the rewriter is not the variable. Yet the file sends its
+dump before a program change that provably wipes what the dump wrote.
+
+Both cannot be true of the same buffer, so something separates them. The two candidates worth
+testing first: the dump writes **both** kit slots (`a2` `00`-`0e` and `10`-`1e`) while a program
+change can only reseed the one the part is reading, so half the dump may survive untouched; and the
+`48` dump preceding it sets every part's bank, so `ch10 = 0` arriving afterwards may resolve no kit
+at all -- and a program change that resolves nothing reseeds nothing.
+
 ### The plane offsets, named `[confirmed]`
 
 Sweeping the per-parameter form `41 <(map << 4) | param> <key>` against the same eight buffers puts a
