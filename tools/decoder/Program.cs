@@ -941,13 +941,18 @@ unsafe
     //   live part struct each one moved. An address list copied from documentation -- or worse,
     //   from the XG block, which is laid out differently -- cannot be checked any other way, and a
     //   wrong entry is silent: the message is accepted and lands somewhere harmless.
-    //   args: dll partmap [prog] [ch] [firstAddr] [lastAddr]
+    //   args: dll partmap [prog] [ch] [firstAddr] [lastAddr] [blockBase: 10 or 40]
     if (args.Length > 1 && args[1] == "partmap")
     {
         int pmProg = args.Length > 2 ? int.Parse(args[2]) : 115;
         int pmCh = args.Length > 3 ? int.Parse(args[3]) : 0;
         int pmFirst = args.Length > 4 ? Convert.ToInt32(args[4], 16) : 0x00;
         int pmLast = args.Length > 5 ? Convert.ToInt32(args[5], 16) : 0x5F;
+        // Which part block to sweep. `10` is the ordinary one; `40` is the **extended** block, and
+        // it is where most of a part's record actually lives -- about 58 of the bytes a patch bulk
+        // dump carries have no `40 1x` address at all and are reached only from here. Sweeping just
+        // `10` leaves those looking undecodable when they are merely addressed elsewhere.
+        int pmBase = args.Length > 6 ? Convert.ToInt32(args[6], 16) : 0x10;
         const int WINDOW = 0x480;
         setSR(32000f); setBS(512); activate(32000f, 512); setThr();
         long fbM = b + 0x1a1b5b8;
@@ -978,7 +983,7 @@ unsafe
         for (int addr = pmFirst; addr <= pmLast; addr++)
         {
             // A value no default is likely to already hold, so a write that lands shows up.
-            SendSysEx(Dt1(0x40, (byte)(0x10 | BlockNum(pmCh)), (byte)addr, 0x33));
+            SendSysEx(Dt1(0x40, (byte)(pmBase | BlockNum(pmCh)), (byte)addr, 0x33));
             flush();
             fixed (float* pl = lm, pr = rm) process(pl, pr, 512);
             // The part pointer is cached rather than re-resolved from a sounding voice: some of
@@ -989,7 +994,7 @@ unsafe
             var moved = new System.Collections.Generic.List<string>();
             for (int off = 0; off < WINDOW; off++)
                 if (before[off] != after[off]) moved.Add($"+{off:X3}:{before[off]:X2}->{after[off]:X2}");
-            Console.WriteLine($"40 1x {addr:X2}  {(moved.Count == 0 ? "(no change)" : string.Join(" ", moved))}");
+            Console.WriteLine($"40 {pmBase:X}x {addr:X2}  {(moved.Count == 0 ? "(no change)" : string.Join(" ", moved))}");
             Array.Copy(after, before, WINDOW);
         }
         return;
