@@ -5156,3 +5156,45 @@ So a file that reserves voices is asking for something the SC-VA does not provid
 implements it would be *less* accurate, not more. Worth having written down: this is the second
 suspicion in the same census to resolve as the module agreeing with us, and a census produces
 suspicions much faster than it produces defects.
+
+## The `48` family is the GS patch bulk dump, and it is honoured `[confirmed]`
+
+The address census found `48 xx 00` in the archive at 5,659 file-hits, spread evenly over blocks
+`00`–`1d`, carrying multi-byte payloads and decoded by nothing. Unlike voice reserve, **this one is
+real**: taking a file that sends it (`WWTBAM.mid`, two messages) and rewriting just those two into
+harmless patch-name writes of the same length changes the module's render outright.
+
+`scdec blkdiff <a1> <a2> <a3> <value> <count>` sends one DT1 and diffs the whole part array either
+side of it. What it shows:
+
+    48 01 00   writes part[0] from +0x3d4 onward
+    48 02 00   writes part[0] +0x40c for 56 bytes, then spills into part[1] +0x012
+    48 1d 00   writes part[15] +0x43c, eight bytes
+    48 00 00   nothing
+    49 xx 00   nothing in the part array
+
+So `48 <page> 00` is a **linear image of every part's parameters, written 64 bytes at a time**, and
+the arithmetic closes exactly:
+
+    pages 0x01..0x1d  =  29 pages x 64 bytes  =  1856 bytes
+    1856 / 16 parts   =  116 bytes per part
+    the GS part block `40 1x 00`..`40 1x 73`  =  116 bytes
+
+That is the patch bulk dump — the message a Sound Canvas sends to save a whole performance and
+accepts to restore one. A file built by dumping a configured module carries its entire mixer in
+twenty-nine messages instead of a few hundred individual writes, which is why the shape appears so
+evenly across so many files.
+
+**A port that ignores it renders those files at defaults** — every part's volume, pan, sends, key
+shift, filter and envelope offsets, all of it. It is by a wide margin the largest gap the census
+found.
+
+> The nibble packing is the ordinary Roland one: the real files send 128 data bytes per message, all
+> values `0x0`–`0xf`, which is 64 bytes split high-nibble-first.
+
+`49` is a separate question. It carries 2,738 file-hits in the same shape and writes nothing to the
+part array, so its destination is elsewhere and is not yet identified.
+
+\note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
+`+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is
+simply a second entry point into the same map has not been settled.
