@@ -5221,10 +5221,24 @@ Worth settling before blaming an ordering for anything, because it is the obviou
 dump and a program change share a tick.
 
 **The module keeps one input ring.** `TG_ShortMidiIn` and `TG_LongMidiIn` both timestamp their
-message and enqueue it to the same `g_midi_in_ring_count`; `TG_flushMidi` moves what is due into the
-ready buffer, which drains to the per-port FIFOs in order. Nothing anywhere splits the queue by type
-or drains one class before another. Whatever order a host calls the two entry points in is the order
-the engine sees.
+message and enqueue it to the same `g_midi_in_ring_count`. `TG_flushMidi` moves what is due into the
+ready buffer, and `midi_drain_ready_to_ports` walks that buffer FIFO, masking the cable nibble and
+handing each event to `midi_port_enqueue` in arrival order.
+
+**The dispatcher below it *is* organised by class, and that is the part worth reading rather than
+assuming.** `midi_dispatch_flagged_ports` does not drain one queue; it tests bits 14, 13, 12 and 11
+of `DAT_181a74558` in that order and services a different kind of pending work under each. So a
+build in which SysEx raised its own bit really would process it ahead of channel messages.
+
+This build does not. **Bit 14 is the only one anything ever raises** -- twelve sites set `0x4000`,
+including every MIDI input path, and `| 0x2000`, `| 0x1000` and `| 0x800` do not appear in the
+listing at all. Under bit 14 the per-port FIFO is drained in arrival order and each event is
+dispatched through the table at `port_struct+0x30` indexed by its own CIN nibble, which is a
+per-event lookup and not a class sort. Short and long messages share that path.
+
+So the ordering the engine sees is the order the host called the entry points in, and the three
+lower branches are dead code in the same way three entries of the address table are unreachable --
+structure that would matter if anything drove it.
 
 **So the ordering is entirely the sequencer's, and the two here agree.** `SmfReader` sorts by
 `(tick, read order)` with the order counter running track by track, and `scdec`'s `Smf.Parse` sorts
