@@ -5293,6 +5293,50 @@ A port therefore cannot treat these messages independently. It has to carry the 
 state -- current part and cursor -- across the whole run of messages, exactly as a file that dumps a
 configured module produces them in order.
 
+### `part_param_write_all` transcribed: a plain byte writer with seven exceptions `[confirmed]`
+
+`part_param_write_all @ 18007b680` is called **once per payload byte**, and its state is
+`g_cur_part_base`, `g_sysex_write_cursor`, the running address `g_sysex_addr_idx`, and
+`DAT_181a222e8`, a remaining-byte count. Every byte does `DAT_181a222e8--` on the way out, and at
+zero the handler is replaced by `sysex_handler_noop` -- which is the *only* thing that ends a
+message.
+
+The **default** is the whole of it for most addresses:
+
+    *g_sysex_write_cursor = value;  g_sysex_write_cursor++;
+
+The switch is on the address, and it has seven exceptions. They repeat once per part at fixed
+offsets from that part's transition address `A`:
+
+| offset | what it does |
+|---|---|
+| `A + 0x000` | **Advance the part.** `g_cur_part_base = <next part>`, write `value` to `part+0x3d4` (bank MSB), cursor `= part+0x3d5`. |
+| `A + 0x008` | Tone-number high nibble. `value > 0x0f` takes a fallback through `DAT_181a74980`; otherwise `part+0x3d8 = table[n]*0x10 + value`. **Either way the part's voices are reset** — `part_voice_reset`, `part_notes_note_off`, and an unlink/insert in the priority list. |
+| `A + 0x00a` | **Program change.** Writes the byte, then branches on `part+0x3d9` bits `0x10`/`0x20` into `part_program_change` or `drum_part_program_change`, maintaining `part+0x12`'s low five bits as the kit index. |
+| `A + 0x0ae` | Write the byte and raise the effects-dirty flag `DAT_181a745b8 |= 8`. |
+| `A + 0x0b0` | A packed flag byte into `part+0x3ec`: bit 2 from `value & 0xfc`, bit 1 from `~value & 2`, bit 0 from `~value & 1`, written to both the current part and `lVar3`. |
+| `A + 0x0b2` | `part+0x44a = value` (the delay send) and `DAT_181a745b8 |= 8`. |
+| `A + 0x0d6` | `DAT_181a22518 = (int8)value << 7` — the **high half** of a 16-bit field, held rather than stored. |
+| `A + 0x20e` | `DAT_181a22518 += (int8)value + 0x2000`, then `*(short*)(part+0x448) = DAT_181a22518` — the **low half**, completing the pitch offset fine. |
+
+The transition addresses, read off the advance cases:
+
+    group 1   0x270 -> part 1   0x450 -> 2   0x630 -> 3   0x810 -> 4
+    group 2   0x970 -> part 5   0xb50 -> 6   0xd30 -> 7   0xf10 -> 8
+    group 3  0x1070 -> part 9  0x1250 -> 10 0x1430 -> 11 0x1610 -> 12
+    group 4  0x1770 -> part 13 0x1950 -> 14 0x1b30 -> 15
+
+**A stride of `0x1e0` within a group of four parts, and `0x160` between groups** — which is the
+seven-pages-to-four-parts geometry a third time, now from the address space itself. Every one of
+these also appears in `sysex_dt1_addr_dispatch` as an address that simply continues: they are
+mid-walk, so the dispatcher does nothing and the byte writer does the advance.
+
+Two things a port must not copy. The byte count is the *only* terminator, so a message whose payload
+runs longer than the address space expects keeps writing -- and with `g_cur_part_base` stale or a
+cursor left past the end of the array, the module walks off the end and faults. It does no bounds
+check anywhere in this path. A reimplementation should treat a discontinuous or overlong dump as
+**invalid data to be dropped**, not as something to reproduce faithfully.
+
 ## The reverb has no phase register; it has one shared ring and a handful of IIR states `[confirmed]`
 
 Seeding the chorus LFO's accumulator closed most of `panwet.mid`'s wet-placement gap, which raised
