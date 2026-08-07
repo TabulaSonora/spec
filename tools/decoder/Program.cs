@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -2512,6 +2512,75 @@ unsafe
             Console.WriteLine($"  voice{v}: 0x1fc={w1fc} 0x200={w200} delta={w200-w1fc}"
                 + $" state16c={*(byte*)(pv+0x16c)} flag4={*(byte*)(pv+4)} retrig1b0={*(byte*)(pv+0x1b0)}"
                 + $" -> {(w1fc==w200 ? "ADOPTED" : "not adopted")}");
+        }
+        return;
+    }
+    // stagedpitch mode: does the staged second-fine-tune pitch reach the sampler when something
+    //   later recomputes the increment?
+    //
+    //   The loop crossing copies voice+0x200 over voice+0x1fc without retuning anything -- postrace
+    //   shows the increment unchanged straight through it. The open question is what the staged
+    //   value is for. This answers it by bending the pitch twice over, once *before* the crossing
+    //   and once *after*, and reading the increment either side of each bend. If the staging is
+    //   inert, both bends multiply the increment by the same factor. If the recomputation picks the
+    //   staged word up, the later bend carries the term as well and its factor is larger by
+    //   2^(delta/12000).
+    //   args: dll stagedpitch <prog> <note> <vel> <map> <ticksBeforeBend> [ticksAfter]
+    if (args.Length > 1 && args[1] == "stagedpitch")
+    {
+        int pgs2=int.Parse(args[2]), nts2=int.Parse(args[3]), vls2=int.Parse(args[4]);
+        int mps2=int.Parse(args[5]), waitTicks=int.Parse(args[6]);
+        int after=args.Length>7?int.Parse(args[7]):6;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbs2=b+0x1a1b5b8, sss2=b+0x1a1b570;
+        var getVCs2=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcs2=getVCs2(0);
+        var ls3=new float[512]; var rs3=new float[512];
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mps2); flush();
+        fixed(float* pl=ls3,pr=rs3) for(int i=0;i<8;i++) process(pl,pr,512);
+        void CCs2(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        CCs2(0,0); CCs2(32,0); CCs2(7,127); CCs2(10,64); CCs2(91,0); CCs2(93,0);
+        shortIn((uint)(0xC0|(pgs2<<8)),0); flush();
+        fixed(float* pl=ls3,pr=rs3) process(pl,pr,512);
+        shortIn((uint)(0x90|(nts2<<8)|(vls2<<16)),0); flush();
+        for(int t=0;t<waitTicks;t++) fixed(float* pl=ls3,pr=rs3) process(pl,pr,320);
+
+        var before=new System.Collections.Generic.Dictionary<int,int>();
+        var words=new System.Collections.Generic.Dictionary<int,(int,int)>();
+        for(int v=0;v<64;v++){
+            if((*(byte*)(fbs2+v*0x50)&1)==0) continue;
+            long pv=vcs2+(long)v*0x220;
+            before[v]=*(int*)(b+(0x181a1cbf0L-0x180000000L)+(long)v*0x18+0x14);
+            words[v]=(*(int*)(pv+0x1fc), *(int*)(pv+0x200));
+        }
+        // Full bend up on the default two-semitone range, then watched tick by tick: the increment
+        // lives in the pitch ramp's slot (g_voice_ramp_pitch @181a1cbf0, stride 0x18, +0x14), not
+        // in the voice's own accumulator.
+        shortIn((uint)(0xE0|(0x7F<<8)|(0x7F<<16)),0); flush();
+        for(int t=0;t<after;t++){
+            fixed(float* pl=ls3,pr=rs3) process(pl,pr,320);
+            Console.Write($"  t+{t+1}:");
+            foreach(var k in before.Keys){
+                long rp2=b+(0x181a1cbf0L-0x180000000L)+(long)k*0x18;
+                long pv3=vcs2+(long)k*0x220;
+                Console.Write($" v{k} inc={*(int*)(rp2+0x14)} pitch6c={*(int*)(pv3+0x6c)}");
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine($"prog {pgs2} note {nts2} map {mps2}, bend sent after {waitTicks} ticks");
+        foreach(var kv in before){
+            int v=kv.Key;
+            int inc0=kv.Value;
+            long pv2=vcs2+(long)v*0x220;
+            int inc1=*(int*)(b+(0x181a1cbf0L-0x180000000L)+(long)v*0x18+0x14);
+            int pitchNow=*(int*)(pv2+0x6c);
+            var (w1fc,w200)=words[v];
+            double factor = inc0!=0 ? (double)inc1/inc0 : 0.0;
+            double cents = inc0!=0 ? 1200.0*System.Math.Log2((double)inc1/inc0) : 0.0;
+            Console.WriteLine($"  voice{v}: inc {inc0} -> {inc1}  factor {factor:0.000000} ({cents:+0.00;-0.00} cents)"
+                + $"   pitch6c={pitchNow} 0x1fc={w1fc} 0x200={w200}"
+                + $" staged={(w1fc==w200?"adopted":"pending")}");
         }
         return;
     }
