@@ -4936,3 +4936,39 @@ breaks the other.
 A port that starts these registers at zero is making a departure, not implementing the module — it
 silences the whole first cycle of a sample-and-hold, which on a slow LFO is a quarter of a second of
 the note.
+
+## The pitch key-follow pivot is middle C, and `block[0x13]` is tenths `[confirmed]`
+
+`block[0x13]` is the partial's pitch key-follow amount. `block[0x13] - 0x40` is **tenths of full
+follow** — 100 milli-semitones per semitone per tenth — with `0x4a` (ten tenths) the ordinary case
+and `0x40` no follow at all. Read off `scdec pitchword`, which reports the module's own computed
+pitch rather than an inference from audio:
+
+| `block[0x13]` | per octave | % |
+|---|---|---|
+| `0x41` | 1201 mst | 10 |
+| `0x42` | 2402 | 20 |
+| `0x43` | 3604 | 30 |
+| `0x4a` | 12000 | 100 |
+
+The residual against a straight line is the `g_kf_pitch` curve, a few milli-semitones.
+
+**The pivot is 60, not the partial's key centre at `block[0x04]`.** `multisample_key_zone @
+1800031f0` holds it in `uVar6`, which the reachable path sets with a literal `uVar6 = 0x3c`, and the
+same variable is what the interpolated step is added back to — so it fixes both the distance measured
+and the key returned. The key centre appears only in the B-table branch, where it offsets the *note*
+by `block[0x10] - block[0x04]` before a zone lookup. It is never the pivot.
+
+Worth stating because **no measurement can establish this**: every partial in the tone table has key
+centre 64, so a pivot of 60 and a pivot of 64 with a constant offset fit identically, and a constant
+offset is what a transpose byte looks like. A port that gets it wrong is out by
+`(key_centre - 60) * 100 * (10 - amount)` milli-semitones — nothing at full follow, which is 2,645 of
+the 3,438 present partials, and up to 3.6 semitones on the 772 that follow the key partially.
+
+Two more details from the same routine:
+
+- `0x40` returns the pivot with weight 0 at or above it, and pivot-1 with weight 1000 below it. Two
+  spellings of the same pitch.
+- A byte **below** `0x40` is *inverted* follow, not full follow: the magnitude indexes the table and
+  the sign flips which way the step goes. No partial in the table has one — the byte spans `0x40` to
+  `0x4f` — so it is unreachable without a corrupt tone.

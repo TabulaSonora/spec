@@ -1789,6 +1789,9 @@ unsafe
         int pgw=int.Parse(args[2]), ntw=int.Parse(args[3]), vlw=int.Parse(args[4]);
         int mpw=int.Parse(args[5]);
         int ticks=args.Length>6?int.Parse(args[6]):4;
+        // Bank MSB, so the SFX variations are reachable. `Stream` and `Bubble` -- the two tones
+        // whose key follow this was added to measure -- sit at bank 4 and 5 of program 122.
+        int bkw=args.Length>7?int.Parse(args[7]):0;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         long fbw=b+0x1a1b5b8;
         var getVCw=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
@@ -1797,7 +1800,7 @@ unsafe
         GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpw); flush();
         fixed(float* pl=lw2,pr=rw2) for(int i=0;i<8;i++) process(pl,pr,512);
         void CCw(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
-        CCw(0,0); CCw(32,0); CCw(7,127); CCw(10,64); CCw(91,0); CCw(93,0);
+        CCw(0,bkw); CCw(32,0); CCw(7,127); CCw(10,64); CCw(91,0); CCw(93,0);
         shortIn((uint)(0xC0|(pgw<<8)),0); flush();
         fixed(float* pl=lw2,pr=rw2) process(pl,pr,512);
         shortIn((uint)(0x90|(ntw<<8)|(vlw<<16)),0); flush();
