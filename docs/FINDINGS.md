@@ -5221,9 +5221,24 @@ Nothing in it advances by a fixed increment the way `_DAT_181a62af8 += DAT_181a6
 `g_fx_delay_mem` is a single 65536-entry ring and `DAT_181a62a34` is a single write cursor into it.
 `fx_chorus_stage_l`, `fx_chorus_stage_r` and `fx_reverb_process` all read that cursor at the top of
 their block loop, walk a local copy down one per sample across 32 samples, and `fx_process_block`
-decrements the global by `0x20` once afterwards to match. The effects occupy disjoint regions by tap
-offset — the reverb's input write is at `cursor + 0x1000`, which is where a port's own
-`input_tap` constant comes from.
+decrements the global by `0x20` once afterwards to match.
+
+Three regions, and they are disjoint with room to spare:
+
+| region | base | extent |
+|---|---|---|
+| chorus, left stage | `cursor + 0` | under `0x1000` — a chorus delay is a few hundred samples |
+| reverb | `cursor + 0x1000` | to `0x5809`, the longest tap in Hall 2 |
+| chorus, right stage | `cursor - 0x8000` | i.e. `+0x8000`, the opposite half of the ring |
+
+The reverb's `0x1000` is where a port's own `input_tap` constant comes from, and its taps read out
+to `0x5809` — `scdec revdump` lists them: four diffusers from `0x2000` to `0x258f`, then two tanks
+whose eight taps each run `0x2897`–`0x3fad` and `0x430b`–`0x5809`. Nothing reaches `0x8000`, so the
+chorus's right stage is never touched by it.
+
+A port giving each effect its own ring is therefore equivalent, and the regions are far enough apart
+that it stays equivalent — but the module's single ring is worth knowing, because clearing it would
+clear all three at once where clearing a port's would not.
 
 A reimplementation giving each effect its own ring and its own cursor is equivalent while the
 regions stay disjoint, but it is worth knowing they are one on the module: a reset that cleared the
