@@ -5925,3 +5925,18 @@ as a regression caused by a correct change.
 Note `fxmatrix` reads 16 shorts at `0x181a6f2f0`, ending at `0x181a6f310`, so the chorus send sits
 0x10 past the end of what that probe looks at. That is why sweeping CC93 through `fxmatrix` shows
 nothing move, and why `sendramp`'s `g0..g7` are static across 400 ms of settled sweep too.
+
+### The reverb send is not stored the same way `[measured]`
+
+Chorus and delay each have their four floats; **the reverb does not**. Sweeping CC91 across every
+readable 32 KB window from `0x181a00000` to `0x181af8000` finds no analogous coefficient, and in the
+window that holds the other two -- `0x181a68000` to `0x181a70000` -- CC91 moves **zero bytes**.
+
+Getting that answer needs the right pair of values. Comparing CC91 **0 to 127** is useless: turning
+the reverb on fills its delay lines, so its entire tail across `0x181a30000`-`0x181a58000` reads as
+"changed by the CC" and buries everything. Comparing **32 to 127** keeps the reverb running in both
+legs, so the buffers churn on both sides and are excluded, and the window comes back clean.
+
+This is consistent with the audio, where the reverb send measures exact (+0.02 dB) while the chorus
+does not, and it means the 66/128 clamp is a property of the chorus and delay path rather than of
+sends generally. It also means a fix must not be written as "clamp every send".
