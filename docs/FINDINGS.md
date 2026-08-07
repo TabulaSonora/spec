@@ -861,7 +861,10 @@ Block-relative offset == tone-table-block offset. `scvx_partials.py` decodes the
 
 **0x6e block field map** (offsets relative to block base = `tone+0x24+i*0x6e`; `[c]`=read by a compute
 fn, cross-checked against physically-sensible values across many instruments):
-- **Pitch** (`partial_compute_pitch` @18005fc20): `+0x11` coarse `(v-0x40)*10`; `+0x12` bend/LFO depth.
+- **Pitch** (`partial_compute_pitch` @18005fc20): `+0x11` coarse `(v-0x40)*10`; `+0x12` random
+  **base-pitch** jitter depth, drawn once per voice and only when non-zero — the companion of the
+  pitch-envelope start jitter at `+0x1a`, sharing its law and nothing else. Earlier revisions of
+  this line guessed "bend/LFO depth"; that was never read anywhere.
 - **Pitch env** (`partial_compute_pitch_env` @18005fde0): `+0x18` depth; `+0x1b..+0x1f` 5 stage
   biases (each `-0x40`); rate key-follow `+0x27/+0x29/+0x2a`, vel `+0x2c`.
 - **TVF** (`partial_compute_filter` @180061210): `+0x2f` cutoff base (`×0x100 → voice+0x1f0`);
@@ -4070,6 +4073,15 @@ counted. Both are Roland-derived and gitignored, like the tables.
 A new harness mode `notebatch` renders a whole sweep of single notes in one process — wine start-up
 otherwise dominates — writing raw interleaved float32 so nothing is rounded on the way out.
 
+> **Do not harvest a fixture that way.** `notebatch` puts a `GsReset()` between cases under a
+> comment asserting a case "must not depend on what preceded it", and for a tone with a random LFO
+> that is false: the shared LFO nodes carry their random registers at `+0x77`, a reset frees the
+> nodes without zeroing them, and the next case opens on the previous case's values. Measured, this
+> moved 45 of 238 cases by more than half a cent, the largest by 62.7. **Only the first case in a
+> `notebatch` file is genuinely isolated.** Harvest one case per process — that parallelises fine,
+> and wine start-up stops dominating once the cases run concurrently. Keep `notebatch` for a quick
+> look. See "The shared LFO node pool" below.
+
 ## The XG fault, bisected: an unchecked part index, and the file is the one at fault `[confirmed]`
 
 The earlier entry blamed Yamaha SysEx as a class, on the strength of SCWrap having filtered it and
@@ -4806,3 +4818,61 @@ Confirmed rather than read off the listing, with `scdec xgdrumfilt`: on the same
 Level moves the plane `100 -> 3` and Pan `64 -> 3`, while `0B` and `0C` leave every plane, the
 voice's resonance byte and both filter coefficients bit-identical. The positive control matters here
 — without one, "nothing changed" cannot be told apart from "the message never arrived".
+
+## A chunk's voices are allocated in arrival order and set up in GS block order `[confirmed]`
+
+Starting a note is two passes, and separating them is what makes the shared PRNG's draw sequence
+reproducible.
+
+`note_assign_poly` runs at **dispatch**. It claims the voice slot, runs the LRU note-group list and
+steals when the pool is full, so allocation follows the order the messages arrived in — a chunk
+carrying three note-ons takes its slots in that order regardless of channel.
+
+Reading the note's parameters runs later. `tg_start_pending_voices @ 18008f020` sits at the top of
+the next chunk and walks the **parts**, not the pending list, in engine-block order: block 0 is MIDI
+channel 10, blocks 1–9 are channels 1–9, blocks 10–15 are channels 11–16. Every voice pending on a
+part is set up before the next part is looked at. So a chunk with notes on channels 3 and 10 sets
+the drum note up first however the two arrived. This is the same block numbering `g_xg_part_remap`
+targets, which is a useful cross-check that the ordering is the engine's and not an artefact of
+where one happened to look.
+
+Each part also spends `voice_count + 1` draws on `prng_lfsr` before its pending notes are set up.
+The draws have no visible consumer, but they are not optional: skipping them puts every later
+consumer on a different value.
+
+None of this is audible on its own. It is audible through the generator, because `prng_lfsr` is one
+shared sequence with five conditional consumers — base-pitch jitter (`block[0x12]`), pitch-envelope
+start jitter (`block[0x1a]`), random partial select (tone common `+0x22`), random pan, and LFO
+shapes 1/2/3 — each drawing only when its own byte is non-zero. Which voice draws when *is* the
+sequence.
+
+Measured on `STREETS.MID` against the DLL's own render, the song gate's balance measure — the only
+one of its five taken per channel rather than on the mono sum, so the only one that can see pan
+placement — moved 0.1220 → 0.1045 with the setup draws → **0.0864** with block order, against a
+0.06 bound. `roland_sc88_y03.mid` crossed from failing its balance row to passing it.
+
+> A port that gets this wrong will see it first as a *sample-level* metric moving on a couple of
+> songs while level, spectrum and envelope all stay passing. That signature means draw order, not a
+> wrong coefficient.
+
+## The shared LFO node pool, and the registers nothing clears `[confirmed]`
+
+The LFOs do not live in the voice. There is a pool of **128 nodes**, stride `0xa8`, handed out from
+a LIFO freelist at `g_partial_shared_node_freelist` with a refcount at `+3`.
+
+- **LFO1 is shared across a note's partials** — one node, refcounted by how many partials took it.
+- **LFO2 is one node per partial.**
+- Bit 5 of the tone header's `+0x0e` (`block[0x06]`) is the selector between the two behaviours.
+
+`partial_shared_node_alloc` resets only the link fields. `partial_shared_node_free` clears the tick
+gate and pushes the slot back. The random shapes' two registers at `+0x77` — the value last drawn
+and the value walking toward it — have **exactly one writer in the whole decompilation**, the
+per-tick save-back. Nothing zeroes them on claim, on free, or on `GsReset()`.
+
+So a note that claims a recycled slot opens its sample-and-hold on whatever the previous note left
+there. Within a piece of music that is just what the instrument does. Across cases in a harvested
+fixture it is contamination, which is the entry above.
+
+A port that starts these registers at zero is making a departure, not implementing the module —
+worth stating explicitly, because the departure is invisible until something compares two renders
+that ran in different orders.
