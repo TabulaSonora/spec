@@ -5988,3 +5988,36 @@ Two further constraints on whatever it is, both measured:
 - **It is roughly, but not exactly, constant across patches.** Programs 0, 12, 38 and 48 give
   2.961, 3.061, 3.014 and 2.925; program 80 gives 2.393. The spread is consistent with the measure
   being an RMS of a subtracted signal whose shape differs, rather than with the factor varying.
+
+### The chorus IR test never covered the gains `[correction]`
+
+`scdec choir` does not drive the chorus the way a render does. It takes the network's address
+directly -- `(delegate* unmanaged[Cdecl]<long,float*,long,void>)(b + 0x851c0)` -- and calls it with
+its own 32-float input buffer, capturing the output buffer. The bus, the input gain and the return
+gain are all bypassed.
+
+So the impulse response matching at ratio **1.0000** confirms the *network* and nothing else. It was
+cited as ruling out the chorus path wholesale; it rules out one stage of it.
+
+Usefully, `choir` also names two gains while it is there:
+
+```
+gainIn  = *(float*)0x181a6ef70
+gainOut = *(float*)0x181a6f0f0
+```
+
+which fills in more of the bank. Read live, 64 blocks into a sounding note, with `scdec fxgain`:
+
+| block | what | value |
+|---|---|---|
+| `0x181a6ed70` | reverb input | **0.125** |
+| `0x181a6ef70` | chorus write (`gainIn`) | **1** |
+| `0x181a6eff0` | chorus to reverb | 0 unless set |
+| `0x181a6f070` | chorus to delay | 0 unless set |
+| `0x181a6f0f0` | chorus return (`gainOut`) | 1 |
+| `0x181a6f170` | delay return | 1 |
+| `0x181a6f270` | delay to reverb | 0 unless set |
+
+None of these moves with CC91 or CC93 -- the per-part sends live outside the bank -- and the chorus
+write gain is **1**, so it is not the missing factor either. Worth noting the asymmetry all the same:
+**the reverb input carries a fixed 1/8 and the chorus write does not.**
