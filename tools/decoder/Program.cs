@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1756,6 +1756,83 @@ unsafe
                               + $"   (payload position {(now >= 1 && now <= mn ? now - 1 : -1)})");
         }
         Console.WriteLine($"  {mchanged} bytes changed");
+        return;
+    }
+
+    // drumbulk mode: where the `49` family writes. `blkdiff` reports it touching nothing, and that
+    //   is true of the *part array* -- which is the only thing `blkdiff` watches. The address table
+    //   in `sysex_select_param_map` hands `a1 = 0x49` to `sysex_drumset_dump_dispatch @ 1800782b0`,
+    //   the same handler `0x41` takes, and the writers behind it (`FUN_18007a680` and its
+    //   twenty-two siblings) store into the buffer at `DAT_181a222d0` rather than into a part.
+    //
+    //   So this diffs that buffer instead. Payload position i carries i+1, the same trick `bulkmap`
+    //   uses, so the map falls out of one message.
+    //   args: dll drumbulk <a1 hex> <a2 hex> <a3 hex> [count] [span]
+    if (args.Length > 1 && args[1] == "drumbulk")
+    {
+        int k1 = Convert.ToInt32(args[2], 16);
+        int k2 = Convert.ToInt32(args[3], 16);
+        int k3 = Convert.ToInt32(args[4], 16);
+        int kn = args.Length > 5 ? int.Parse(args[5]) : 64;
+        int kspan = args.Length > 6 ? int.Parse(args[6]) : 0x600;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset(); flush();
+        var kl = new float[512]; var kr = new float[512];
+        fixed (float* pl = kl, pr = kr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+
+        // `DAT_181a222d0` is null until a drum-set message has selected a buffer, so prime it with
+        // a harmless one of the same family before snapshotting.
+        {
+            var prime = new byte[] { (byte)k1, (byte)k2, (byte)k3, 0x04, 0x00 };
+            int psum = 0; foreach (var x in prime) psum += x;
+            var pmsg = new byte[5 + prime.Length + 2];
+            pmsg[0] = 0xF0; pmsg[1] = 0x41; pmsg[2] = 0x10; pmsg[3] = 0x42; pmsg[4] = 0x12;
+            prime.CopyTo(pmsg, 5);
+            pmsg[5 + prime.Length] = (byte)((128 - (psum & 0x7F)) & 0x7F);
+            pmsg[6 + prime.Length] = 0xF7;
+            fixed (byte* mp = pmsg) longIn(mp, 0);
+            flush();
+            fixed (float* pl = kl, pr = kr) process(pl, pr, 512);
+        }
+
+        long kbufptr = b + 0x1a222d0;
+        long kbuf = *(long*)kbufptr;
+        Console.WriteLine($"DAT_181a222d0 -> {kbuf:x} (module-relative {(kbuf > b ? kbuf - b : -1):x})");
+        if (kbuf == 0) { Console.WriteLine("  null, nothing to diff"); return; }
+        var kbefore = new byte[kspan];
+        for (int i = 0; i < kspan; i++) kbefore[i] = *(byte*)(kbuf + i);
+
+        var body = new System.Collections.Generic.List<byte>();
+        for (int i = 0; i < kn; i++)
+        {
+            int v = (i + 1) & 0x7f;
+            body.Add((byte)((v >> 4) & 0x0f)); body.Add((byte)(v & 0x0f));
+        }
+        var kpay = new byte[3 + body.Count];
+        kpay[0] = (byte)k1; kpay[1] = (byte)k2; kpay[2] = (byte)k3;
+        body.CopyTo(kpay, 3);
+        int ksum = 0; foreach (var x in kpay) ksum += x;
+        var kmsg = new byte[5 + kpay.Length + 2];
+        kmsg[0] = 0xF0; kmsg[1] = 0x41; kmsg[2] = 0x10; kmsg[3] = 0x42; kmsg[4] = 0x12;
+        kpay.CopyTo(kmsg, 5);
+        kmsg[5 + kpay.Length] = (byte)((128 - (ksum & 0x7F)) & 0x7F);
+        kmsg[6 + kpay.Length] = 0xF7;
+        fixed (byte* mp = kmsg) longIn(mp, 0);
+        flush();
+        fixed (float* pl = kl, pr = kr) process(pl, pr, 512);
+
+        Console.WriteLine($"{k1:x2} {k2:x2} {k3:x2} <- {kn} nibble-packed values 1..{kn}");
+        int kchanged = 0;
+        for (int i = 0; i < kspan; i++)
+        {
+            byte now = *(byte*)(kbuf + i);
+            if (now == kbefore[i]) continue;
+            kchanged++;
+            if (kchanged <= 40)
+                Console.WriteLine($"  +0x{i:x3}  {kbefore[i]:x2} -> {now:x2}"
+                                  + $"   (position {(now >= 1 && now <= kn ? now - 1 : -1)})");
+        }
+        Console.WriteLine($"  {kchanged} bytes changed in {kspan:x}");
         return;
     }
 

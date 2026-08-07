@@ -5215,9 +5215,45 @@ engine renders `darkness3.mid` at a peak of 20675 -- within one percent of the m
 `49` stripped (20488), and far from its real one (24253). The bulk dump is doing its job; the
 remaining gap is a family nothing here decodes.
 
-`blkdiff` reports `49 xx 00` writing nothing to the part array, so the destination is somewhere
-else. The dispatcher's table is selected by `a1` in `sysex_select_param_map`, so start by following
-which table `0x49` picks rather than by probing the part array again.
+### `49` is the drum-set family, and the dispatch table has three dead entries `[confirmed]`
+
+`sysex_select_param_map @ 18006b4a0` switches on `a1`'s **low nibble** -- `0x40` takes case 0,
+`0x48` case 8, `0x4c` case 12, and everything else including **`0x49` falls to the default**, which
+walks the table at `0x1819a0320`. Entries are sixteen bytes: a key at `+0x04`, a handler at `+0x08`.
+The search advances while the *next* entry's key is below `a1`, so it lands on the first entry whose
+key is greater than or equal to it.
+
+| key | handler | what it is |
+|---|---|---|
+| `0x00` | `sysex_handler_noop` | consumed, nothing done |
+| `0x0b` | `sysex_advance_to_next_handler` | skipped |
+| `0x0c` | `sysex_sysparam_dispatch` | system and effect params, `0x1000`-`0x207f` |
+| `0x1f` | `sysex_advance_to_next_handler` | skipped |
+| `0x20` | `sysex_drum_dump_dispatch` | drum-setup dump, via a jump table |
+| `0x21` | `patch_dump_dispatch` | patch/part dump, via a jump table |
+| `0x3f` | `sysex_advance_to_next_handler` | skipped |
+| `0x40` | `sysex_handler_noop` | **unreachable** -- `0x40` is taken by case 0 of the switch |
+| `0x41` | `sysex_drumset_dump_dispatch` | the drum-set family |
+| `0x51` | `sysex_drumset_dump_dispatch` | its port-B mirror |
+| `0x47` | `sysex_advance_to_next_handler` | **unreachable** -- see below |
+| `0x7f` | `sysex_advance_to_next_handler` | **unreachable** |
+
+**`a1 = 0x49` lands on the `0x51` entry**, so the `49` family is handled by
+`sysex_drumset_dump_dispatch @ 1800782b0` -- the same handler `0x41` takes. It is the drum-set
+family, in the bulk form, and that is consistent with the 1.9 dB it is worth on a drum-heavy file.
+
+The three dead entries are the oddity worth writing down. The table is **not sorted**: `0x51` sits
+between `0x41` and `0x47`, and the search stops at the first key at or above the target, so nothing
+past `0x51` can ever be selected. `0x47` and `0x7f` are unreachable for that reason and `0x40` for a
+different one -- the switch above the table already claimed it. A reimplementation that sorts this
+table, or that treats it as a plain lookup, will route `0x49` to `sysex_advance_to_next_handler`
+instead and silently do nothing.
+
+The receive-side writers behind that dispatcher -- `FUN_18007a680` and its twenty-two siblings --
+store into the buffer at `DAT_181a222d0` rather than into a part, which is why `blkdiff` sees
+nothing: it watches only the part array. `scdec drumbulk` diffs that buffer instead, but the pointer
+is still null after the priming message it sends, so selecting the buffer takes an address shape
+this probe has not found yet. That is where the next attempt starts.
 
 \note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is
