@@ -5046,3 +5046,77 @@ not align it is not comparing their wet placement.
 attempt to align this from the wrong end and its own comment records that validation failed. Aligning
 from the other side — placing the reimplementation's accumulator at the value the module reached — is
 the direction that works, and it needs no pre-roll.
+
+## What 132,000 files actually send: a GS/XG address census `[measured]`
+
+The tone map lived at `40 4x 01`, this engine reached that address and threw the message away, and
+nothing caught it because no file in either test corpus sends it. That is a class of defect, not an
+incident, so the archive was asked what addresses real music uses.
+
+`scan_midi_archive.py tally <dir> <out.json>` walks the archive and tallies every Roland DT1 and
+every XG parameter change by address, folding the part nibble away so `40 13 02` and `40 1a 02`
+count as one row. It is a **proper SysEx walk** rather than the byte-pattern shortcut the `scan`
+step uses: `F0`, the SMF's variable-length count, the payload, and for Roland a **validated
+checksum**, which no accidental run of note data survives.
+
+    131,997 files scanned
+     22,648 carry GS or XG SysEx
+      2,315 distinct GS addresses (part nibble folded), 427 XG
+
+By leading address byte, counting files:
+
+| block | file-hits |
+|---|---|
+| `40` patch/system/part | 64,961 |
+| `48` | 5,659 |
+| `49` | 2,738 |
+| `21` | 1,721 |
+| `41` drum setup | 1,647 |
+| `00` GM System On | 865 |
+
+The head of the distribution is unsurprising and reassuring — a GS reset in 20,091 files, the reverb
+and chorus parameter rows next, then the effect macros — and all of it is handled. What the census is
+for is the tail.
+
+### The three buckets
+
+Classified against `ToneGenerator::Impl`'s dispatch:
+
+| verdict | addresses | file-hits |
+|---|---|---|
+| applied — reached and changes something | 610 | 60,880 |
+| **dropped — reached and deliberately ignored** | 27 | 6,256 |
+| **unseen — the dispatch never looks** | 1,678 | 10,681 |
+
+Everything above 100 files that is not applied:
+
+| address | files | messages | verdict |
+|---|---|---|---|
+| `40 01 10`–`1F` voice reserve | 2,641 | 3,547 | dropped |
+| `40 01 00`–`0F` patch name | 1,379 | 1,423 | dropped |
+| `40 01 51`–`5A` delay parameters | ~200 each | | dropped, macro presets only |
+| `48 xx 00`, thirty blocks `00`–`1d` | ~140 each | | unseen |
+| `49 xx 00` | ~105 each | | unseen |
+
+**Voice reserve is the one to look at.** 2,641 files set it — more than send anything else this
+engine ignores — and it is the parameter that decides which parts keep their notes when the
+hardware's 64 voices run out. A file that reserves voices and a renderer that ignores the
+reservation steal different notes, which is audible in exactly the dense passages where it matters.
+
+`48` and `49` are whole families the dispatch does not decode, and they are not junk: the addresses
+appear as constants in `sysex_build_dump_address`, so the module knows them. The `48 xx 00` rows
+carry multi-byte payloads across blocks `00`–`1d`, which reads like a bulk table write. Identifying
+them is open.
+
+The patch name and the delay parameter rows are both dropped on purpose and both fine — a name has
+no audible counterpart, and the delay parameters are carried by the preset tables the macros select.
+
+### XG
+
+XG System On appears in 1,751 files, and the Effect1 block `02 01 xx` is heavily used —
+`02 01 40`, `02 01 00`, `02 01 5a`, `02 01 20` between them in over 2,900. Whether each of those
+reaches an implemented parameter has not been classified; the same census method applies and the
+XG tally is in the same output file.
+
+> The archive is not redistributable and neither are the files this picks. What belongs in the
+> repository is the method and this table.
