@@ -5958,3 +5958,33 @@ one (`0x181A6EAE4`, `+2`, `+A`) flips 0 to 1.0 at the same time and reads like a
 **So the ceiling belongs to the per-part chorus and delay sends alone.** Anything that implements it
 has to be scoped to those two and must not touch the system cross-feed coefficients, which in this
 port share `MatrixRamp::send_shift`.
+
+## The send-effect gain bank, addressed `[measured]`
+
+`ccdiff` sweeps identify four of the 32-float blocks in the bank that spans roughly
+`0x181a6ed70`-`0x181a6f2f0`. Each block is 0x80 bytes -- 32 copies of one coefficient -- and a diff
+reports a 126-byte run because the first and last copies happen to match.
+
+| parameter | block | value at 127 | law |
+|---|---|---|---|
+| `40 01 3F` chorus to reverb | `0x181A6EFF0` | 0.992188 | `v/128` |
+| `40 01 40` chorus to delay | `0x181A6F070` | 0.992188 | `v/128` |
+| **`40 01 3A` chorus return level** | **`0x181A6F0F0`** | **1.98438** | **`v/64`** |
+| `40 01 5A` delay to reverb | `0x181A6F270` | 0.992188 | `v/128` |
+
+The per-part sends sit outside the bank: chorus at `0x181A6F320`, delay at `0x181A6E8D0`, four floats
+each rather than thirty-two.
+
+**The chorus return level reads `127/64 = 1.984375`, which is exactly what this port's `MatrixRamp`
+produces.** That removes the fourth and last obvious candidate for `panwet.mid`'s ~3x deficit: the
+network is exact, the part send matches below its knee, the system sends match, and the return level
+matches. All four coefficients agree and the audio is still 3x short.
+
+Two further constraints on whatever it is, both measured:
+
+- **It does not depend on pan.** Sweeping CC10 at 0, 32, 64, 94 and 127 leaves both engines'
+  chorus return unchanged (42.3 here, 127.6 on the module) and the ratio flat at 3.013-3.017. So
+  the send is tapped pre-pan on both sides.
+- **It is roughly, but not exactly, constant across patches.** Programs 0, 12, 38 and 48 give
+  2.961, 3.061, 3.014 and 2.925; program 80 gives 2.393. The spread is consistent with the measure
+  being an RMS of a subtracted signal whose shape differs, rather than with the factor varying.
