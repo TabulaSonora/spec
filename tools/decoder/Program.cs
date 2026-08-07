@@ -1845,7 +1845,7 @@ unsafe
                 byte now = *(byte*)(kbufs[j] + i);
                 if (now == kall[j][i]) continue;
                 kchanged++;
-                if (shown++ < 24)
+                if (shown++ < 200)
                     Console.WriteLine($"  buf{j} +0x{i:x3}  {kall[j][i]:x2} -> {now:x2}"
                                       + $"   (position {(now >= 1 && now <= kn ? now - 1 : -1)})");
             }

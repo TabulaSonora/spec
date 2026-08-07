@@ -5261,30 +5261,39 @@ Eight of them -- four drum maps by two kit slots -- and the handler comes from a
 kit slot and its low nibble chooses the block.
 
 Reading `DAT_181a222f8` after a message is useless -- the selection does not survive it. `scdec
-drumbulk` resolves all eight buffers up front through the same accessor and diffs them, which is
-what produced this:
+drumbulk` resolves all eight buffers up front through the same accessor and diffs them, and a
+payload carrying its own position index maps a message in one shot. Swept over every `a2` the file
+family uses:
 
-| message | buffer | first offset written |
-|---|---|---|
-| `49 00 00` | 0 | `+0x180` |
-| `49 01 00` | 0 | `+0x181` |
-| `49 02 00` | 0 | `+0x100` |
-| `49 03 00` | 0 | `+0x101` |
-| `49 09 00` | 0 | `+0x301` |
-| `49 11 00` | **1** | `+0x181` |
+| `a2` low nibble | block | | `a2` low nibble | block |
+|---|---|---|---|---|
+| `0`, `1` | `+0x180` | | `8`, `9` | `+0x300` |
+| `2`, `3` | `+0x100` | | `a`, `b` | `+0x380` |
+| `4`, `5` | `+0x200` | | `c`, `d` | `+0x480` |
+| `6`, `7` | `+0x280` | | `e` | `+0x500` |
+| | | | `f` | `+0x400` |
 
-Position `i` of the payload reaches `first + i`, linearly, so one message maps in one shot.
+`a2` bit 4 picks the kit slot: `0x00`-`0x0f` land in buffer 0 and `0x10`-`0x1e` repeat the whole
+table in buffer 1, which is why a complete dump is 0x1e messages and not 0x0f.
 
-Those offsets are the per-note parameter blocks the `41` family already writes -- `+0x100`, `+0x180`,
-`+0x200`, `+0x280`, `+0x300`, `+0x380`, `+0x400`, `+0x480`, each a plane of 128 keys, and
+These are the per-note parameter planes the `41` family already writes, each 128 keys, and
 `sysex_drumset_block_0x180`'s default of `0x3c` is the drum pitch sitting at middle C. **So `49` is
 the same per-key drum data `41 xx` carries, in bulk.** A port that already decodes `41` has the
-machinery; what it needs is the offset-to-plane map and the key from the low byte.
+machinery; what it needs is this table and the key from the payload position.
 
-Not yet settled: `a2` 0 and 1 land one byte apart rather than a block apart, so the low nibble is not
-simply a block index -- the chained writers advance a page at a time (`FUN_18007a680` at
-`+(idx & 0xff)`, its successor at `+0x80 + (idx & 0xff)`) and how a message's start folds into that
-still needs pinning before the map can be written down in full.
+Two things the sweep turned up that a table alone would not.
+
+**The even and odd members of a pair overlap by all but one byte.** `49 00 00` writes `+0x180` to
+`+0x1bf`, contiguous; `49 01 00` writes `+0x181` to `+0x1c0`. Both are 64 values and they differ by
+a single byte of alignment, so consecutive messages are very nearly rewriting the same keys. That is
+measured, not explained -- an isolated message after a GS reset may not be what the pair is for, and
+the `48` family turned out to be a stateful walk where isolated messages meant something different
+from a run of them.
+
+**`49 0e 00` runs off the end of its buffer.** The eight buffers are `0x50c` apart, and that message
+starts at `+0x500` and writes 64 values -- 116 bytes changed, wrapping into the next buffer's low
+offsets. The module bounds-checks this no more than it bounds-checks the patch bulk dump, so a port
+should refuse the overrun rather than reproduce it.
 
 \note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is
