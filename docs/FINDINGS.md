@@ -5230,9 +5230,11 @@ assuming.** `midi_dispatch_flagged_ports` does not drain one queue; it tests bit
 of `DAT_181a74558` in that order and services a different kind of pending work under each. So a
 build in which SysEx raised its own bit really would process it ahead of channel messages.
 
-This build does not. **Bit 14 is the only one anything ever raises** -- twelve sites set `0x4000`,
-including every MIDI input path, and `| 0x2000`, `| 0x1000` and `| 0x800` do not appear in the
-listing at all. Under bit 14 the per-port FIFO is drained in arrival order and each event is
+This build does not. **Bit 14 is the only one anything ever raises**, and that is exhaustive rather
+than a pattern match: every write to `DAT_181a74558` in the whole listing is one of three forms --
+`| 0x4000` at eighteen sites including every MIDI input path, `= uVar17` where the dispatcher clears
+what it has taken, and a single `= 0`. No other bit is ever set, by hex or by decimal; Ghidra renders
+none of these as `8192`, `4096` or `2048` either. Under bit 14 the per-port FIFO is drained in arrival order and each event is
 dispatched through the table at `port_struct+0x30` indexed by its own CIN nibble, which is a
 per-event lookup and not a class sort. Short and long messages share that path.
 
