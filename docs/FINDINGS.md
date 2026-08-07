@@ -5249,11 +5249,42 @@ different one -- the switch above the table already claimed it. A reimplementati
 table, or that treats it as a plain lookup, will route `0x49` to `sysex_advance_to_next_handler`
 instead and silently do nothing.
 
-The receive-side writers behind that dispatcher -- `FUN_18007a680` and its twenty-two siblings --
-store into the buffer at `DAT_181a222d0` rather than into a part, which is why `blkdiff` sees
-nothing: it watches only the part array. `scdec drumbulk` diffs that buffer instead, but the pointer
-is still null after the priming message it sends, so selecting the buffer takes an address shape
-this probe has not found yet. That is where the next attempt starts.
+### Where `49` lands: eight drum-set buffers, and the address picks one `[measured]`
+
+`blkdiff` sees nothing because it watches only the part array, and this family does not write there.
+`sysex_drumset_dump_dispatch` selects a buffer of its own:
+
+    buffer = DAT_181a749f8(drum_map * 2 + ((idx & 0x1000) ? 1 : 0))
+
+Eight of them -- four drum maps by two kit slots -- and the handler comes from a jump table at
+`0x1819a04d0` indexed by `(idx & 0xfff) >> 8`, which is `a2`'s low nibble. So `a2` bit 4 chooses the
+kit slot and its low nibble chooses the block.
+
+Reading `DAT_181a222f8` after a message is useless -- the selection does not survive it. `scdec
+drumbulk` resolves all eight buffers up front through the same accessor and diffs them, which is
+what produced this:
+
+| message | buffer | first offset written |
+|---|---|---|
+| `49 00 00` | 0 | `+0x180` |
+| `49 01 00` | 0 | `+0x181` |
+| `49 02 00` | 0 | `+0x100` |
+| `49 03 00` | 0 | `+0x101` |
+| `49 09 00` | 0 | `+0x301` |
+| `49 11 00` | **1** | `+0x181` |
+
+Position `i` of the payload reaches `first + i`, linearly, so one message maps in one shot.
+
+Those offsets are the per-note parameter blocks the `41` family already writes -- `+0x100`, `+0x180`,
+`+0x200`, `+0x280`, `+0x300`, `+0x380`, `+0x400`, `+0x480`, each a plane of 128 keys, and
+`sysex_drumset_block_0x180`'s default of `0x3c` is the drum pitch sitting at middle C. **So `49` is
+the same per-key drum data `41 xx` carries, in bulk.** A port that already decodes `41` has the
+machinery; what it needs is the offset-to-plane map and the key from the low byte.
+
+Not yet settled: `a2` 0 and 1 land one byte apart rather than a block apart, so the low nibble is not
+simply a block index -- the chained writers advance a page at a time (`FUN_18007a680` at
+`+(idx & 0xff)`, its successor at `+0x80 + (idx & 0xff)`) and how a message's start folds into that
+still needs pinning before the map can be written down in full.
 
 \note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is

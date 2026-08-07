@@ -1795,12 +1795,25 @@ unsafe
             fixed (float* pl = kl, pr = kr) process(pl, pr, 512);
         }
 
-        long kbufptr = b + 0x1a222d0;
-        long kbuf = *(long*)kbufptr;
-        Console.WriteLine($"DAT_181a222d0 -> {kbuf:x} (module-relative {(kbuf > b ? kbuf - b : -1):x})");
+        // Reading `DAT_181a222f8` after the fact gives nothing: the selection is per-message and
+        // the pointer does not survive it. Resolve the eight buffers directly instead, through the
+        // same accessor `sysex_drumset_dump_dispatch` calls -- `DAT_181a749f8(map * 2 + slot)`,
+        // four drum maps by two kit slots -- and diff all of them.
+        var kget = (delegate* unmanaged[Cdecl]<int, long>)(*(long*)(b + 0x1a749f8));
+        var kbufs = new long[8];
+        for (int i = 0; i < 8; i++) kbufs[i] = kget(i);
+        Console.WriteLine("drum-set buffers: "
+            + string.Join(" ", System.Array.ConvertAll(kbufs, x => $"{(x > b ? x - b : x):x}")));
+        long kbuf = kbufs[0];
         if (kbuf == 0) { Console.WriteLine("  null, nothing to diff"); return; }
-        var kbefore = new byte[kspan];
-        for (int i = 0; i < kspan; i++) kbefore[i] = *(byte*)(kbuf + i);
+        var kall = new byte[8][];
+        for (int j = 0; j < 8; j++)
+        {
+            kall[j] = new byte[kspan];
+            if (kbufs[j] == 0) continue;
+            for (int i = 0; i < kspan; i++) kall[j][i] = *(byte*)(kbufs[j] + i);
+        }
+        var kbefore = kall[0];
 
         var body = new System.Collections.Generic.List<byte>();
         for (int i = 0; i < kn; i++)
@@ -1823,16 +1836,21 @@ unsafe
 
         Console.WriteLine($"{k1:x2} {k2:x2} {k3:x2} <- {kn} nibble-packed values 1..{kn}");
         int kchanged = 0;
-        for (int i = 0; i < kspan; i++)
+        for (int j = 0; j < 8; j++)
         {
-            byte now = *(byte*)(kbuf + i);
-            if (now == kbefore[i]) continue;
-            kchanged++;
-            if (kchanged <= 40)
-                Console.WriteLine($"  +0x{i:x3}  {kbefore[i]:x2} -> {now:x2}"
-                                  + $"   (position {(now >= 1 && now <= kn ? now - 1 : -1)})");
+            if (kbufs[j] == 0) continue;
+            int shown = 0;
+            for (int i = 0; i < kspan; i++)
+            {
+                byte now = *(byte*)(kbufs[j] + i);
+                if (now == kall[j][i]) continue;
+                kchanged++;
+                if (shown++ < 24)
+                    Console.WriteLine($"  buf{j} +0x{i:x3}  {kall[j][i]:x2} -> {now:x2}"
+                                      + $"   (position {(now >= 1 && now <= kn ? now - 1 : -1)})");
+            }
         }
-        Console.WriteLine($"  {kchanged} bytes changed in {kspan:x}");
+        Console.WriteLine($"  {kchanged} bytes changed across eight buffers of {kspan:x}");
         return;
     }
 
