@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1398,6 +1398,84 @@ unsafe
             var progs=kv.Value;
             string list = progs.Count>12 ? $"{progs.Count} programs" : string.Join(",",progs);
             Console.WriteLine($"  {kv.Key}  <- {list}");
+        }
+        return;
+    }
+    // fxgain mode: read the send-effect gain ramp bank live, as floats. The bank is ten 32-float
+    //   blocks the block loop multiplies its buffers by; six of them belong to the chorus, and two
+    //   of those are the routes OUT of the chorus that no reimplementation here has ever carried:
+    //   `fx_chorus_stage_l` writes (tap1+tap2) scaled by 0x181a6eff0 into the reverb's input buffer
+    //   and by 0x181a6f070 into the delay's, while 0x181a6f0f0 is the plain return level. The
+    //   function named `fx_chorus_stage_r` is the SYSTEM DELAY, not a right-hand chorus: it reads
+    //   the 0x181a6f070 buffer and adds its own 0x181a6f270-scaled feed to the reverb, which is the
+    //   delay's "send level to reverb" byte -- nonzero (36) in exactly one stored preset.
+    //   The macro table's "chorus send to reverb" byte is 0 for all eight types, so the question a
+    //   static read cannot answer is whether the route is genuinely silent by default or whether
+    //   something else programs that block -- hence reading it out of the running engine instead.
+    //   Each block is a RAMP: [0] and [31] differ while a parameter is moving, so both are printed.
+    //   args: dll fxgain [cc91] [cc93] [choToRev] [choLevel]
+    if (args.Length > 1 && args[1] == "fxgain")
+    {
+        int rev  = args.Length>2 ? int.Parse(args[2]) : 100;
+        int cho  = args.Length>3 ? int.Parse(args[3]) : 127;
+        int c2r  = args.Length>4 ? int.Parse(args[4]) : -1;
+        int clvl = args.Length>5 ? int.Parse(args[5]) : -1;
+        int dlvl = args.Length>6 ? int.Parse(args[6]) : -1;
+        int d2r  = args.Length>7 ? int.Parse(args[7]) : -1;
+        int c2d  = args.Length>8 ? int.Parse(args[8]) : -1;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        void CCf(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,4);
+        CCf(7,127); CCf(10,64); CCf(91,rev); CCf(93,cho);
+        if (clvl >= 0) SendSysEx(Dt1(0x40,0x01,0x3A,(byte)clvl));
+        if (c2r  >= 0) SendSysEx(Dt1(0x40,0x01,0x3F,(byte)c2r));
+        if (c2d  >= 0) SendSysEx(Dt1(0x40,0x01,0x40,(byte)c2d));
+        if (dlvl >= 0) SendSysEx(Dt1(0x40,0x01,0x58,(byte)dlvl));
+        if (d2r  >= 0) SendSysEx(Dt1(0x40,0x01,0x5A,(byte)d2r));
+        shortIn((uint)(0xC0|(48<<8)),0); flush();
+        var lf=new float[512]; var rf=new float[512];
+        fixed(float* pl=lf,pr=rf) for(int i=0;i<8;i++) process(pl,pr,512);
+        shortIn((uint)(0x90|(60<<8)|(110<<16)),0); flush();
+        fixed(float* pl=lf,pr=rf) for(int i=0;i<64;i++) process(pl,pr,512);
+        // A second round of writes, then only ONE 32-sample block, so a block that RAMPS is caught
+        // mid-move: [0] and [31] straddle the step and neither equals the target yet. A block that
+        // steps outright reads the target in [0]. args 9..12 are the same four parameters again.
+        if (args.Length > 9)
+        {
+            int c2r2  = args.Length>9  ? int.Parse(args[9])  : -1;
+            int clvl2 = args.Length>10 ? int.Parse(args[10]) : -1;
+            int dlvl2 = args.Length>11 ? int.Parse(args[11]) : -1;
+            int d2r2  = args.Length>12 ? int.Parse(args[12]) : -1;
+            if (clvl2 >= 0) SendSysEx(Dt1(0x40,0x01,0x3A,(byte)clvl2));
+            if (c2r2  >= 0) SendSysEx(Dt1(0x40,0x01,0x3F,(byte)c2r2));
+            if (dlvl2 >= 0) SendSysEx(Dt1(0x40,0x01,0x58,(byte)dlvl2));
+            if (d2r2  >= 0) SendSysEx(Dt1(0x40,0x01,0x5A,(byte)d2r2));
+            flush();
+            Console.WriteLine("  blocks  choRet    choToRev  dlyRet    dlyToRev");
+            int done = 0;
+            foreach (int upto in new[]{0,1,2,4,8,16,32,64,256}) {
+                fixed(float* pl=lf,pr=rf) for(; done<upto; done++) process(pl,pr,32);
+                float G(long va)=>*(float*)(b + (va - 0x180000000L));
+                Console.WriteLine($"  {upto,6}  {G(0x181a6f0f0),-9:G6} {G(0x181a6eff0),-9:G6} "
+                                  + $"{G(0x181a6f170),-9:G6} {G(0x181a6f270),-9:G6}");
+            }
+            return;
+        }
+        var bank = new (string name, long va)[]{
+            ("reverb   input",      0x181a6ed70),
+            ("chorus L write",      0x181a6ef70),
+            ("chorus L -> reverb",  0x181a6eff0),
+            ("chorus -> delay",     0x181a6f070),
+            ("chorus return",       0x181a6f0f0),
+            ("delay  return",       0x181a6f170),
+            ("delay  write",        0x181a6f1f0),
+            ("delay  -> reverb",    0x181a6f270),
+        };
+        Console.WriteLine($"fxgain cc91={rev} cc93={cho} choToRev={(c2r<0?"default":c2r.ToString())} "
+                          + $"choLevel={(clvl<0?"default":clvl.ToString())}");
+        foreach (var (name, va) in bank) {
+            float* p = (float*)(b + (va - 0x180000000L));
+            Console.WriteLine($"  {name,-20} [0]={p[0]:G9}  [31]={p[31]:G9}");
         }
         return;
     }
