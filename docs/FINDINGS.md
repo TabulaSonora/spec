@@ -5940,3 +5940,21 @@ legs, so the buffers churn on both sides and are excluded, and the window comes 
 This is consistent with the audio, where the reverb send measures exact (+0.02 dB) while the chorus
 does not, and it means the 66/128 clamp is a property of the chorus and delay path rather than of
 sends generally. It also means a fix must not be written as "clamp every send".
+
+### The system sends have no ceiling `[measured]`
+
+The three system cross-feeds each write a 126-byte run of floats, and none of them clamps:
+
+| send | address | 0 -> 127 |
+|---|---|---|
+| `40 01 3F` chorus to reverb | `0x181A6EFF2` | 0 -> **0.992188** |
+| `40 01 40` chorus to delay | `0x181A6F072` | 0 -> **0.992188** |
+| `40 01 5A` delay to reverb | `0x181A6F272` | 0 -> **0.992188** |
+
+Sweeping `40 01 3F` gives 0.25, 0.515625, 0.625, 0.75, 0.992188 at 32, 66, 80, 96 and 127 -- exactly
+`v/128` straight through the value where the per-part sends stop. A short two-byte write beside each
+one (`0x181A6EAE4`, `+2`, `+A`) flips 0 to 1.0 at the same time and reads like an enable flag.
+
+**So the ceiling belongs to the per-part chorus and delay sends alone.** Anything that implements it
+has to be scoped to those two and must not touch the system cross-feed coefficients, which in this
+port share `MatrixRamp::send_shift`.

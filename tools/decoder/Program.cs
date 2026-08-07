@@ -3607,7 +3607,11 @@ unsafe
     //   args: dll ccdiff <cc> <before> <after> [va] [bytes] [prog] [note] [settleBlocks] [map]
     if (args.Length > 1 && args[1] == "ccdiff")
     {
-        int cc      = int.Parse(args[2]);
+        // "sx:a1,a2,a3" addresses a GS parameter instead of a Control Change, which is how the
+        // system sends (40 01 3F chorus-to-reverb, 40 01 40 chorus-to-delay, 40 01 5A
+        // delay-to-reverb) are reached -- none of them has a controller.
+        string sxAddr = args[2].StartsWith("sx:") ? args[2].Substring(3) : null;
+        int cc      = sxAddr != null ? 0 : int.Parse(args[2]);
         int before  = int.Parse(args[3]);
         int after   = int.Parse(args[4]);
         long va     = args.Length > 5 ? Convert.ToInt64(args[5], 16) : 0x181a00000L;
@@ -3621,12 +3625,27 @@ unsafe
         int map     = args.Length > 10 ? int.Parse(args[10]) : 1;
 
         setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        byte[] sxBytes = null;
+        if (sxAddr != null)
+        {
+            var pp = sxAddr.Split(',');
+            sxBytes = new byte[] { Convert.ToByte(pp[0], 16), Convert.ToByte(pp[1], 16),
+                                   Convert.ToByte(pp[2], 16) };
+        }
+        void Set(int v)
+        {
+            if (sxBytes != null) SendSysEx(Dt1(sxBytes[0], sxBytes[1], sxBytes[2], (byte)v));
+            else shortIn((uint)((0xB0 | 0) | (cc << 8) | (v << 16)), 0);
+        }
         void CCd2(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
         GsReset();
         if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
-        CCd2(7, 110); CCd2(10, 94); CCd2(91, 0); CCd2(93, 0);
+        CCd2(7, 110); CCd2(10, 94); CCd2(91, 0);
+        // The chorus runs whenever a SysEx address is being swept: the system sends are all
+        // downstream of it, and a coefficient on a path carrying no signal may never be written.
+        CCd2(93, sxBytes != null ? 100 : 0);
         shortIn((uint)(0xC0 | (pg << 8)), 0);
-        CCd2(cc, before);
+        Set(before);
         flush();
 
         var lb = new float[512]; var rb = new float[512];
@@ -3646,16 +3665,17 @@ unsafe
         // counters advancing exactly as the measured leg will. Without it those pointers move only
         // on the measured side and are reported as hits -- which they are, just not interesting
         // ones.
-        CCd2(cc, before); flush();
+        Set(before); flush();
         Run(settle);
         System.Runtime.InteropServices.Marshal.Copy((nint)addr, B, 0, count);
 
         // The measured leg.
-        CCd2(cc, after); flush();
+        Set(after); flush();
         Run(settle);
         System.Runtime.InteropServices.Marshal.Copy((nint)addr, C, 0, count);
 
-        Console.WriteLine($"ccdiff cc{cc} {before} -> {after}, prog={pg} note={nt} map={map}");
+        Console.WriteLine($"ccdiff {(sxAddr != null ? "sysex " + sxAddr : "cc" + cc)} "
+                          + $"{before} -> {after}, prog={pg} note={nt} map={map}");
         Console.WriteLine($"  region VA 0x{va:X} .. 0x{va + count:X}, {settle} blocks of 512 between captures");
 
         int churn = 0, moved = 0;
