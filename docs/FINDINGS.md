@@ -5843,3 +5843,44 @@ Note Off**. Measured rather than assumed — send `49 0c 00` with bit 0 set on k
 note decays sharply once the note-off arrives (RMS 66.9 against 191.8 at 0.35 s, struck at 0.25 and
 released at 0.31). Bit 4 is Rx Note On. See `sysex_drumset_rxnote_bit0` / `_bit4`, which write bits
 0 and 4 of `part+0x480`.
+
+## panwet's deficit is a constant ~3x on the chorus return, and not the network `[measured]`
+
+`panwet.mid` is one note -- program 38, key 60, pan 94, CC93 127, CC91 40 -- and it has been the
+project's standing unexplained deviation. Decomposing it by zeroing each send in the file and
+rendering both engines settles what it is not.
+
+**The dry and the reverb are exact:**
+
+| variant | this port against the DLL |
+|---|---|
+| dry only | **-0.01 dB** |
+| dry + reverb | **+0.02 dB** |
+| dry + chorus | -1.77 dB |
+
+The sign of the last one is the tell. Adding chorus takes this port *below* its dry-only level
+(428.7 to 409.1) while the module rises (429.2 to 501.2) -- one is cancelling where the other
+reinforces.
+
+**Subtracting the dry render from the chorus render isolates the return.** With the chorus LFO phase
+matched to the oracle's 2992128, ours reads RMS 42.34 against the module's 127.62 -- **3.014x** --
+at a correlation of **+0.913**. Per channel it is 2.950 left and 2.946 right, correlations 0.917 and
+0.915, and the L/R relationship agrees (-0.566 against -0.524). Same signal, same routing, one
+level.
+
+**Three candidates ruled out, each by its own measurement:**
+
+- **The network is exact.** Chorus type 2 impulse response against `scdec choir`: peak ratio
+  **1.0000**, RMS ratio 1.0000, residual **-68.4 dB**.
+- **The return level law is right.** `40 01 3A` at 32/64/96/127 gives 21.17/42.34/63.52/84.04 here
+  and 63.80/127.62/191.48/253.34 on the module -- both exactly linear, ratio flat at 3.013 to 3.015.
+- **The part send law is right, saturation included.** CC93 at 16/32/64/96/127 gives ratios
+  2.930/2.952/3.016/3.014/3.014, and **both saturate above 64 in the same shape** -- 17.94/35.43/
+  42.09/42.34/42.34 here against 52.54/104.58/126.94/127.60/127.62.
+
+So what remains is a single scalar of ~2.95 to 3.01 sitting either between the part and the chorus
+bus or between the network output and the mix, constant in both levels and equal on both channels.
+It is worth stressing that the factor is **not exactly 3** -- 2.95 per channel against 3.014 on the
+mono sum, which is what a 0.92 correlation does to a sum -- so it should be derived from the module
+rather than fitted. The places a fixed gain would live are the chorus bus write in `output_bus_mix`
+and the `0x181a6ecxx` gain bank the send mix reads.
