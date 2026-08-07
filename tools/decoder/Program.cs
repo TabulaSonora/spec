@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -365,6 +365,82 @@ unsafe
                 $" curve={*(ushort*)(p + 0x10)},{*(ushort*)(p + 0x1cc)},{*(ushort*)(p + 0x1ce)}," +
                 $"{*(ushort*)(p + 0x1d0)},{*(ushort*)(p + 0x24)}" +
                 $" zeroflag={*(byte*)(p + 0x188)}");
+        }
+        return;
+    }
+    // envtrace mode: the TVA envelope's registers AND the gain word they produce, across a
+    //   note-off, for a tone selected by bank as well as program. `tvatrace` reads the registers but
+    //   cannot reach a variation tone, and `ampramp` traces the gain but only through the attack and
+    //   only for the first voice -- neither can answer what a two-partial tone does when one
+    //   partial's release duration computes to zero.
+    //
+    //   The registers printed include the two the others omit: voice+0x0e and voice+0x22. Ghidra
+    //   calls the table behind them `g_env_startphase_b` and it is not a start phase. Every stage
+    //   loader writes `g_env_startphase_b[min(duration,10)]` there, and `voice_block_process` hands
+    //   it on as `value + 0x4000` to the per-voice amplitude ramp's rate word -- so it is how fast
+    //   the anti-zipper ramp chases the envelope, chosen per segment. The table is 512/n.
+    //   args: dll envtrace <msb> <lsb> <prog> <note> <vel> <holdSamples> <traceSamples> [map] [ch]
+    if (args.Length > 1 && args[1] == "envtrace")
+    {
+        int emsb = int.Parse(args[2]), elsb = int.Parse(args[3]), eprog = int.Parse(args[4]);
+        int enote = int.Parse(args[5]), evel = int.Parse(args[6]);
+        int ehold = int.Parse(args[7]), etrace = int.Parse(args[8]);
+        int emap = args.Length > 9 ? int.Parse(args[9]) : 2;
+        int ech = args.Length > 10 ? int.Parse(args[10]) & 15 : 0;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        long efb = b + 0x1a1b5b8;
+        var getVCe = (delegate* unmanaged[Cdecl]<int, long>)(b + 0x5c360);
+        long evc = getVCe(0);
+        var el = new float[512]; var er = new float[512];
+        void CCe(int c, int v) => shortIn((uint)((0xB0 | ech) | (c << 8) | (v << 16)), 0);
+        GsReset();
+        if (emap >= 1 && emap <= 4) for (int c = 0; c < 16; c++) ToneMap0(c, emap);
+        flush();
+        fixed (float* pl = el, pr = er) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        CCe(0, emsb); CCe(32, elsb); CCe(7, 127); CCe(10, 64); CCe(91, 0); CCe(93, 0);
+        shortIn((uint)((0xC0 | ech) | (eprog << 8)), 0); flush();
+        shortIn((uint)((0x90 | ech) | (enote << 8) | (evel << 16)), 0); flush();
+        fixed (float* pl = el, pr = er) process(pl, pr, 320);
+
+        var voices = new System.Collections.Generic.List<int>();
+        for (int v = 0; v < 64; v++)
+        {
+            if ((*(byte*)(efb + v * 0x50) & 1) == 0) continue;
+            voices.Add(v);
+            long p = evc + (long)v * 0x220;
+            ushort step0 = *(ushort*)(p + 0x12), rstep = *(ushort*)(p + 0x26);
+            Console.WriteLine(
+                $"voice{v} dur={(step0 == 0xffff ? 0 : 0xa0000 / step0)},{*(ushort*)(p + 0x1c6)}," +
+                $"{*(ushort*)(p + 0x1c8)},{*(ushort*)(p + 0x1ca)}" +
+                $" reldur={*(ushort*)(p + 0x32)} step0={step0} relstep={rstep}" +
+                $" rate0(+0x0e)={*(ushort*)(p + 0x0e)} relrate(+0x22)={*(ushort*)(p + 0x22)}" +
+                $" targets={*(ushort*)(p + 0x16)},{*(ushort*)(p + 0x1d2)}," +
+                $"{*(ushort*)(p + 0x1d4)},{*(ushort*)(p + 0x1d6)}");
+        }
+
+        // Hold, then note-off, tracing the gain word of every voice the note started at one-sample
+        // resolution throughout. The buffer holds 16 floats and is rewritten each call, so the
+        // render is chunked to 16 to read it without gaps.
+        Console.WriteLine("i," + string.Join(",", voices.ConvertAll(v => $"v{v}")) + ",rate0");
+        int done = 320;
+        bool released = false;
+        for (int i = 0; done < ehold + etrace; i++)
+        {
+            if (!released && done >= ehold)
+            {
+                shortIn((uint)((0x80 | ech) | (enote << 8) | (64 << 16)), 0); flush();
+                released = true;
+            }
+            fixed (float* pl = el, pr = er) process(pl, pr, 16);
+            var cols = new System.Collections.Generic.List<string>();
+            foreach (int v in voices)
+            {
+                long gb = b + 0x1a1d830 + (v & 3) * 0x40 + (v >> 2) * 4;
+                cols.Add($"{*(float*)(gb + 15 * 4):0.000000}");
+            }
+            long p0 = evc + (long)voices[0] * 0x220;
+            Console.WriteLine($"{done}," + string.Join(",", cols) + $",{*(ushort*)(p0 + 0x0e)}");
+            done += 16;
         }
         return;
     }

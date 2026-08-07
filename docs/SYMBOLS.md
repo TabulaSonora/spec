@@ -635,7 +635,7 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1800838e0` | `tva_env_stage1_load` | TVA twin: target <- voice+0x1d2, time voice+0x1c6 |
 | `180083960` | `tva_env_stage2_load` | TVA twin: target <- voice+0x1d4, time voice+0x1c8 |
 | `1800839e0` | `tva_env_stage3_load` | TVA twin: target <- voice+0x1d6, time voice+0x1ca |
-| `180083a60` | `tva_env_stage4_hold` | TVA-env stage 4 (terminal): pins interp start phase voice+0xe to `g_env_startphase_b[10]`; the ramp stops advancing |
+| `180083a60` | `tva_env_stage4_hold` | TVA-env stage 4 (terminal): pins voice+0xe to `g_env_startphase_b[10]`, the amplitude ramp's slowest rate; the envelope stops advancing |
 | `180083a70` | `env_ramp_segment` |  |
 | `180083be0` | `voice_send_slew` | slew send gain word 8/1024 per tick (~400 ms full scale) |
 | `180083db0` | `voice_pan_slew` | slew pan POSITION 2/tick; L/R from g_pitch_split pair |
@@ -878,7 +878,8 @@ have not been analysed yet — those decompile correctly, they simply carry `FUN
 | `1819a2890` | `g_tvf_env_level_curve` | abs(level-0x40) TVF env level curve |
 | `1819a2fa0` | `g_pan_curve` | 128-byte pan law; read forward for the right gain |
 | `1819a3020` | `g_pan_curve_end` | far end of `g_pan_curve`; indexed negatively for the left gain |
-| `1819a7a00` | `g_tvf_env_startphase` | env interp start-phase table[0..10]. Despite the name, read by **both** the pitch-env path (`partial_apply_pitch_env_rates`, `pitch_env_stage1/2/3_load`) and the TVF-env path (`tvf_compute_env_rates` + its stage loaders at `1800846f0`/`770`/`7f0`). TVA's equivalent is `g_env_startphase_b`. |
+| `1819a7a00` | `g_tvf_env_startphase` | env ramp-rate table[0..10]. Despite the name, read by **both** the pitch-env path (`partial_apply_pitch_env_rates`, `pitch_env_stage1/2/3_load`) and the TVF-env path (`tvf_compute_env_rates` + its stage loaders at `1800846f0`/`770`/`7f0`). TVA's equivalent is `g_env_startphase_b`. |
+| — | `g_env_startphase_b` | **Not a start phase.** `512/n`, 128 entries. Every TVA stage loader writes `table[min(duration,10)]` to voice+0xe and `voice_block_process` passes it on as `+ 0x4000` to the per-voice **amplitude ramp's rate word** — low 12 bits the rate, bits 12–13 selecting the volume path's zero mask. The index is the segment's *duration* whenever that duration saturates (≤ 10, where the step pins at 0xffff) and 10 otherwise, so a short segment gets a fast ramp: 4095 at duration 0 against 51 at 10. Measured with `scdec envtrace` — a zero-duration release falls in four equal steps 32 samples apart, 128 samples in all. |
 | `1819a9d80` | `g_bit_mask_lut` | 1<<(i&0x1f) shared bitmask helper |
 | `1819f28b0` | `g_prog_to_col` | program -> map column (0xff=none); melodic rows 0-11, drum rows 12+ |
 | `1819f2e30` | `g_bank_to_row` | map selector (part+0x44d) -> melodic map row; `0x77`=XG(9), `0x7a`=GM2(10), `01`-`04`=SC-55/88/88Pro/8850 |
