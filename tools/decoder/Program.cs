@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1435,6 +1435,62 @@ unsafe
     //   being malloc'd by engine_alloc_init_voices -- and print the fields the bus-assign code reads
     //   for each part slot. CC#91 is set to a distinctive value so the right slot identifies itself
     //   by its reverb-send byte. args: dll partdump [cc91] [slots]
+    // mapsysex mode: what does a `40 4x pp` write? Sends one DT1 into the extended part block and
+    //   reports the four part bytes the bank/map handlers touch, before and after. Built to settle
+    //   which of `40 4x 00` and `40 4x 01` is the tone map, since the two handlers
+    //   (`sysex_part_bank_msb` -> part+0x44d, `sysex_part_bank_lsb` -> part+0x44e clamped 1..4) are
+    //   adjacent in the chain and the chain's own next-address bytes do not read off cleanly.
+    //   args: dll mapsysex <pp> <value> [channel]
+    if (args.Length > 1 && args[1] == "mapsysex")
+    {
+        int ppm = args[2] == "sweep" ? -1 : Convert.ToInt32(args[2], 16);
+        int vvm = int.Parse(args[3]);
+        int chm = args.Length > 4 ? int.Parse(args[4]) : 0;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset(); flush();
+        var lm = new float[512]; var rm = new float[512];
+        fixed (float* pl = lm, pr = rm) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+        long arrm = *(long*)(b + 0x1a222a0);
+        // The part array is indexed by **block**, not by channel: channel 10 is block 0 and
+        // channels 1-9 are blocks 1-9. Reading slot `chm` dumps somebody else's part.
+        long qm = arrm + (long)BlockNum(chm) * 0x488;
+        void Show(string when) =>
+            Console.WriteLine($"  {when,-7} +0x444={*(byte*)(qm+0x444),3} +0x445={*(byte*)(qm+0x445),3}"
+                            + $" +0x44d={*(byte*)(qm+0x44d),3} +0x44e={*(byte*)(qm+0x44e),3}");
+        if (ppm < 0)
+        {
+            // Sweep every address in both the `40 1x` and `40 4x` blocks, reporting any that moves
+            // one of the four bytes. A whole-block sweep beats guessing which one the manual means.
+            Console.WriteLine($"sweeping, channel {chm}, value {vvm}");
+            foreach (int hi in new[] { 0x10, 0x40 })
+            {
+                for (int pp = 0; pp <= 0x7f; pp++)
+                {
+                    byte a444 = *(byte*)(qm + 0x444), a445 = *(byte*)(qm + 0x445);
+                    byte a44d = *(byte*)(qm + 0x44d), a44e = *(byte*)(qm + 0x44e);
+                    SendSysEx(Dt1(0x40, (byte)(hi | BlockNum(chm)), (byte)pp, (byte)vvm));
+                    flush();
+                    fixed (float* pl = lm, pr = rm) process(pl, pr, 512);
+                    byte b444 = *(byte*)(qm + 0x444), b445 = *(byte*)(qm + 0x445);
+                    byte b44d = *(byte*)(qm + 0x44d), b44e = *(byte*)(qm + 0x44e);
+                    if (a444 != b444 || a445 != b445 || a44d != b44d || a44e != b44e)
+                        Console.WriteLine($"  40 {hi | BlockNum(chm):x2} {pp:x2} <- {vvm}:"
+                            + $" +0x444 {a444}->{b444}  +0x445 {a445}->{b445}"
+                            + $"  +0x44d {a44d}->{b44d}  +0x44e {a44e}->{b44e}");
+                }
+            }
+            return;
+        }
+
+        Console.WriteLine($"40 4{BlockNum(chm):x} {ppm:x2} <- {vvm}   (channel {chm})");
+        Show("before");
+        SendSysEx(Dt1(0x40, (byte)(0x40 | BlockNum(chm)), (byte)ppm, (byte)vvm));
+        flush();
+        fixed (float* pl = lm, pr = rm) process(pl, pr, 512);
+        Show("after");
+        return;
+    }
+
     if (args.Length > 1 && args[1] == "partdump")
     {
         int rev=args.Length>2?int.Parse(args[2]):90;

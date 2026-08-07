@@ -4972,3 +4972,39 @@ Two more details from the same routine:
 - A byte **below** `0x40` is *inverted* follow, not full follow: the magnitude indexes the table and
   the sign flips which way the step goes. No partial in the table has one — the byte spans `0x40` to
   `0x4f` — so it is unreachable without a corrupt tone.
+
+## The tone map SysEx is `40 4x 01`, and the vintage is a default `[confirmed]`
+
+Two adjacent handlers sit at the head of the extended part block, and only one of them is the map:
+
+| address | handler | writes | clamp |
+|---|---|---|---|
+| `40 4x 00` | `sysex_part_bank_msb @ 180076c30` | `part+0x44d` | none |
+| `40 4x 01` | `sysex_part_bank_lsb @ 180076d20` | `part+0x44e` | **1..4, else dropped** |
+
+`part+0x44e` is the tone map. `part+0x44d` is the tone-space selector — the byte XG System On sets
+to `0x77` on every part and GM2 On to `0x7a` — and writing a map number there does nothing to the
+map.
+
+Measured rather than read off the manual, by sweeping **every** address in the `40 1x` and `40 4x`
+blocks against a part dump (`scdec mapsysex sweep`): exactly two of the 256 move either byte, and
+they are the two above. Confirmed audibly as well. With the harness told map 4 throughout, a file
+carrying `40 4x 01 = 1` on all sixteen blocks renders **byte-identical** to a native map-1 render,
+while the same file carrying `40 4x 00 = 1` renders byte-identical to map 4 — the message does
+nothing at all.
+
+> Worth knowing because a real player gets this wrong. Cog's `MIDIPlayer.cpp` builds this exact
+> message in `gs_bank_lsb_sysex` with `0x00` as its third address byte and injects it per part after
+> a GS reset to force a vintage. The part patching, the map value, the checksum and the block
+> ordering are all right; the address byte is off by one. `syx_gs_limit_bank_lsb[7]` wants `0x01`.
+
+**The vintage is a default, not a ceiling.** The SysEx and CC#32 write the same byte and neither
+limits the other, so the last writer wins — measured both ways round: `40 4x 01 = 1` followed by
+CC#32 = 4 renders as map 4, and CC#32 = 4 followed by `40 4x 01 = 1` renders as map 1. A player that
+injects a map once after a reset is stating a preference that any later bank LSB in the file
+overrides. The name "limit" does not describe what the parameter does.
+
+Reproduce with `scdec mapsysex <pp> <value> [channel]`, or `mapsysex sweep <value>` for the whole
+block. **Index the part dump by block, not by channel** — `g_part_array_base + block * 0x488`. A
+sweep that reads `arr + channel * 0x488` watches a part nobody wrote and reports that all 256
+addresses do nothing.
