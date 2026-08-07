@@ -3277,6 +3277,17 @@ position per note. Two sources can be zero, and one famously cannot:
 The random source is `prng_lfsr` — the same generator as the pitch start jitter and the random LFO
 waveforms, already documented with its `0xEFA6`/`0x9C23` reset seeds.
 
+**A corpus file that actually uses it: `WATRWLD1.MID`** (Duke Nukem 3D), which assigns random pan to
+its slow cymbal crashes. Worth knowing because the feature is otherwise hard to reach from real
+music — the drum-key route needs an NRPN writing a literal zero and the part route needs the GS
+panpot SysEx, neither of which a sequencer emits by accident. A file where a *sparse* and *long*
+sound is randomly placed is close to ideal for measuring it: each crash is one draw, audible on its
+own, with nothing overlapping to average the placement away.
+
+**Render it on the SC-55 map**, which is what it was written for. The same crash behaves differently
+on the later maps because their tones carry different pitch key-follow, so a comparison run at the
+wrong map is measuring the map rather than the pan.
+
 ## Tone 1946 is not a layering problem — the SVF diverges in the overdamped regime `[localised]`
 
 The previous entry left "tone 1946 renders about 1.2 dB loud" with the next probe named as its
