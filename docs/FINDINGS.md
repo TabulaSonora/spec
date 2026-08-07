@@ -5745,7 +5745,32 @@ is exactly the time the glide needs to fall from key 71 to key 64 at that rate.
 DLL agree at every frame, so correcting it would move this port off the reference. Any fix belongs
 behind a flag.
 
-Inferred and **not** confirmed: a 16-bit milli-semitone field holding the glide's starting pitch and
-saturating at 65535, offset by each tone's own tune -- which would put the two maps' program-33
-tones about ten semitones apart in the internal pitch scale. The place to check is whatever holds
-the value `portamento_offset` feeds, alongside `partial_compute_pitch @ 18005fc20`.
+### The hardware has no ceiling at all `[confirmed against Nuked-SC55]`
+
+Run the same sweep through an **SC-55mkII** ROM set under Nuked-SC55 -- `SC-55/harness/nuked_render`,
+which plays an SMF through the emulator and writes a WAV the same scripts can read -- and the glide
+start tracks the source key one semitone at a time, monotonically, **all the way to key 99**:
+
+| engine | glide start tracks the source key up to | plateaus from |
+|---|---|---|
+| Nuked SC-55mkII | 99, every key tested | **never** |
+| SC-VA, SC-55 map | 64 | 65 |
+| SC-VA, SC-8820 map | 75 | 76 |
+
+58 reads 58.7, 71 reads 71.5, 99 reads 99.6 -- a uniform half-semitone high, which is the FFT bin
+and the machine's tuning, not a trend. There is no plateau anywhere in the range.
+
+**So the bug report is right, and the SC-VA is the one that is wrong.** The clamp is the SC-VA's
+own; the SC-55 map's is the most damaging because it is the lowest, and it is what makes the bass
+dive in `MIDI-Corona-Baby Baby.mid` arrive late enough to be inaudible.
+
+Still inferred: a 16-bit milli-semitone field holding the glide's starting pitch and saturating at
+65535, offset by each tone's own tune -- which would put the two maps' program-33 tones about ten
+semitones apart in the internal pitch scale, and explains why the same defect lands eleven semitones
+apart on the two maps. The place to check is whatever holds the value `portamento_offset` feeds,
+alongside `partial_compute_pitch @ 18005fc20`.
+
+**Any correction goes behind a `ToneGeneratorOptions` flag, off by default**, because this engine's
+contract is to match `SCCore.dll` and correcting it moves the engine off the reference. The natural
+companions are the options that already go beyond the hardware -- more than 32 parts, more than 64
+voices -- since a caller who has left the module's limits behind has no reason to keep its defects.
