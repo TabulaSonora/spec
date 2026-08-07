@@ -3044,12 +3044,26 @@ unsafe
         Console.WriteLine($"  +0x30..0x44 state= {*(float*)(ptr+0x30):R} {*(float*)(ptr+0x34):R} {*(float*)(ptr+0x38):R} {*(float*)(ptr+0x3c):R} {*(float*)(ptr+0x40):R} {*(float*)(ptr+0x44):R}");
         return;
     }
-    // sampstate mode: play a melodic note, find the voice, dump its sampler state (DAT_181a1b570 +
-    //   v*0x50): +0x20 delta-stream ptr, +0x38 scale-stream ptr, +0x28 pos, +0x2c len, +0x49 scale,
-    //   plus the first 16 bytes the delta/scale pointers point at. args: dll sampstate <prog> <note> [map]
+    // sampstate mode: play a melodic note and dump the sampler state (DAT_181a1b570 + v*0x50) of
+    //   *every* sounding voice: +0x20 delta-stream ptr, +0x38 scale-stream ptr, +0x28 pos,
+    //   +0x2c loopStart, +0x30 loopEnd, +0x48 run flags, +0x49 scale, plus the first 16 bytes the
+    //   delta and scale pointers point at.
+    //
+    //   Both of those matter for pairing a voice against a port's partials. A tone can put more
+    //   than one partial on a note -- velocity layers, release layers -- and reporting only the
+    //   first sounding voice compares whichever one the module happened to allocate first against
+    //   whichever one the port lists first, which is not a comparison at all. Velocity is an
+    //   argument for the same reason: it selects the layer, and a fixed 110 cannot reach a case
+    //   the caller is asking about at 127.
+    //
+    //   +0x2c is the field the samplers compare the cursor against (`param_1[2]+0xc`, param_1[2]
+    //   being state +0x20) -- it is the loop *start*, matching a port's own loop_start; +0x30 is
+    //   the far end.
+    //   args: dll sampstate <prog> <note> [map] [vel]
     if (args.Length > 1 && args[1] == "sampstate")
     {
         int pg=args.Length>2?int.Parse(args[2]):12, nt=args.Length>3?int.Parse(args[3]):60, map=args.Length>4?int.Parse(args[4]):4;
+        int vlS=args.Length>5?int.Parse(args[5]):110;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         long fbS=b+0x1a1b5b8, ss=b+0x1a1b570;
         void CCs(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
@@ -3058,17 +3072,31 @@ unsafe
         shortIn((uint)(0xC0|(pg<<8)),0);
         var l=new float[512]; var r=new float[512]; flush();
         fixed(float* pl=l,pr=r) for(int i=0;i<8;i++) process(pl,pr,512);
-        shortIn((uint)(0x90|(nt<<8)|(110<<16)),0); flush();
-        int v0=-1; for(int tries=0; tries<8 && v0<0; tries++){ fixed(float* pl=l,pr=r) process(pl,pr,16);
-            for(int v=0;v<64;v++){ if((*(byte*)(fbS+v*0x50)&1)!=0){ v0=v; break; } } }
-        if(v0<0){ Console.WriteLine("no active voice"); return; }
-        long st=ss+(long)v0*0x50;
-        long dptr=*(long*)(st+0x20), sptr=*(long*)(st+0x38);
-        Console.WriteLine($"sampstate prog={pg} note={nt} voice={v0}");
-        Console.WriteLine($"  +0x20 deltaPtr=0x{dptr:X}  +0x38 scalePtr=0x{sptr:X}  +0x28 pos={*(int*)(st+0x28)}  +0x2c len={*(int*)(st+0x2c)}  +0x49 scale={*(byte*)(st+0x49)}");
-        Console.WriteLine($"  moduleBase=0x{b:X}  deltaPtr-base=0x{dptr-b:X}  scalePtr-base=0x{sptr-b:X}");
-        Console.Write("  delta[0:16]:"); for(int i=0;i<16;i++) Console.Write($" {*(sbyte*)(dptr+i)}"); Console.WriteLine();
-        Console.Write("  scale[0:16]:"); for(int i=0;i<16;i++) Console.Write($" {*(byte*)(sptr+i)}"); Console.WriteLine();
+        shortIn((uint)(0x90|(nt<<8)|(vlS<<16)),0); flush();
+        // Stepped rather than taken at one instant: a tone's partials do not all become active on
+        // the same tick, so a single look can miss the later ones. Keeps stepping until the set
+        // stops growing rather than until it is non-empty.
+        // A fixed window rather than "stop once it stops growing": a release or second velocity
+        // layer can start well after the first partial, and an early-out sized to a few hundred
+        // samples reports one voice for a tone that has two. 256 x 64 is ~0.5 s at 32 kHz, and
+        // every voice ever seen active in it is kept, not just the set live at the end.
+        var soundingS=new System.Collections.Generic.List<int>();
+        for(int tries=0; tries<256; tries++){
+            fixed(float* pl=l,pr=r) process(pl,pr,64);
+            for(int v=0;v<64;v++) if((*(byte*)(fbS+v*0x50)&1)!=0 && !soundingS.Contains(v)) soundingS.Add(v);
+        }
+        if(soundingS.Count==0){ Console.WriteLine("no active voice"); return; }
+        Console.WriteLine($"sampstate prog={pg} note={nt} vel={vlS} map={map}: {soundingS.Count} sounding voice(s)");
+        Console.WriteLine($"  moduleBase=0x{b:X}");
+        foreach(int v0 in soundingS){
+            long st=ss+(long)v0*0x50;
+            long dptr=*(long*)(st+0x20), sptr=*(long*)(st+0x38);
+            Console.WriteLine($"  voice{v0}: +0x28 pos={*(int*)(st+0x28)}  +0x2c loopStart={*(int*)(st+0x2c)}"
+                + $"  +0x30 loopEnd={*(int*)(st+0x30)}  +0x48 flags=0x{*(byte*)(st+0x48):X2}  +0x49 scale={*(byte*)(st+0x49)}");
+            Console.WriteLine($"    +0x20 deltaPtr-base=0x{dptr-b:X}  +0x38 scalePtr-base=0x{sptr-b:X}");
+            Console.Write("    delta[0:16]:"); for(int i=0;i<16;i++) Console.Write($" {*(sbyte*)(dptr+i)}"); Console.WriteLine();
+            Console.Write("    scale[0:16]:"); for(int i=0;i<16;i++) Console.Write($" {*(byte*)(sptr+i)}"); Console.WriteLine();
+        }
         return;
     }
     // predtrace mode: capture the engine's ADPCM predictor accumulator (voice sampler state +0x40, int)
