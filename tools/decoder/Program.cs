@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1435,6 +1435,42 @@ unsafe
     //   being malloc'd by engine_alloc_init_voices -- and print the fields the bus-assign code reads
     //   for each part slot. CC#91 is set to a distinctive value so the right slot identifies itself
     //   by its reverb-send byte. args: dll partdump [cc91] [slots]
+    // chophase mode: read the chorus LFO phase after N processed samples, so its origin and rate
+    //   can be solved rather than guessed. The register at 0x181a62af8 advances by the increment at
+    //   0x181a62afc per sample into 24 bits. Every `smf` render prints this value once; this mode
+    //   varies the warm-up so two readings pin both unknowns.
+    //   args: dll chophase <blocks> [blockFrames]
+    if (args.Length > 1 && args[1] == "chophase")
+    {
+        int nblk = int.Parse(args[2]);
+        int bfrm = args.Length > 3 ? int.Parse(args[3]) : 512;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        long PVc(long va) => b + (va - 0x180000000L);
+        Console.WriteLine($"  at rest, before any process(): phase={*(int*)PVc(0x181a62af8L)}"
+                        + $" inc={*(int*)PVc(0x181a62afcL)}");
+        GsReset(); flush();
+        Console.WriteLine($"  after GsReset, still no process(): phase={*(int*)PVc(0x181a62af8L)}"
+                        + $" inc={*(int*)PVc(0x181a62afcL)}");
+        var lc2 = new float[512]; var rc2 = new float[512];
+        fixed (float* pl = lc2, pr = rc2) for (int i = 0; i < nblk; i++) process(pl, pr, (uint)bfrm);
+        // Optionally send a second GS reset *after* the warm-up: does a reset zero the accumulator?
+        if (args.Length > 4 && args[4] == "reset")
+        {
+            int before = *(int*)PVc(0x181a62af8L);
+            GsReset(); flush();
+            fixed (float* pl = lc2, pr = rc2) process(pl, pr, 32);
+            Console.WriteLine($"  GS reset after the warm-up: phase {before} -> "
+                            + $"{*(int*)PVc(0x181a62af8L)}");
+        }
+        int ph = *(int*)PVc(0x181a62af8L);
+        int inc = *(int*)PVc(0x181a62afcL);
+        long samples = (long)nblk * bfrm;
+        Console.WriteLine($"  after {nblk} x {bfrm} = {samples} samples: phase={ph} inc={inc}");
+        if (inc > 0)
+            Console.WriteLine($"  implied origin = {ph - samples * inc} (0x{(ph - samples * inc):X})");
+        return;
+    }
+
     // mapsysex mode: what does a `40 4x pp` write? Sends one DT1 into the extended part block and
     //   reports the four part bytes the bank/map handlers touch, before and after. Built to settle
     //   which of `40 4x 00` and `40 4x 01` is the tone map, since the two handlers
@@ -2926,8 +2962,12 @@ unsafe
         GsReset();
         if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
         flush();
+        // Warm-up blocks before the song. Six is the fixture default; the argument exists to move
+        // the free-running effect LFOs to a different phase at song start, which is how you ask
+        // whether the phase matters at all without touching the engine under test.
+        int warmBlocks = args.Length > 7 ? int.Parse(args[7]) : 6;
         { var wl = new float[512]; var wr = new float[512];
-          fixed (float* pl = wl, pr = wr) for (int i = 0; i < 6; i++) process(pl, pr, 512); }
+          fixed (float* pl = wl, pr = wr) for (int i = 0; i < warmBlocks; i++) process(pl, pr, 512); }
 
         // Phase pinning -- EXPERIMENTAL, and its validation failed: pre-rolling this register to
         // ~0 against a reimplementation whose accumulator starts at 0 still leaves a ~2.7 dB wet

@@ -5008,3 +5008,41 @@ Reproduce with `scdec mapsysex <pp> <value> [channel]`, or `mapsysex sweep <valu
 block. **Index the part dump by block, not by channel** — `g_part_array_base + block * 0x488`. A
 sweep that reads `arr + channel * 0x488` watches a part nobody wrote and reports that all 256
 addresses do nothing.
+
+## The chorus LFO accumulator free-runs and nothing resets it `[confirmed]`
+
+The register at `0x181a62af8` is a 24-bit accumulator advanced by the increment at `0x181a62afc`
+every processed sample. `scdec chophase <blocks>` reads it after a chosen warm-up, which is enough
+to solve its behaviour outright:
+
+    blocks x 512   phase        inc     per sample
+    0                    0     1024     --
+    1               557056     1024     1088   (a 32-sample lead: 512*1024 + 32768)
+    2..5          +524288/blk  1024     1024
+    6              2992128      192      660   (the switch lands 288 samples in)
+    7+            +98304/blk    192      192
+
+So: **the phase starts at 0**, the power-on increment is 1024, and the GS reset's chorus macro
+(Chorus 3, rate 3) replaces it with 192 — `rate << 6` — landing 2848 samples after the reset. The
+accumulator itself never restarts.
+
+> An earlier reading of this claimed a non-zero origin of `0x24A800`. That was a straight-line fit
+> extrapolated backwards through the rate change, and the rate change is exactly what makes the fit
+> invalid. Two readings are not enough to characterise a piecewise rate; five are.
+
+**Neither a GS reset nor a macro change zeroes it.** Measured: run 20,480 samples, send a GS reset,
+process 32 more, and the phase advances by exactly `32 * 192` — the reset does not touch it. And the
+1024→192 switch above happens on a phase that carries straight through.
+
+That matters to a port more than it looks. A reimplementation that clears the accumulator on a GS
+reset restarts its chorus LFO wherever a file sends one, and one that rebuilds its chorus object
+when a file selects a macro restarts it there too. Most files do both, once, at the top.
+
+The consequence is that **the chorus phase at the start of a song is a function of how long the
+engine ran first**, which is why `scdec smf` prints it. A comparison between two engines that does
+not align it is not comparing their wet placement.
+
+\note The harness's `pin` pre-roll, which advances the module until the register wraps to ~0, was an
+attempt to align this from the wrong end and its own comment records that validation failed. Aligning
+from the other side — placing the reimplementation's accumulator at the value the module reached — is
+the direction that works, and it needs no pre-roll.
