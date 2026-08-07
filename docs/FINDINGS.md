@@ -5808,3 +5808,38 @@ peak 0.5993 to 0.6960 against the oracle's 0.7401, and both band deviations gone
 Worth recording as a wrong turn: reading the reset selector `0x20` as "the drum channel powers on in
 MAP2" and defaulting it that way costs **fourteen** assertions. The default is MAP1; `0x20` simply
 is not the map.
+
+## A drum key's assign group is a full byte, and only zero is "no group" `[confirmed — decompile]`
+
+`drum_setup_assign_group` does two things with the value it receives:
+
+```c
+*(char *)(key + 0x400 + base) = param_1;     /* the raw byte, unclamped */
+bVar2 = *(byte *)(key + base2 + 0x480);
+if (param_1 == '\0') { bVar2 = bVar2 & 0xf7; }   /* clear bit 3 */
+else                  { bVar2 = bVar2 | 8;    }   /* set bit 3   */
+*(byte *)(key + base2 + 0x480) = bVar2;
+```
+
+So the group is stored as sent, and a separate has-a-group bit is maintained beside it with **zero
+as the only value that clears it**. There is no clamp to 1-4, and imposing one is wrong at both
+ends.
+
+**Zero is the common value, which is what makes the low end dangerous.** `darkness3.mid`'s delivered
+assign-group planes carry:
+
+| plane | value distribution |
+|---|---|
+| `49 04 00`, keys 0-63 | 0 × 59, 1 × 3, 7 × 2 |
+| `49 05 00`, keys 64-127 | 0 × 54, then 2, 3, 4, 5 and 6 twice each |
+
+113 of 128 keys are ungrouped. Clamping those up to group 1 puts nearly the whole kit into one choke
+group, where every drum cuts the last one that sounded — which presents as the drum part playing
+monophonically, not as a subtle level error. The high end matters too: that file uses groups up to
+7, and folding 5, 6 and 7 onto 4 makes three independent groups choke each other.
+
+Related: the 49 family's Rx note-on/off plane packs both switches into one byte, and **bit 0 is Rx
+Note Off**. Measured rather than assumed — send `49 0c 00` with bit 0 set on key 38 and the DLL's
+note decays sharply once the note-off arrives (RMS 66.9 against 191.8 at 0.35 s, struck at 0.25 and
+released at 0.31). Bit 4 is Rx Note On. See `sysex_drumset_rxnote_bit0` / `_bit4`, which write bits
+0 and 4 of `part+0x480`.
