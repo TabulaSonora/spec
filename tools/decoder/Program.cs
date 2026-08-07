@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3538,6 +3538,58 @@ unsafe
     // can show.
     //
     // Feed the DLL on its own 320-sample block (see BlockFrames) or none of this holds.
+
+    // smfstate mode: play a file for a while, then read every part's identity straight out of the
+    // part array. The question it answers is which of a bulk dump's writes actually reached a part
+    // -- a dump and a program change can name the same field, and the input queue can drop either.
+    //   args: dll smfstate <midi> [ms] [map]
+    if (args.Length > 1 && args[1] == "smfstate")
+    {
+        string midiPath = args.Length > 2 ? args[2] : "song.mid";
+        int ms          = args.Length > 3 ? int.Parse(args[3]) : 500;
+        int map         = args.Length > 4 ? int.Parse(args[4]) : 4;
+        const int SR = 32000, BlockFrames = 320;
+
+        byte[] smf; System.Collections.Generic.List<SmfEvent> events; double songSeconds;
+        try { smf = File.ReadAllBytes(midiPath); events = Smf.Parse(smf, SR, out songSeconds); }
+        catch (Exception ex) { Console.Error.WriteLine($"cannot read {midiPath}: {ex.Message}"); Environment.Exit(2); return; }
+
+        setSR((float)SR); setBS(512); activate((float)SR, 512); setThr();
+        GsReset();
+        if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
+        flush();
+        { var wl = new float[512]; var wr = new float[512];
+          fixed (float* pl = wl, pr = wr) for (int i = 0; i < 6; i++) process(pl, pr, 512); }
+
+        int total = ms * SR / 1000;
+        var sL = new float[BlockFrames]; var sR = new float[BlockFrames];
+        int ei = 0, pos = 0, fed = 0;
+        while (pos < total)
+        {
+            while (ei < events.Count && events[ei].At < pos + BlockFrames)
+            {
+                var e = events[ei++];
+                if (e.Bytes != null) SendSysEx(e.Bytes);
+                else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), 0);
+                fed++;
+            }
+            flush();
+            fixed (float* pl = sL, pr = sR) process(pl, pr, BlockFrames);
+            pos += BlockFrames;
+        }
+
+        long arr = *(long*)(b + 0x1a222a0);
+        Console.WriteLine($"{Path.GetFileName(midiPath)}: fed {fed} events over {ms} ms, map {map}");
+        Console.WriteLine("blk  prog(3d5) bankM(3d4) rx(3d8) flags(3d9) sel(0x12) vol(3dc)");
+        for (int i = 0; i < 16; i++)
+        {
+            long q = arr + (long)i * 0x488;
+            Console.WriteLine($"{i,3}  {*(byte*)(q + 0x3d5),9} {*(byte*)(q + 0x3d4),10} " +
+                              $"{*(byte*)(q + 0x3d8),6} 0x{*(byte*)(q + 0x3d9),-8:x2} " +
+                              $"0x{*(byte*)(q + 0x12),-6:x2} {*(byte*)(q + 0x3dc),7}");
+        }
+        return;
+    }
 
     if (args.Length > 1 && args[1] == "smf")
     {
