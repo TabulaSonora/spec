@@ -5713,3 +5713,39 @@ placed, and no amount of seeding will reach them.
 > Which makes "multiple state variables" the right description and the wrong lead. There is no
 > single register; there is ring content plus three or four IIR accumulators, all carrying whatever
 > the warm-up left. Seeding them would buy 0.03.
+
+## The portamento glide's start pitch clamps, and the SC-55 map clamps it eleven semitones low `[measured]`
+
+Reported against the SC-VA as a whole, against a real SC-55 and Nuked SC-55 -- not against this
+port, which reproduces the DLL column for column on both maps.
+
+**The reproducer** is `MIDI-Corona-Baby Baby.mid`, channel 2 at 6.6 s, 13.8 s, 31.8 s and 155.3 s.
+Each time the file plays a **velocity-11 grace note at key 71**, releases it 53 ms later, sets CC 5
+to 80, and strikes key 35 168 ms after that with CC 65 already on -- a three-octave bass dive, the
+Eurodance staple. On the SC-8820 map it dives. On the SC-55 map the pitch hangs at the top for
+about 0.6 s before starting down, and the target note is not long enough for it to arrive.
+
+**The measurement needs no pitch estimation.** Sweep the source key with portamento time 127 and
+find where the render stops changing at all:
+
+| map | glide start tracks the source key up to | plateaus from |
+|---|---|---|
+| SC-55 | 64 | **65** and every key above |
+| SC-8820 | 75 | **76** and every key above |
+
+Eleven semitones apart, same shape. Past the plateau both maps descend at the same rate -- roughly
+11.5 semitones per second at CC 5 = 80 -- so the SC-55 dive is *late*, not missing. The 0.6 s stall
+is exactly the time the glide needs to fall from key 71 to key 64 at that rate.
+
+**It is not the tone and not the map's pitch data.** `render-note 33 <key>` plays keys 60, 64, 68,
+71, 76 and 84 at their correct frequencies on both maps, to within an FFT bin -- 1046.9 Hz against
+1046.5 expected at key 84. The ceiling exists only on the glide path.
+
+**Not a defect against the oracle.** Traced through `scdec smf` on both maps, this engine and the
+DLL agree at every frame, so correcting it would move this port off the reference. Any fix belongs
+behind a flag.
+
+Inferred and **not** confirmed: a 16-bit milli-semitone field holding the glide's starting pitch and
+saturating at 65535, offset by each tone's own tune -- which would put the two maps' program-33
+tones about ten semitones apart in the internal pitch scale. The place to check is whatever holds
+the value `portamento_offset` feeds, alongside `partial_compute_pitch @ 18005fc20`.
