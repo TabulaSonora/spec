@@ -3785,6 +3785,23 @@ unsafe
             Console.WriteLine($"  {blk,5}   {Math.Sqrt(ra / floats),-10:G5} {pa,-10:G5} "
                               + $"{Math.Sqrt(rb2 / floats),-10:G5} {pb,-10:G5}");
         }
+
+        // The values themselves, from the last block. A coefficient bank is constant across the
+        // buffer and reads the same in every slot; a signal buffer does not.
+        Console.WriteLine($"\n  A = 0x{vaA:X}, final block:");
+        for (int i = 0; i < floats; i += 8)
+        {
+            Console.Write($"    +{i * 4:X3} ");
+            for (int k = i; k < Math.Min(i + 8, floats); k++) Console.Write($" {A[k],-12:G6}");
+            Console.WriteLine();
+        }
+        Console.WriteLine($"  B = 0x{vaB:X}, final block:");
+        for (int i = 0; i < floats; i += 8)
+        {
+            Console.Write($"    +{i * 4:X3} ");
+            for (int k = i; k < Math.Min(i + 8, floats); k++) Console.Write($" {B[k],-12:G6}");
+            Console.WriteLine();
+        }
         return;
     }
 

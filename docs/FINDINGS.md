@@ -6055,3 +6055,31 @@ zeros and at 127 it carries signal, so it ought to be the clearest hit in the re
 captures land on block boundaries, where the buffer has already been consumed and cleared. Only a
 few scattered bytes survive the control leg. Reading it wants a capture taken *mid-block*, from
 inside the render rather than between renders.
+
+### The send-mix gain bank, dumped live `[measured]`
+
+The bank the MAC loop scales by -- `dest[i] += gain[0x181a6ecxx] * src[0x181a195xx]` -- read with
+`scdec buscap` 64 blocks into a sounding note, CC93 127 and CC91 0. It is a run of **32-float blocks
+on a 0x80 stride**, each holding one constant repeated across the block:
+
+| block | value | what |
+|---|---|---|
+| `0x181a6ebf0` | **0.3125** | unidentified |
+| `0x181a6ec70` | 0 | |
+| `0x181a6ecf0` | 0 | |
+| `0x181a6ed70` | **0.125** | reverb input |
+| `0x181a6edf0` | 1 | |
+| `0x181a6ee70` | 1 | |
+| `0x181a6eef0` | **0.878906** | unidentified |
+| `0x181a6ef70` | 1 | chorus write (`gainIn`) |
+| `0x181a6eff0` | 0 unless set | chorus to reverb |
+| `0x181a6f070` | 0 unless set | chorus to delay |
+| `0x181a6f0f0` | per `40 01 3A` | chorus return (`gainOut`) |
+| `0x181a6f170` | 1 | delay return |
+| `0x181a6f270` | 0 unless set | delay to reverb |
+
+**No block holds anything near 3**, so `panwet.mid`'s deficit is not a constant sitting in this bank
+either. The two unidentified values are worth naming: `0.3125` is 5/16 and `0.878906` is 225/256.
+
+Note the asymmetry that keeps recurring: the reverb input is attenuated by 1/8 while the chorus
+write is unity.
