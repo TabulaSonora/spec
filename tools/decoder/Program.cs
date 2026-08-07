@@ -1674,6 +1674,14 @@ unsafe
         bool nib = args.Length > 5 && args[5] == "nib";
         int mn = args.Length > 6 ? int.Parse(args[6]) : 64;
         bool mrender = !(args.Length > 7 && args[7] == "noproc");
+        // An optional anchor sent first. Most `48` addresses do not carry a part: the dispatcher
+        // re-anchors `g_cur_part_base` only at the addresses that begin a region, and every other
+        // one continues from wherever the last left it. Sent alone after a reset, a continuation
+        // address walks from a stale base -- which is why this probe used to fault, and it is not
+        // a range problem. `anchor=<a2hex>:<a3hex>` sends that address first, with a payload of
+        // 0x40, so the continuation has somewhere legitimate to continue from.
+        string manchor = null;
+        foreach (var a in args) if (a.StartsWith("anchor=")) manchor = a.Substring(7);
         setSR(32000f); setBS(512); activate(32000f, 512); setThr();
         GsReset(); flush();
         var lm = new float[512]; var rm = new float[512];
@@ -1683,6 +1691,29 @@ unsafe
         int mspan = 32 * 0x488;
         var mbefore = new byte[mspan];
         for (int i = 0; i < mspan; i++) mbefore[i] = *(byte*)(marr + i);
+
+        if (manchor != null)
+        {
+            var ap = manchor.Split(':');
+            var abody = new System.Collections.Generic.List<byte>();
+            for (int i = 0; i < mn; i++) { abody.Add(0x04); abody.Add(0x00); }
+            var apay = new byte[3 + abody.Count];
+            apay[0] = (byte)m1;
+            apay[1] = Convert.ToByte(ap[0], 16);
+            apay[2] = Convert.ToByte(ap[1], 16);
+            abody.CopyTo(apay, 3);
+            int asum = 0; foreach (var x in apay) asum += x;
+            var amsg = new byte[5 + apay.Length + 2];
+            amsg[0] = 0xF0; amsg[1] = 0x41; amsg[2] = 0x10; amsg[3] = 0x42; amsg[4] = 0x12;
+            apay.CopyTo(amsg, 5);
+            amsg[5 + apay.Length] = (byte)((128 - (asum & 0x7F)) & 0x7F);
+            amsg[6 + apay.Length] = 0xF7;
+            fixed (byte* ap2 = amsg) longIn(ap2, 0);
+            flush();
+            fixed (float* pl = lm, pr = rm) process(pl, pr, 512);
+            for (int i = 0; i < mspan; i++) mbefore[i] = *(byte*)(marr + i);
+            Console.WriteLine($"  (anchored with {m1:x2} {ap[0]} {ap[1]}, payload 0x40)");
+        }
 
         var body = new System.Collections.Generic.List<byte>();
         for (int i = 0; i < mn; i++)

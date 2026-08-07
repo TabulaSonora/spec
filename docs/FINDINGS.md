@@ -5242,11 +5242,56 @@ range-checked ones no real dump would, and the engine faults on the next block. 
 without rendering does not help -- the write is applied *during* `process`, not at the flush -- so
 those twelve pages need either a payload that stays in range or the dispatcher decoded instead.
 
-`sysex_dt1_addr_dispatch @ 180079a20` and `part_param_write_all @ 18007b680` are where that decode
-is. Both switch on `g_sysex_addr_idx`, which carries the part in bits 8-11 and the parameter in the
-low byte -- `g_cur_part_base = (g_sysex_addr_idx >> 8 & 0xf) * 0x488 + g_part_array_base`. Reading
-how the `48` path walks that index is what turns the remaining twelve pages from a probe problem
-into arithmetic.
+### The dispatcher decoded: one continuous walk, re-anchored, not twenty-nine pages `[confirmed]`
+
+`sysex_select_param_map @ 18006b4a0` builds the index, and it is simply the address:
+
+    g_sysex_addr_idx = (a2 << 8) + a3
+
+with `a1` selecting which table of the address space is in force. So a `48` message is not "page
+`a2`" -- it is a **position in a 16-bit address space**, and `a3` is part of it. That is why
+`48 01 10` writes somewhere different from `48 01 00` rather than being a variant of it, and why
+real files carry `a3` values of `10`, `30`, `50` and `70` as well as `00`.
+
+`sysex_dt1_addr_dispatch @ 180079a20` then does one of two things. At an address that **begins a
+region** it re-anchors, setting `g_cur_part_base` and `g_sysex_write_cursor` outright:
+
+| address | part | cursor | address | part | cursor |
+|---|---|---|---|---|---|
+| `48 01 10` | 0 | `+0x3d4` | `48 0f 00` | 7 | `+0x43c` |
+| `48 02 00` | 0 | `+0x40c` | `48 10 00` | 8 | `+0x40c` |
+| `48 04 00` | 1 | `+0x41c` | `48 13 00` | 9 | `+0x41c` |
+| `48 06 00` | 2 | `+0x42c` | `48 14 00` | 10 | `+0x42c` |
+| `48 08 00` | 3 | `+0x43c` | `48 16 00` | 11 | `+0x43c` |
+| `48 09 00` | 4 | `+0x40c` | `48 17 00` | 12 | `+0x40c` |
+| `48 0b 00` | 5 | `+0x41c` | `48 19 50` | 13 | `+0x41c` |
+| `48 0d 00` | 6 | `+0x42c` | `48 1c 00` | 14 | `+0x42c` |
+| | | | `48 1d 00` | 15 | `+0x43c` |
+
+The cursor cycles `0x40c`, `0x41c`, `0x42c`, `0x43c` and the part advances with it, which is the
+seven-pages-to-four-parts geometry seen from the other side.
+
+At every **other** address it re-anchors only the cursor, relative to whatever part is current --
+`48 03 00` to `+0x3dc`, `48 05 00` and `48 0c 00` and `48 1a 00` to `+0x3ec`, `48 15 00` to `+0x3fc`,
+`48 11 00` to `+0x3dc` -- or it re-anchors nothing at all and simply continues (`48 04 50`,
+`48 06 30`, `48 0b 50`, `48 0f 10`, `48 12 50`, `48 02 70`, `48 10 70`, and more).
+
+**So the bulk dump is one continuous stateful walk, not a set of independent pages.** Two
+consequences, and both were measured:
+
+*The earlier crashes were not a range problem.* Sending a continuation address alone after a GS
+reset walks from a stale `g_cur_part_base`, which is what faulted the module -- nothing to do with
+the values carried. Sending `48 02 00` first and then `48 03 00` writes cleanly, no fault, with a
+payload the bare message could not survive.
+
+*`part_param_write_all` advances the part itself.* Anchored that way, `48 03 00` lands on **part 1**,
+not part 0 -- the preceding message's 64 bytes ran past the end of part 0's record and carried the
+base with them. The walk crosses parts on its own; the dispatcher's anchors are re-synchronisation
+points, not the mechanism.
+
+A port therefore cannot treat these messages independently. It has to carry the same two pieces of
+state -- current part and cursor -- across the whole run of messages, exactly as a file that dumps a
+configured module produces them in order.
 
 ## The reverb has no phase register; it has one shared ring and a handful of IIR states `[confirmed]`
 
