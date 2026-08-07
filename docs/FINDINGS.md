@@ -5281,19 +5281,30 @@ These are the per-note parameter planes the `41` family already writes, each 128
 the same per-key drum data `41 xx` carries, in bulk.** A port that already decodes `41` has the
 machinery; what it needs is this table and the key from the payload position.
 
-Two things the sweep turned up that a table alone would not.
+**A pair of messages covers one 128-key plane**, and only a replay in order shows it. Probed one at
+a time after a GS reset, `49 00 00` writes `+0x180`-`+0x1bf` and `49 01 00` writes `+0x181`-`+0x1c0`
+-- almost the same bytes, one apart, which makes no sense. Replayed as the file sends them:
 
-**The even and odd members of a pair overlap by all but one byte.** `49 00 00` writes `+0x180` to
-`+0x1bf`, contiguous; `49 01 00` writes `+0x181` to `+0x1c0`. Both are 64 values and they differ by
-a single byte of alignment, so consecutive messages are very nearly rewriting the same keys. That is
-measured, not explained -- an isolated message after a GS reset may not be what the pair is for, and
-the `48` family turned out to be a stateful walk where isolated messages meant something different
-from a run of them.
+    49 00 00 -> buf0 +0x180..+0x1bf        49 02 00 -> buf0 +0x100..+0x13f
+    49 01 00 -> buf0 +0x1c1..+0x1ff        49 03 00 -> buf0 +0x140..+0x17d
+    49 1c 00 -> buf1 +0x480..+0x4bf        49 1d 00 -> buf1 +0x4c0..+0x4ff
 
-**`49 0e 00` runs off the end of its buffer.** The eight buffers are `0x50c` apart, and that message
-starts at `+0x500` and writes 64 values -- 116 bytes changed, wrapping into the next buffer's low
-offsets. The module bounds-checks this no more than it bounds-checks the patch bulk dump, so a port
-should refuse the overrun rather than reproduce it.
+The even member carries keys 0-63 and the odd member keys 64-127, continuing from where the even one
+stopped. **`49` is a stateful walk, exactly as `48` is**, and an isolated message is not what it
+looks like -- the second time that has caught a probe in this family, and the reason `drumreplay`
+exists beside `drumbulk`.
+
+(The counts are lower than 64 on most rows because a byte written with the value it already held is
+invisible to a diff. The ranges are what matter.)
+
+`darkness3.mid` sends `00`-`0e` and `10`-`1e`, fifteen messages a slot: seven pairs and one odd
+message on `+0x500`. **`0f` is never sent**, so the `+0x400` plane goes untouched by this file.
+
+`49 0e 00` is the one that can overrun. The buffers are `0x50c` apart and that message starts at
+`+0x500`, so a full 64-value payload runs to `+0x53f`, past the next buffer's base -- which is what a
+probe carrying distinctive values in every position shows. The file's own payload is nearly all
+defaults there and only `+0x509` moves, so the overrun is latent rather than exercised. Nothing on
+this path is bounds-checked; a port should refuse it rather than reproduce it.
 
 \note `48 01 10` -- a3 `0x10` rather than `0x00` -- also writes, landing at `part[0] +0x3d4` and
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is

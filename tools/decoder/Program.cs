@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1851,6 +1851,68 @@ unsafe
             }
         }
         Console.WriteLine($"  {kchanged} bytes changed across eight buffers of {kspan:x}");
+        return;
+    }
+
+    // drumreplay mode: send a real file's `49` messages **in order**, diffing the eight drum-set
+    //   buffers after each one. `drumbulk` probes a single message after a GS reset, and for the
+    //   `48` family that turned out to be a different thing entirely from a run of them -- the walk
+    //   is stateful and a message that re-anchors nothing continues from wherever the last left off.
+    //   This is the same question asked of `49`: replayed in sequence, does an odd-numbered message
+    //   land where it does in isolation, or half a plane further on?
+    //   args: dll drumreplay <hexfile, one message per line> [span]
+    if (args.Length > 1 && args[1] == "drumreplay")
+    {
+        string rpath = args[2];
+        int rspan = args.Length > 3 ? int.Parse(args[3]) : 0x520;
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset(); flush();
+        var rl = new float[512]; var rr = new float[512];
+        fixed (float* pl = rl, pr = rr) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+
+        var rget = (delegate* unmanaged[Cdecl]<int, long>)(*(long*)(b + 0x1a749f8));
+        var rbufs = new long[8];
+        for (int i = 0; i < 8; i++) rbufs[i] = rget(i);
+        var rsnap = new byte[8][];
+        void Snap()
+        {
+            for (int j = 0; j < 8; j++)
+            {
+                rsnap[j] = new byte[rspan];
+                if (rbufs[j] == 0) continue;
+                for (int i = 0; i < rspan; i++) rsnap[j][i] = *(byte*)(rbufs[j] + i);
+            }
+        }
+        Snap();
+
+        foreach (string line in File.ReadAllLines(rpath))
+        {
+            string hex = line.Trim();
+            if (hex.Length < 4) continue;
+            var msg = new byte[hex.Length / 2];
+            for (int i = 0; i < msg.Length; i++)
+                msg[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            fixed (byte* mp = msg) longIn(mp, 0);
+            flush();
+            fixed (float* pl = rl, pr = rr) process(pl, pr, 512);
+
+            var parts = new System.Collections.Generic.List<string>();
+            for (int j = 0; j < 8; j++)
+            {
+                if (rbufs[j] == 0) continue;
+                int lo = -1, hi = -1, n = 0;
+                for (int i = 0; i < rspan; i++)
+                {
+                    if (*(byte*)(rbufs[j] + i) == rsnap[j][i]) continue;
+                    if (lo < 0) lo = i;
+                    hi = i; n++;
+                }
+                if (n > 0) parts.Add($"buf{j} +0x{lo:x3}..+0x{hi:x3} ({n})");
+            }
+            Console.WriteLine($"  49 {msg[5]:x2} {msg[6]:x2}  "
+                              + (parts.Count == 0 ? "(nothing)" : string.Join("  ", parts)));
+            Snap();
+        }
         return;
     }
 
