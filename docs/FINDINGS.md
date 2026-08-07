@@ -5774,3 +5774,37 @@ alongside `partial_compute_pitch @ 18005fc20`.
 contract is to match `SCCore.dll` and correcting it moves the engine off the reference. The natural
 companions are the options that already go beyond the hardware -- more than 32 parts, more than 64
 voices -- since a caller who has left the module's limits behind has no reason to keep its defects.
+
+## The drum map lives in bit 0x40 of the part record's flag byte `[measured]`
+
+The GS patch bulk dump's `+0x3d9` is not one selector but a set of flags. Bit `0x10` is
+use-for-rhythm. **Bit `0x40` is the drum map**, and bit `0x20` -- the obvious candidate, and the one
+this project read first -- is something else.
+
+Measured with `scdec smfstate`, which plays a file and then reads each block's identity out of the
+part array:
+
+| stream | block 0 flags / sel | block 4 flags / sel | block 4 program lands on |
+|---|---|---|---|
+| GS reset only | `0xb1` / `0x20` | `0x81` / `0x00` | — |
+| reset, then `40 14 15 = 01` | `0xb1` / `0x20` | `0xb1` / `0x20` | **block 4 *and* block 0** |
+| reset, then `40 14 15 = 02` | `0xb1` / `0x20` | `0xd1` / `0x21` | block 4 only |
+
+So use-for-rhythm **1** produces `0xb1` and **2** produces `0xd1`; the differing bit is `0x40`, and
+`0x20` is set in both. MAP1 shares the drum channel's kit slot -- a program change on a MAP1 part
+writes the drum channel's kit too, which is the module's own two-slots-per-port limit showing
+directly. MAP2 gets the other slot to itself.
+
+**A program change on the drum channel does not clear the map bit.** After a reset and a plain
+`C9 19`, block 0 reads program 25 with its selector still `0x20`.
+
+**Why it matters.** `darkness3.mid`'s dump makes five rhythm parts: blocks 0 to 3 on `0xb1` and
+block 4 on `0xd1`. Decoding the map from `0x20` swaps MAP1 and MAP2, which put block 4 on the same
+slot as the default drum channel -- so block 4's program 56 landed in that slot and channel 10
+sounded the SFX kit where the module has Standard 2. Correcting the bit took the song gate from 42
+failing assertions to 40, with `darkness3` going from three to one and improving on every axis:
+peak 0.5993 to 0.6960 against the oracle's 0.7401, and both band deviations gone.
+
+Worth recording as a wrong turn: reading the reset selector `0x20` as "the drum channel powers on in
+MAP2" and defaulting it that way costs **fourteen** assertions. The default is MAP1; `0x20` simply
+is not the map.
