@@ -2707,6 +2707,14 @@ unsafe
         // note-ons costs the shared generator. Each LFO node initialised takes one draw at +0x7a,
         // so reading both notes' nodes back tells you the count without inferring it from audio.
         int ch2l=args.Length>9?int.Parse(args[9]):-1;
+        // Optional GS part panpot, sent as SysEx rather than CC#10. A literal zero is what selects
+        // RND pan, and CC#10 cannot deliver one -- its handler stores `value == 0 ? 1 : value`, so
+        // the wheel's zero lands as hard left. -1 leaves the panpot alone.
+        int panl=args.Length>10?int.Parse(args[10]):-1;
+        // Second note number for the extra voice. With ch2 set to the same channel this makes a
+        // CHORD on one part rather than two parts sounding together, which is the case that
+        // separates "the setup pass batches a whole part" from "it runs per note".
+        int nt2l=args.Length>11?int.Parse(args[11]):-1;
         setSR((float)SRl); setBS(512); activate((float)SRl,512); setThr();
         var getLFO=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c340);
         var ll=new float[512]; var rl=new float[512];
@@ -2720,6 +2728,8 @@ unsafe
         if(ch2l>=0){ CCl2(ch2l,0,bkl);CCl2(ch2l,32,0);CCl2(ch2l,7,127);CCl2(ch2l,10,64);
                      CCl2(ch2l,91,0);CCl2(ch2l,93,0);
                      shortIn((uint)((0xC0|ch2l)|(pgl<<8)),0); }
+        if(panl>=0){ SendSysEx(Dt1(0x40,(byte)(0x10|BlockNum(0)),0x1C,(byte)panl));
+                     if(ch2l>=0) SendSysEx(Dt1(0x40,(byte)(0x10|BlockNum(ch2l)),0x1C,(byte)panl)); }
         flush();
         long pool=getLFO(0);
         Console.WriteLine($"  LFO pool @ 0x{pool:X}");
@@ -2735,7 +2745,7 @@ unsafe
             "t_ms,obj,type,wavesel,rate,phase,out,delay_rate,delay_acc,fade_rate,fade_acc,"
            +"dep_tva,dep_tvf,dep_pitch,mod_tva,mod_tvf,mod_pitch,mod_pitch_sm\n");
         shortIn((uint)(0x90|(ntl<<8)|(vll<<16)),0);
-        if(ch2l>=0) shortIn((uint)((0x90|ch2l)|(ntl<<8)|(vll<<16)),0);
+        if(ch2l>=0) shortIn((uint)((0x90|ch2l)|((nt2l>=0?nt2l:ntl)<<8)|(vll<<16)),0);
         flush();
         int ticks=(int)(hsl*100);
         for(int t=0;t<ticks;t++){

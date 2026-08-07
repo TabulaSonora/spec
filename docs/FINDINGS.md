@@ -4903,6 +4903,36 @@ The one branch that inherits is the **part-level** one. When `+0xa0` is non-zero
 the waveform byte selects — phase, out, held and slewed are all copied from the parent node instead
 of initialised, which is how a part-level LFO outlives the note that claimed it.
 
+### The full cadence, five readings `[confirmed]`
+
+A node's random register **is** a position in the generator's sequence, so a tone with a random LFO
+reads the cadence back out directly rather than by inferring it from where notes land in the stereo
+field. `scdec lfotrace` now takes an optional second channel, a second note number and a GS panpot,
+which is what these need. Sequence from the reset seeds: 20373, 19301, 31980, −29494, 8988, 23420,
+−18341. `Bubble` claims three nodes (one LFO1, two LFO2).
+
+| struck | LFO1 seeds on | first wrap resumes at |
+|---|---|---|
+| one note | draw 1 | draw 4 |
+| one note, panpot 0 | draw 1 | draw **5** |
+| two notes, two channels | draws 1 and **4** | — |
+| two notes, one channel | draw 1 **for both** | draw 4 |
+| two notes, one channel, panpot 0 | draw 1 for both | draw **6** |
+
+- Every node takes one draw at note-on, unconditionally. `partials + 1` per note.
+- **The batch is per part.** A second note on the same part in the same dispatch chunk pays nothing
+  — its nodes come up carrying the first note's values. Different parts pay separately.
+- **The pan is per note anyway.** One extra draw per note with the panpot at zero, two for a chord
+  whose nodes were seeded once.
+
+This resolves a long-standing apparent contradiction. An earlier probe measured both "two notes on
+the same tick cost the same as one" and "a second note elsewhere costs `partials + 1`"; the first was
+taken on one part and the second across parts, and both are right. Taking either as the general rule
+breaks the other.
+
+> The panpot must be the **GS SysEx** one. CC#10 cannot deliver a zero — its handler stores
+> `value == 0 ? 1 : value` — so the wheel's zero is hard left, not a random position.
+
 A port that starts these registers at zero is making a departure, not implementing the module — it
 silences the whole first cycle of a sample-and-hold, which on a slow LFO is a quarter of a second of
 the note.
