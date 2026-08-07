@@ -5300,6 +5300,40 @@ invisible to a diff. The ranges are what matter.)
 `darkness3.mid` sends `00`-`0e` and `10`-`1e`, fifteen messages a slot: seven pairs and one odd
 message on `+0x500`. **`0f` is never sent**, so the `+0x400` plane goes untouched by this file.
 
+### The plane offsets, named `[confirmed]`
+
+Sweeping the per-parameter form `41 <(map << 4) | param> <key>` against the same eight buffers puts a
+GS parameter number to every plane. At key `0x3c` the write lands at `plane + 0x3c`, so the base
+falls straight out:
+
+| `41` param | plane | GS drum-setup parameter | `49` pair |
+|---|---|---|---|
+| `0x01` | `+0x180` | Play Key Number | `0`/`1` |
+| `0x02` | `+0x100` | Level | `2`/`3` |
+| `0x03` | `+0x200` | Assign Group | `4`/`5` |
+| `0x04` | `+0x280` | Panpot | `6`/`7` |
+| `0x05` | `+0x300` | Reverb Send | `8`/`9` |
+| `0x06` | `+0x380` | Chorus Send | `a`/`b` |
+| `0x07`, `0x08` | `+0x480` | Rx Note Off, Rx Note On | `c`/`d` |
+| `0x09` | `+0x400` | Delay Send | `f` |
+| `0x00` | `+0x500` | the twelve-character kit name | `e` |
+
+Two of those check themselves. `0x07` and `0x08` land on the *same* plane, which is exactly what
+`sysex_drumset_rxnote_bit0` and `sysex_drumset_rxnote_bit4` are -- two flags in one byte at
+`part+0x480`. And `+0x180`'s default at key 60 is `0x3c`, which is Play Key Number defaulting to the
+key itself rather than a pitch coincidence.
+
+So the whole `49` family reduces to arithmetic on `a2`:
+
+    slot      = (a2 >> 4) & 1               // which kit
+    param     = ((a2 & 0x0e) >> 1) + 1      // for a2 low nibble 0..d
+    first key = (a2 & 1) * 64               // even carries 0-63, odd 64-127
+    key       = first key + payload position
+
+with `a2` low nibble `e` the kit name and `f` the delay send. A port that already decodes `41 xx`
+needs nothing else: this is the same data, and `gs_drum_setup(port, map, parameter, key, value)` is
+already the destination.
+
 `49 0e 00` is the one that can overrun. The buffers are `0x50c` apart and that message starts at
 `+0x500`, so a full 64-value payload runs to `+0x53f`, past the next buffer's base -- which is what a
 probe carrying distinctive values in every position shows. The file's own payload is nearly all

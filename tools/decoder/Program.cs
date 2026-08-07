@@ -1775,6 +1775,15 @@ unsafe
         int k3 = Convert.ToInt32(args[4], 16);
         int kn = args.Length > 5 ? int.Parse(args[5]) : 64;
         int kspan = args.Length > 6 ? int.Parse(args[6]) : 0x600;
+        // `49` is nibble-packed; `41` -- the per-parameter form of the same data -- is not. Sweeping
+        // `41` against these buffers is how a plane offset gets a GS parameter number put to it.
+        bool kraw = args.Length > 7 && args[7] == "raw";
+        // A fixed value rather than a position index. The index form puts a large number into every
+        // field, which is fine for locating a run of plain bytes and fatal for a range-checked one --
+        // it is what faulted the module during the `48` work. `0x30` is inside every drum-setup
+        // parameter's range and is not the default of any of them, so a write with it is both safe
+        // and visible.
+        int kval = args.Length > 8 ? Convert.ToInt32(args[8], 16) : 0x30;
         setSR(32000f); setBS(512); activate(32000f, 512); setThr();
         GsReset(); flush();
         var kl = new float[512]; var kr = new float[512];
@@ -1818,8 +1827,9 @@ unsafe
         var body = new System.Collections.Generic.List<byte>();
         for (int i = 0; i < kn; i++)
         {
-            int v = (i + 1) & 0x7f;
-            body.Add((byte)((v >> 4) & 0x0f)); body.Add((byte)(v & 0x0f));
+            int v = kraw ? kval : ((i + 1) & 0x7f);
+            if (kraw) body.Add((byte)v);
+            else { body.Add((byte)((v >> 4) & 0x0f)); body.Add((byte)(v & 0x0f)); }
         }
         var kpay = new byte[3 + body.Count];
         kpay[0] = (byte)k1; kpay[1] = (byte)k2; kpay[2] = (byte)k3;
