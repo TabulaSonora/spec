@@ -2473,10 +2473,12 @@ unsafe
     // pitchword mode: did the engine adopt each voice's second-fine-tune pitch, or not?
     //   partial_compute_pitch writes voice+0x1fc (root*1000 - fine + 0x400) and
     //   voice+0x200 (that, minus desc[0x0e], plus 0x400). voices_control_update then copies
-    //   0x200 over 0x1fc *once*, on the first control tick, but only when the one-shot flag at
-    //   voice+4 is set and the retrigger flag at voice+0x1b0 is clear. So reading the two words
-    //   after a few ticks says directly whether the term was adopted for that voice: equal means
-    //   adopted, different means not.
+    //   0x200 over 0x1fc on every control tick while voice+0x16c is 1 -- effectively once, since
+    //   the words are equal after the first -- but only when the one-shot flag at voice+4 is set
+    //   and the retrigger flag at voice+0x1b0 is clear. So reading the two words after a few ticks
+    //   says directly whether the term was adopted for that voice: equal means adopted, different
+    //   means not. That gate resolves per voice, not per patch, and the same wave splits both ways
+    //   across its notes -- stagedpitch below drives the split rather than observing it.
     //   args: dll pitchword <prog> <note> <vel> <map> [ticks]
     if (args.Length > 1 && args[1] == "pitchword")
     {
@@ -2515,16 +2517,24 @@ unsafe
         }
         return;
     }
-    // stagedpitch mode: does the staged second-fine-tune pitch reach the sampler when something
-    //   later recomputes the increment?
+    // stagedpitch mode: which voices does the second-fine-tune copy actually fire for?
     //
-    //   The loop crossing copies voice+0x200 over voice+0x1fc without retuning anything -- postrace
-    //   shows the increment unchanged straight through it. The open question is what the staged
-    //   value is for. This answers it by bending the pitch twice over, once *before* the crossing
-    //   and once *after*, and reading the increment either side of each bend. If the staging is
-    //   inert, both bends multiply the increment by the same factor. If the recomputation picks the
-    //   staged word up, the later bend carries the term as well and its factor is larger by
-    //   2^(delta/12000).
+    //   Whether the staged word reaches the sampler at all is settled and this mode is NOT asking
+    //   it: voices_control_update @1800849a0 walks the voice array with its pointer at voice+4, so
+    //   `voice+0x1fc = voice+0x200` spells as displacement 0x1fc and every search for the literal
+    //   offset missed it. It runs on every control tick while voice+0x16c is 1 -- idempotent after
+    //   the first, since the words are equal from then on -- and a sounding note is tuned with both
+    //   fine tunes. See pitchword above, which reads the two words statically.
+    //
+    //   What is open is the *gate*: the copy needs voice+4 set with voice+0x1b0 clear, and that
+    //   resolves per voice rather than per patch. Wave 2883 takes the term on eight notes and
+    //   ignores it on seven, and twelve more waves split the same way, which is why no descriptor
+    //   field ever explained "this instrument wants it, that one does not". Nothing static can see
+    //   the split, so this drives it: bend the pitch once *before* the crossing and once *after*,
+    //   reading the increment either side of each bend. On a voice the gate refused, both bends
+    //   multiply the increment by the same factor; on one it allowed, the later bend carries the
+    //   term as well and its factor is larger by 2^(delta/12000). Sweep the notes of one wave to
+    //   find what the two flags track.
     //   args: dll stagedpitch <prog> <note> <vel> <map> <ticksBeforeBend> [ticksAfter]
     if (args.Length > 1 && args[1] == "stagedpitch")
     {
