@@ -2331,7 +2331,12 @@ unsafe
     //   SysEx; this one drives it over the GS NRPN a plain MIDI file actually sends -- CC#99 the
     //   parameter, CC#98 the key, CC#6 the value -- and dumps the same per-key planes before and
     //   after, so a write that lands can be told apart from one that does not.
-    //   args: dll gsdrumnrpn <note> <nrpnMsbDec> <valueDec> [prog] [rxNrpn]
+    //   A trailing program number sends a program change AFTER the write and dumps a third time,
+    //   which is how the lifetime of an override across a kit reload was settled: the reload
+    //   overwrites every plane, and only when the program names a kit. On the SC-55 drum row 0, 1
+    //   and 8 are Standard 1, Standard 2 and Room and all three clear; 7 and 63 name nothing and
+    //   the override survives.
+    //   args: dll gsdrumnrpn <note> <nrpnMsbDec> <valueDec> [prog] [rxNrpn] [progAfterWrite]
     if (args.Length > 1 && args[1] == "gsdrumnrpn")
     {
         int ntg=int.Parse(args[2]);
@@ -2339,6 +2344,8 @@ unsafe
         int valg=int.Parse(args[4]);
         int pgg=args.Length>5?int.Parse(args[5]):0;
         bool rxg=args.Length>6 && args[6]=="1";
+        // A program change sent AFTER the write, to ask which planes a kit reload clears. -1 skips.
+        int pcAfter=args.Length>7?int.Parse(args[7]):-1;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         long fbg=b+0x1a1b5b8;
         var getVCg=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
@@ -2364,7 +2371,8 @@ unsafe
                 Console.WriteLine($"{tag} voice{v} planes[{ntg}]: level={*(byte*)(map+0x100+ntg)}"
                     +$" pitch={*(sbyte*)(map+0x180+ntg)} group={*(byte*)(map+0x200+ntg)}"
                     +$" pan={*(byte*)(map+0x280+ntg)} rev={*(byte*)(map+0x300+ntg)}"
-                    +$" cho={*(byte*)(map+0x380+ntg)} flags=0x{*(byte*)(map+0x480+ntg):X2}");
+                    +$" cho={*(byte*)(map+0x380+ntg)} dly={*(byte*)(map+0x400+ntg)}"
+                    +$" flags=0x{*(byte*)(map+0x480+ntg):X2}");
                 // The pan the voice actually resolved, and the part panpot it started from. If the
                 // plane moves and this does not, the write lands and the read side is at fault.
                 Console.WriteLine($"{tag}   voice pan f8={*(short*)(pv+0xf8)}"
@@ -2381,6 +2389,13 @@ unsafe
         shortIn((uint)((0x80|9)|(ntg<<8)|(64<<16)),0); flush();
         fixed(float* pl=lg,pr=rg) for(int i=0;i<12;i++) process(pl,pr,512);
         Strikeg(); Showg("after ");
+        if(pcAfter>=0){
+            shortIn((uint)((0x80|9)|(ntg<<8)|(64<<16)),0); flush();
+            fixed(float* pl=lg,pr=rg) for(int i=0;i<12;i++) process(pl,pr,512);
+            shortIn((uint)((0xC0|9)|(pcAfter<<8)),0); flush();
+            fixed(float* pl=lg,pr=rg) for(int i=0;i<4;i++) process(pl,pr,512);
+            Strikeg(); Showg($"pc{pcAfter,-3}");
+        }
         return;
     }
     // outfilt mode: dump the tg_output_filter (SRC) state -- ratio@+0xc, allpass coef@+0x18 -- at a
