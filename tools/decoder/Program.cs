@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3587,6 +3587,109 @@ unsafe
             Console.WriteLine($"{i,3}  {*(byte*)(q + 0x3d5),9} {*(byte*)(q + 0x3d4),10} " +
                               $"{*(byte*)(q + 0x3d8),6} 0x{*(byte*)(q + 0x3d9),-8:x2} " +
                               $"0x{*(byte*)(q + 0x12),-6:x2} {*(byte*)(q + 0x3dc),7}");
+        }
+        return;
+    }
+
+    // ccdiff mode: find the memory a Control Change actually moves, with the engine's own churn
+    // subtracted out.
+    //
+    // A naive before/after diff is useless here -- a sounding voice rewrites LFO phases, ring
+    // cursors, envelope counters and sample positions every block, so thousands of words differ for
+    // reasons that have nothing to do with the controller. The fix is a control capture: settle at
+    // the starting value and dump twice with nothing changed in between. Anything that moved on its
+    // own is churn, and is excluded. What survives is what the CC did.
+    //
+    // Settling matters as much as the control does. A send coefficient is slewed -- MatrixRamp
+    // walks it sixteen times a block and takes about 25 ms to arrive -- so a dump taken a few
+    // milliseconds after the write reads a value in transit, or nothing at all.
+    //
+    //   args: dll ccdiff <cc> <before> <after> [va] [bytes] [prog] [note] [settleBlocks] [map]
+    if (args.Length > 1 && args[1] == "ccdiff")
+    {
+        int cc      = int.Parse(args[2]);
+        int before  = int.Parse(args[3]);
+        int after   = int.Parse(args[4]);
+        long va     = args.Length > 5 ? Convert.ToInt64(args[5], 16) : 0x181a00000L;
+        int count   = args.Length > 6
+                        ? (args[6].StartsWith("0x") ? Convert.ToInt32(args[6].Substring(2), 16)
+                                                    : int.Parse(args[6]))
+                        : 0x20000;
+        int pg      = args.Length > 7 ? int.Parse(args[7]) : 38;
+        int nt      = args.Length > 8 ? int.Parse(args[8]) : 60;
+        int settle  = args.Length > 9 ? int.Parse(args[9]) : 40;
+        int map     = args.Length > 10 ? int.Parse(args[10]) : 1;
+
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        void CCd2(int c, int v) => shortIn((uint)((0xB0 | 0) | (c << 8) | (v << 16)), 0);
+        GsReset();
+        if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
+        CCd2(7, 110); CCd2(10, 94); CCd2(91, 0); CCd2(93, 0);
+        shortIn((uint)(0xC0 | (pg << 8)), 0);
+        CCd2(cc, before);
+        flush();
+
+        var lb = new float[512]; var rb = new float[512];
+        void Run(int blocks) { fixed (float* pl = lb, pr = rb) for (int i = 0; i < blocks; i++) process(pl, pr, 512); }
+
+        // The note sounds throughout. A send coefficient that nothing is being sent through may not
+        // be written at all, so measuring it with the part silent can read a stale value.
+        shortIn((uint)(0x90 | (nt << 8) | (100 << 16)), 0); flush();
+        Run(settle);
+
+        long addr = b + (va - 0x180000000L);
+        var A = new byte[count]; var B = new byte[count]; var C = new byte[count];
+        System.Runtime.InteropServices.Marshal.Copy((nint)addr, A, 0, count);
+
+        // The control leg: same amount of time, and **the same MIDI traffic**. Re-sending the value
+        // it already has costs nothing musically and keeps the input ring, its cursors and its
+        // counters advancing exactly as the measured leg will. Without it those pointers move only
+        // on the measured side and are reported as hits -- which they are, just not interesting
+        // ones.
+        CCd2(cc, before); flush();
+        Run(settle);
+        System.Runtime.InteropServices.Marshal.Copy((nint)addr, B, 0, count);
+
+        // The measured leg.
+        CCd2(cc, after); flush();
+        Run(settle);
+        System.Runtime.InteropServices.Marshal.Copy((nint)addr, C, 0, count);
+
+        Console.WriteLine($"ccdiff cc{cc} {before} -> {after}, prog={pg} note={nt} map={map}");
+        Console.WriteLine($"  region VA 0x{va:X} .. 0x{va + count:X}, {settle} blocks of 512 between captures");
+
+        int churn = 0, moved = 0;
+        var hits = new System.Collections.Generic.List<int>();
+        for (int i = 0; i < count; i++)
+        {
+            bool selfMoved = A[i] != B[i];
+            if (selfMoved) { churn++; continue; }
+            if (A[i] != C[i]) { moved++; hits.Add(i); }
+        }
+        Console.WriteLine($"  {churn} bytes move on their own and are excluded; {moved} move only with the CC");
+
+        // Grouped into runs, and read back as the widths a coefficient is plausibly stored in.
+        int r = 0;
+        while (r < hits.Count)
+        {
+            int start = hits[r], end = start;
+            while (r + 1 < hits.Count && hits[r + 1] <= end + 3) { end = hits[++r]; }
+            ++r;
+            int len = end - start + 1;
+            int at = start & ~3;
+            Console.Write($"  VA 0x{va + start:X} +{len}  before");
+            for (int k = at; k < Math.Min(at + 8, count); k++) Console.Write($" {A[k]:x2}");
+            Console.Write("  after");
+            for (int k = at; k < Math.Min(at + 8, count); k++) Console.Write($" {C[k]:x2}");
+            if (at + 4 <= count)
+            {
+                short a16 = BitConverter.ToInt16(A, at), c16 = BitConverter.ToInt16(C, at);
+                float af = BitConverter.ToSingle(A, at), cf = BitConverter.ToSingle(C, at);
+                Console.Write($"   | i16 {a16} -> {c16}");
+                if (!float.IsNaN(af) && !float.IsNaN(cf) && Math.Abs(af) < 1e6 && Math.Abs(cf) < 1e6)
+                    Console.Write($"   f32 {af:G6} -> {cf:G6}");
+            }
+            Console.WriteLine();
         }
         return;
     }

@@ -5884,3 +5884,44 @@ It is worth stressing that the factor is **not exactly 3** -- 2.95 per channel a
 mono sum, which is what a 0.92 correlation does to a sum -- so it should be derived from the module
 rather than fitted. The places a fixed gain would live are the chorus bus write in `output_bus_mix`
 and the `0x181a6ecxx` gain bank the send mix reads.
+
+## The part chorus and delay sends clamp at 66/128 `[measured]`
+
+Found with `scdec ccdiff`, a controlled memory diff: settle at the starting value, capture, run the
+same time and the same MIDI traffic again with nothing changed, capture, then change the CC, settle
+and capture a third time. Anything that moved in the control leg is the engine's own churn -- LFO
+phases, ring cursors, envelope counters -- and is excluded. What survives is what the CC did.
+
+The control matters enormously. Over 32 KB with a note sounding, **10,268 bytes move on their own**
+in one window and 1 in another; without subtracting them the interesting words are invisible.
+
+**The two sends, and they are the same shape:**
+
+| send | address | CC = 0 | CC = 127 |
+|---|---|---|---|
+| chorus, CC93 | `0x181A6F320` | 1e-05 | **0.515625** |
+| delay, CC94 | `0x181A6E8D0` | 1e-05 | **0.515625** |
+| reverb, CC91 | not in `0x181A60000`-`0x181A78000` | | |
+
+Four consecutive floats each, 0xA50 apart. Sweeping CC93 gives the law exactly:
+
+| CC93 | 8 | 16 | 32 | 64 | 65 | **66** | 67 | 68 | 70 | 80 | 96 | 127 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| coefficient | .0625 | .125 | .25 | .5 | .507812 | **.515625** | .515625 | .515625 | .515625 | .515625 | .515625 | .515625 |
+
+So it is `v / 128` up to **66**, and flat at `66/128 = 0.515625` above. The zero value is 1e-05
+rather than 0 -- the same not-quite-zero idiom the interpolator's fourth tap uses.
+
+**Two things this does and does not explain.** It is exactly the saturation visible in the audio: a
+CC93 sweep through both engines shows the module's chorus return flattening above 64 in the same
+shape. But it is **not** the ~3x return deficit -- at CC93 = 16 the two engines' coefficients agree
+to the digit and the return is still 2.93x short. Those are independent.
+
+**A fix for the clamp must not land alone.** This port sends `v/128` unclamped, reaching 0.9922 at
+127, so it is nearly 2x too *loud* above the knee. Clamping without also finding the 3x would take
+`panwet.mid` -- which sends CC93 127 -- from 3.01x short to 5.8x short, and the gate would read that
+as a regression caused by a correct change.
+
+Note `fxmatrix` reads 16 shorts at `0x181a6f2f0`, ending at `0x181a6f310`, so the chorus send sits
+0x10 past the end of what that probe looks at. That is why sweeping CC93 through `fxmatrix` shows
+nothing move, and why `sendramp`'s `g0..g7` are static across 400 ms of settled sweep too.
