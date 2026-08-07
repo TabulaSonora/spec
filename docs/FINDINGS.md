@@ -6021,3 +6021,37 @@ which fills in more of the bank. Read live, 64 blocks into a sounding note, with
 None of these moves with CC91 or CC93 -- the per-part sends live outside the bank -- and the chorus
 write gain is **1**, so it is not the missing factor either. Worth noting the asymmetry all the same:
 **the reverb input carries a fixed 1/8 and the chorus write does not.**
+
+### The chorus input bus is `0x181a190f0` `[confirmed — decompile]`
+
+The block that drives the send effects, immediately before `fx_chorus_stage_l`:
+
+```c
+_DAT_181a190d0 = _DAT_181a6ecd0 * _DAT_181a195d0 + _DAT_181a190d0;   /* ... and so on ... */
+fx_send_mix(&DAT_181a195f0, &DAT_181a1ac70, &DAT_181a1a8f0);
+uVar26 = fx_chorus_stage_l();
+uVar26 = fx_chorus_stage_r(uVar26, &DAT_181a190f0);
+fx_reverb_process(uVar26, &DAT_181a1ad70);
+fx_biquad_process(&DAT_181a62a40, &DAT_181a1a8f0, &DAT_181a19470);
+fx_biquad_process(&DAT_181a62a70, &DAT_181a1a970, &DAT_181a194f0);
+output_bus_mix(&DAT_181a19170, &DAT_181a19270, &DAT_181a19370, &DAT_181a19470, &DAT_181a1ac70);
+```
+
+So the layout is a run of **32-float buffers on a 0x80 stride** -- which is exactly the `cin[32]`
+`scdec choir` hands the stage directly:
+
+| address | role |
+|---|---|
+| `0x181a190f0` | **chorus input bus**, the argument to `fx_chorus_stage_r` |
+| `0x181a19170`, `0x181a19270`, `0x181a19370`, `0x181a19470` | the buses `output_bus_mix` sums |
+| `0x181a195xx` | the source the MAC loop reads |
+| `0x181a6ecxx` | the gain it scales by -- the send-mix gain bank |
+
+The loop's shape is `dest[i] += gain[i] * src[i]`, accumulating across `0x181a190d0`-`0x181a1916c`,
+which spans the chorus input buffer.
+
+**`ccdiff` cannot read its contents, and the reason is worth recording.** With CC93 at 0 the bus is
+zeros and at 127 it carries signal, so it ought to be the clearest hit in the region -- but both
+captures land on block boundaries, where the buffer has already been consumed and cleared. Only a
+few scattered bytes survive the control leg. Reading it wants a capture taken *mid-block*, from
+inside the render rather than between renders.
