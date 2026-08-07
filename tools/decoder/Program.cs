@@ -1943,20 +1943,24 @@ unsafe
         int zk = args.Length > 3 ? Convert.ToInt32(args[3], 16) : 0x3c;
         int zv = args.Length > 4 ? Convert.ToInt32(args[4], 16) : 0x30;
         int zother = args.Length > 5 ? int.Parse(args[5]) : 24;           // a different kit
+        // Which kit slot to write and watch. `a2` bit 4 picks it, and the buffer is
+        // `drum_map * 2 + slot` -- so slot 1 with the default map is buffer 1. The question this
+        // answers: does a program change reseed *every* slot, or only the one the part reads?
+        int zslot = args.Length > 6 ? int.Parse(args[6]) : 0;
         setSR(32000f); setBS(512); activate(32000f, 512); setThr();
         var zl = new float[512]; var zr = new float[512];
         var zget = (delegate* unmanaged[Cdecl]<int, long>)(*(long*)(b + 0x1a749f8));
 
         void Settle(int n) { fixed (float* pl = zl, pr = zr) for (int i = 0; i < n; i++) process(pl, pr, 512); }
         void Prog(int kit) { shortIn((uint)(0xC9 | (kit << 8)), 0); flush(); Settle(2); }
-        void Write() { SendSysEx(Dt1(0x41, (byte)zp, (byte)zk, (byte)zv)); flush(); Settle(2); }
-        long Buf() => zget(0);
+        void Write() { SendSysEx(Dt1(0x41, (byte)((zslot << 4) | zp), (byte)zk, (byte)zv)); flush(); Settle(2); }
+        long Buf() => zget(zslot);
         int Read() { long p2 = Buf(); return p2 == 0 ? -1 : *(byte*)(p2 + zp switch {
             0x01 => 0x180, 0x02 => 0x100, 0x03 => 0x200, 0x04 => 0x280,
             0x05 => 0x300, 0x06 => 0x380, 0x09 => 0x400, _ => 0x480 } + zk); }
 
         GsReset(); flush(); Settle(8);
-        Console.WriteLine($"param {zp:x2} key {zk:x2}, writing {zv:x2}");
+        Console.WriteLine($"param {zp:x2} key {zk:x2}, writing {zv:x2}, slot {zslot} (buffer {zslot})");
         Console.WriteLine($"  after GS reset, before any write : {Read():x2}");
         Write();
         Console.WriteLine($"  after the 41 write               : {Read():x2}");

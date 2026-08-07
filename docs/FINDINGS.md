@@ -5366,11 +5366,34 @@ rewriting the file through the same track writer while dropping *nothing* produc
 to the original at every sampled point, so the rewriter is not the variable. Yet the file sends its
 dump before a program change that provably wipes what the dump wrote.
 
-Both cannot be true of the same buffer, so something separates them. The two candidates worth
-testing first: the dump writes **both** kit slots (`a2` `00`-`0e` and `10`-`1e`) while a program
-change can only reseed the one the part is reading, so half the dump may survive untouched; and the
-`48` dump preceding it sets every part's bank, so `ch10 = 0` arriving afterwards may resolve no kit
-at all -- and a program change that resolves nothing reseeds nothing.
+Both cannot be true of the same buffer, and the thing that separates them is measured:
+
+**A program change reseeds only the buffer the part is using.** The same probe pointed at slot 1
+instead -- writing through `41 1x` and reading buffer 1 -- shows the value surviving *both* program
+changes intact:
+
+    slot 0:  write 30 -> prog kit 0 -> 64   -> write 30 -> prog kit 24 -> 64
+    slot 1:  write 30 -> prog kit 0 -> 30   -> write 30 -> prog kit 24 -> 30
+
+Which makes sense once stated: a kit loads into the part's own buffer and has no reason to touch the
+other. A drum setup written to a slot no part is reading survives indefinitely.
+
+That matters here because **a bulk dump writes both slots** -- `a2` `00`-`0e` is one and `10`-`1e`
+the other -- so half of what a dump carries is out of the reach of any program change, and comes into
+play the moment a part switches slot. GS calls that switch "Use for Rhythm Part", 1 or 2, and the
+patch bulk dump sets it: `darkness3.mid` carries `0xb0` at `+0x3d9` for block 0, which is
+use-for-rhythm with the slot bit set.
+
+**And this port cannot express that at all.** Its per-key overrides live on the `Part`, not in two
+buffers behind it, so a drum program change clears whatever the part holds regardless of slot --
+including data the module would have kept.
+
+> Two other explanations were tested and are out. The `48` dump does **not** disable program-change
+> reception on the drum part: the Rx switches are packed into `part+0x3d7` (bit 6 pitch bend, 5
+> channel pressure, **4 program change**, 3 control change -- found by writing zero, since `partmap`
+> wrote `0x33` and every switch defaults on, so nothing moved), and the dump carries `0xff` there
+> for block 0, every switch enabled. And the reseed is not conditional on the kit changing, as the
+> slot-0 column above shows.
 
 ### The plane offsets, named `[confirmed]`
 
