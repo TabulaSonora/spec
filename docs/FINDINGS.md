@@ -5199,6 +5199,55 @@ part array, so its destination is elsewhere and is not yet identified.
 `+0x3d8` for 60 bytes. Both shapes appear in real files. Whether `a3` selects a sub-block or is
 simply a second entry point into the same map has not been settled.
 
+### The payload really is nibble-packed, and the geometry is four groups of seven pages `[measured]`
+
+`scdec bulkmap` sends one page with a **distinct value in every payload position** -- position `i`
+carries `i+1` -- and reports which part-array byte each one reached. One message then reads the map
+straight off the diff, where `blkdiff`'s single repeated byte can only find a write's extent.
+
+Running it both ways settles the packing. Sent **raw**, 64 bytes land as `66 88 aa cc ee` -- adjacent
+values merged. Sent **nibble-packed**, high nibble first as 128 bytes, they land as `0b 0c 0d 0e 0f`,
+a clean ascending run. So the module unpacks, and the 128-byte payloads real files carry are 64 data
+bytes, exactly as the census's all-`0x0`-to-`0xf` values implied.
+
+The page geometry, from sweeping every page:
+
+| pages | parts | position 0 lands at |
+|---|---|---|
+| 1, 2 | part 0 | `+0x3cc`, then `+0x40c` |
+| 4 | part 1 | `+0x41c` |
+| 6 | part 3 | `+0x3bc` |
+| 8, 9, 11, 13 | parts 4, 5, 7 | the same four bases again |
+| 15, 16, 18, 20 | parts 8, 9, 11 | again |
+| 22, 23, 25, 27 | parts 12, 13, 15 | again |
+| 29 | part 15 | `+0x43c`, eight bytes |
+
+**Seven pages to four parts, four times over, then a tail.** 7 x 64 = 448 over four parts is 112
+bytes each, and page 29's 64 bytes over sixteen parts is 4 more -- 112 + 4 = 116, which is the part
+block's own size. The arithmetic closes a second way.
+
+Within a page the walk is contiguous: position `p` reaches `base + p`. A few fields sit out of line
+-- the bank/program pair arrives at the *end* of the record, page 2 positions 56 and 57 writing
+`part[0] +0x3d4` and `+0x3d5`, which is what a restore wants since a program change has to land
+after the parameters it will otherwise overwrite.
+
+Joining the sweep against `scdec partmap`, which writes every `40 1x pp` in turn and reports the
+byte each moved, gives 37 confirmed positions on part 0 -- among them key shift at 14, part level at
+16, panpot at 17, chorus send at 22, reverb send at 23, the eight tone modifiers at 24-31 and the
+twelve scale-tuning bytes at 34-45.
+
+**The map is not finished, and the gap is measured rather than guessed.** Pages 3, 5 and 7 of each
+group fault the module: this probe's payload puts a position index into every field, including
+range-checked ones no real dump would, and the engine faults on the next block. Reading the array
+without rendering does not help -- the write is applied *during* `process`, not at the flush -- so
+those twelve pages need either a payload that stays in range or the dispatcher decoded instead.
+
+`sysex_dt1_addr_dispatch @ 180079a20` and `part_param_write_all @ 18007b680` are where that decode
+is. Both switch on `g_sysex_addr_idx`, which carries the part in bits 8-11 and the parameter in the
+low byte -- `g_cur_part_base = (g_sysex_addr_idx >> 8 & 0xf) * 0x488 + g_part_array_base`. Reading
+how the `48` path walks that index is what turns the remaining twelve pages from a probe problem
+into arithmetic.
+
 ## The reverb has no phase register; it has one shared ring and a handful of IIR states `[confirmed]`
 
 Seeding the chorus LFO's accumulator closed most of `panwet.mid`'s wet-placement gap, which raised

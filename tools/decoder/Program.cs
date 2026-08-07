@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -1648,6 +1648,78 @@ unsafe
                     + $"   {before[st]:x2} -> {*(byte*)(arr + st):x2}");
         }
         Console.WriteLine($"  {runs} runs, {changed} bytes changed across 32 parts");
+        return;
+    }
+
+    // bulkmap mode: send one page of the `48` patch bulk dump with a **distinct value in every
+    //   payload position**, and report where each one landed in the part array. `blkdiff` sends the
+    //   same byte `count` times, which finds the extent of a write and cannot say which payload
+    //   position produced which struct byte -- that is the whole question for a bulk dump, and it
+    //   takes one message to answer if the payload carries its own index.
+    //
+    //   Position i is sent as i+1, so 1..64 for a 64-byte page: a struct byte that comes back
+    //   holding v was written by position v-1, read straight off the diff. Zero is avoided because
+    //   a byte written with the value it already had is invisible to a diff.
+    //
+    //   `nib` sends the same 64 values Roland-packed, high nibble first, as 128 bytes -- which is
+    //   the shape real files use. Running both settles whether the module unpacks or takes the
+    //   payload raw: if it unpacks, both runs land the same values; if it does not, `nib` lands
+    //   nibbles.
+    //   args: dll bulkmap <a1 hex> <a2 hex> <a3 hex> [raw|nib] [count]
+    if (args.Length > 1 && args[1] == "bulkmap")
+    {
+        int m1 = Convert.ToInt32(args[2], 16);
+        int m2 = Convert.ToInt32(args[3], 16);
+        int m3 = Convert.ToInt32(args[4], 16);
+        bool nib = args.Length > 5 && args[5] == "nib";
+        int mn = args.Length > 6 ? int.Parse(args[6]) : 64;
+        bool mrender = !(args.Length > 7 && args[7] == "noproc");
+        setSR(32000f); setBS(512); activate(32000f, 512); setThr();
+        GsReset(); flush();
+        var lm = new float[512]; var rm = new float[512];
+        fixed (float* pl = lm, pr = rm) for (int i = 0; i < 8; i++) process(pl, pr, 512);
+
+        long marr = *(long*)(b + 0x1a222a0);
+        int mspan = 32 * 0x488;
+        var mbefore = new byte[mspan];
+        for (int i = 0; i < mspan; i++) mbefore[i] = *(byte*)(marr + i);
+
+        var body = new System.Collections.Generic.List<byte>();
+        for (int i = 0; i < mn; i++)
+        {
+            int v = (i + 1) & 0x7f;
+            if (nib) { body.Add((byte)((v >> 4) & 0x0f)); body.Add((byte)(v & 0x0f)); }
+            else body.Add((byte)v);
+        }
+        var mpay = new byte[3 + body.Count];
+        mpay[0] = (byte)m1; mpay[1] = (byte)m2; mpay[2] = (byte)m3;
+        body.CopyTo(mpay, 3);
+        int msum = 0; foreach (var x in mpay) msum += x;
+        var mmsg = new byte[5 + mpay.Length + 2];
+        mmsg[0] = 0xF0; mmsg[1] = 0x41; mmsg[2] = 0x10; mmsg[3] = 0x42; mmsg[4] = 0x12;
+        mpay.CopyTo(mmsg, 5);
+        mmsg[5 + mpay.Length] = (byte)((128 - (msum & 0x7F)) & 0x7F);
+        mmsg[6 + mpay.Length] = 0xF7;
+        fixed (byte* mp = mmsg) longIn(mp, 0);
+        flush();
+        // Rendering after the write is optional, and on some pages it is fatal: this payload sends
+        // a position index into every field, which puts values in range-checked ones that no real
+        // dump would, and the module faults on the next block. The write itself lands at the flush,
+        // so the map can be read without ever asking the engine to sound the result.
+        if (mrender) { fixed (float* pl = lm, pr = rm) process(pl, pr, 512); }
+
+        Console.WriteLine($"{m1:x2} {m2:x2} {m3:x2} <- {(nib ? "nibbles" : "raw")}, "
+                          + $"{mn} values 1..{mn}, {body.Count} payload bytes");
+        int mchanged = 0;
+        for (int i = 0; i < mspan; i++)
+        {
+            byte now = *(byte*)(marr + i);
+            if (now == mbefore[i]) continue;
+            mchanged++;
+            Console.WriteLine($"  part[{i / 0x488,2}] +0x{i % 0x488:x3}  {mbefore[i]:x2} -> {now:x2}"
+                              + $"   (payload position {(now >= 1 && now <= mn ? now - 1 : -1)})");
+        }
+        Console.WriteLine($"  {mchanged} bytes changed");
         return;
     }
 
