@@ -5238,10 +5238,27 @@ on the length of the prefix:
 | 8, 20, 40, 44, 45, 46 | applied |
 | **47**, 48, 52, 60, 104 | **dropped** |
 
-Forty-six of these messages is 6,132 bytes and forty-seven is 6,270. Past that, a message enqueued
-before `TG_flushMidi` runs is discarded rather than queued, and the discard is right there in the
-flush -- it moves each ring entry to the ready buffer only `if (sVar4 < DAT_181a63492)` and drops it
-otherwise, with no error and no back-pressure.
+**The bound is 2048 four-byte USB-MIDI packets, and that is exact rather than approximate.**
+`_DAT_181a63490 = 0x8000000` at init puts the occupancy in the low half of the word and the capacity
+in the high, so `DAT_181a63492` is 2048; the buffer it bounds spans `0x181a634a0` to `0x181a654a0`,
+8,192 bytes, which is 2048 entries of four. `scdec peek 1a63490` on the running engine reads back
+`00 00 00 08`, the same 2048.
+
+A channel message costs one packet and a SysEx of *n* bytes costs `ceil(n/3)`, three data bytes to a
+packet. Counted that way the burst above reaches 2,045 packets at its forty-sixth message and 2,091
+at its forty-seventh -- the boundary the table measures, to the message. (The earlier byte figures,
+6,132 and 6,270, are the same boundary read off the wrong axis.)
+
+Past that, a message enqueued before `TG_flushMidi` runs is discarded rather than queued, and the
+discard is right there in the flush -- it moves each ring entry to the ready buffer only
+`if (sVar4 < DAT_181a63492)` and drops it otherwise, with no error and no back-pressure.
+
+**What has to fit is a control tick's worth, not a flush's.** `DAT_181a63490` is the buffer's
+occupancy and `TG_flushMidi` never clears it; `midi_drain_ready_to_ports` empties it outright
+(`while (DAT_181a63490 != 0)`) on the way through `TG_Process`. `TG_flushMidi` is exported and called
+by the host, so the window is whatever a host hands over between two drains -- 320 samples for the
+harness that renders every oracle fixture, which is 10 ms at 32 kHz and the module's own 100 Hz
+control tick.
 
 `darkness3.mid`'s tick-0 burst is 104 events: thirty `48` messages, thirty `49`, then nine program
 changes. Every one of those program changes falls past the limit, which is why blocks 5, 6, 9 and 12
@@ -5251,6 +5268,25 @@ verbatim and reading the part bytes shows exactly that.
 **So a port that applies every event it is given renders these files differently, and correctly
 implementing the dump makes the divergence worse rather than better** -- the dump's programs are now
 right, and then the file's overwrite them.
+
+**Reading the parts back confirms it, and incidentally settles what block 0 gets.** `scdec smfstate`
+plays a file through the harness's own feed and then prints each block's identity out of the part
+array. After `darkness3.mid`'s opening tick the module holds:
+
+| block | program | Rx | flags `+0x3d9` | selector `+0x12` |
+|---|---|---|---|---|
+| 0 | 1 | 9 | `0xb1` | `0x20` |
+| 4 | **56** | 3 | `0xd1` | `0x21` |
+| 5 | 33 | 4 | `0x81` | `0x00` |
+
+Block 4 is the interesting one: the dump makes channel 4 a **second rhythm part on the SFX kit**,
+and it is reached by a transition, so its program fires and this port picks it up. Block 0 is the
+trap. Its program byte reads 1 and its channel-10 program change (to 0) is dropped by the queue, so
+the byte is the dump's -- but the module still plays kit 0. **The byte is stored and not acted on.**
+Part 0 has no transition, the lowest case in `part_param_write_all`'s switch being `0x270`, and
+firing its program from the anchor path costs four assertions on `wwtbam.mid` while moving
+`darkness3.mid` not at all. Taking only its rhythm selector, without the program, costs the same
+four -- so both writes are gated on the transition case, not just the program.
 
 ### The module does not reorder SysEx against channel messages `[confirmed]`
 
