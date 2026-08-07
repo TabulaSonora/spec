@@ -6083,3 +6083,38 @@ either. The two unidentified values are worth naming: `0.3125` is 5/16 and `0.87
 
 Note the asymmetry that keeps recurring: the reverb input is attenuated by 1/8 while the chorus
 write is unity.
+
+### The real number is 5.79, not 3.01 `[measured]`
+
+The indirect route -- reason from a known input rather than read the unreadable bus -- both narrows
+this and corrects its size.
+
+**The send taps at the same point in the part chain on both sides.** Sweeping CC7 with everything
+else fixed, the dry matches exactly and the wet/dry ratio is constant:
+
+| CC7 | dry ours / DLL | wet/dry ours | wet/dry DLL |
+|---|---|---|---|
+| 32 | 32.4 / 32.5 | 0.1093 | 0.3287 |
+| 64 | 130.8 / 131.0 | 0.1093 | 0.3292 |
+| 110 | 387.0 / 387.5 | 0.1094 | 0.3293 |
+| 127 | 516.0 / 516.7 | 0.1094 | 0.3293 |
+
+So the tap is post-volume on both, and the deficit is a pure gain, not a routing or ordering error.
+
+**Now fold in the send clamp.** At CC93 127 the module's coefficient is `66/128 = 0.515625` while
+this port's is `127/128 = 0.992188` -- **ours is 1.92x larger** and its wet is still 3x smaller.
+With `gainIn` and the return level both 1 on each side, the implied in-situ network gain is
+
+```
+ours    0.10935 / (0.992188 x 1) = 0.11021
+module  0.32926 / (0.515625 x 1) = 0.63856     ratio 5.794
+```
+
+**So the factor to explain is 5.79, and 3.01 was two errors partly cancelling.** Correcting the
+send clamp alone takes `panwet.mid` from 3.01x short to 5.79x short -- which is the arithmetic
+behind the warning already attached to that fix.
+
+That the network's *measured* gain differs by 5.79 in situ while its impulse response matches at
+ratio 1.0000 when driven directly is the whole remaining puzzle. Something between the send
+coefficient and the stage input is not what it appears, and the bus that would show it is cleared
+inside the block that fills it.
