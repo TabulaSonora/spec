@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "envseg" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "envseg" || args[1] == "keysend" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3049,6 +3049,55 @@ unsafe
         Console.WriteLine($"  +0x10 counter    = {*(int*)(ptr+0x10)}");
         Console.WriteLine($"  +0x14 frac acc   = {*(float*)(ptr+0x14):R}");
         Console.WriteLine($"  +0x30..0x44 state= {*(float*)(ptr+0x30):R} {*(float*)(ptr+0x34):R} {*(float*)(ptr+0x38):R} {*(float*)(ptr+0x3c):R} {*(float*)(ptr+0x40):R} {*(float*)(ptr+0x44):R}");
+        return;
+    }
+    // keysend mode: ONE cell of the per-key-send matrix, in its own process.
+    //
+    //   The reverb plane at kit+0x300 is wired in this port on the strength of a 3x3 showing that
+    //   a key's own send and the part's multiply. The chorus plane at +0x380 and the delay plane
+    //   at +0x400 were left latched because that measurement had not been done for them.
+    //
+    //   One cell per run, deliberately. Nine cells in one process is not nine measurements: a GS
+    //   reset does not restore the module -- `resetstate` puts the residue at about -51 dB and the
+    //   generator is never reseeded -- so cell n carries cell n-1. A first attempt at this ran the
+    //   whole matrix in-process and its strikes varied by 30x on identical settings.
+    //
+    //   Parameter numbering per the SC-8850 manual, cross-checked against SpessaSynth's GS handler:
+    //   the address is 41 <(map<<4)|param> <note>, and param is 1 pitch, 2 level, 3 assign group,
+    //   4 PAN, 5 REVERB, 6 CHORUS, 7/8 rx note off/on, 9 DELAY. Reverb is 5, not 4 -- writing 4
+    //   pans the key hard right, which reads as silence on the left channel and nothing else.
+    //   args: dll keysend <kit> <note> <gsParam> <cc> <keyVal> <ccVal> [map]
+    if (args.Length > 1 && args[1] == "keysend")
+    {
+        int kitK=int.Parse(args[2]), ntK=int.Parse(args[3]);
+        int prmK=int.Parse(args[4]), ccK=int.Parse(args[5]);
+        int keyV=int.Parse(args[6]), ccV=int.Parse(args[7]);
+        int mpK=args.Length>8?int.Parse(args[8]):4;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        var lK=new float[512]; var rK=new float[512];
+        void CCk(int ch,int c,int v)=>shortIn((uint)((0xB0|ch)|(c<<8)|(v<<16)),0);
+
+        GsReset(); if(mpK>=1&&mpK<=4) for(int c=0;c<16;c++) ToneMap0(c,mpK); flush();
+        fixed(float* pl=lK,pr=rK) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCk(9,7,127); CCk(9,10,64);
+        CCk(9,91,0); CCk(9,93,0); CCk(9,94,0);      // all three off, then only the one under test
+        shortIn((uint)(0xC0|9|(kitK<<8)),0);
+        SendSysEx(Dt1((byte)0x41,(byte)prmK,(byte)ntK,(byte)keyV));
+        CCk(9,ccK,ccV);
+        flush();
+        fixed(float* pl=lK,pr=rK) for(int i=0;i<4;i++) process(pl,pr,512);
+        shortIn((uint)(0x99|(ntK<<8)|(110<<16)),0); flush();
+
+        // 0.5 s of hit discarded, then 1.0 s of tail. Both channels, since a per-key pan would
+        // otherwise masquerade as a level change.
+        double hit=0.0;
+        fixed(float* pl=lK,pr=rK) for(int i=0;i<31;i++){ process(pl,pr,512);
+            for(int j=0;j<512;j++) hit=System.Math.Max(hit,
+                System.Math.Max(System.Math.Abs((double)pl[j]),System.Math.Abs((double)pr[j]))); }
+        double sum=0.0; int n=0;
+        fixed(float* pl=lK,pr=rK) for(int i=0;i<62;i++){ process(pl,pr,512);
+            for(int j=0;j<512;j++){ sum+=(double)pl[j]*pl[j]+(double)pr[j]*pr[j]; n+=2; } }
+        Console.WriteLine($"{System.Math.Sqrt(sum/n):0.00000000} hit={hit:0.000000}");
         return;
     }
     // envseg mode: the TVA envelope segment's own state, tick by tick, plus the curve it rides.
