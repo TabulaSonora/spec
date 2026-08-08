@@ -3053,9 +3053,13 @@ unsafe
     }
     // keysend mode: ONE cell of the per-key-send matrix, in its own process.
     //
-    //   The reverb plane at kit+0x300 is wired in this port on the strength of a 3x3 showing that
-    //   a key's own send and the part's multiply. The chorus plane at +0x380 and the delay plane
-    //   at +0x400 were left latched because that measurement had not been done for them.
+    //   The method is Matt Phelps's, from NativeTS PR #3. He found the per-key reverb plane
+    //   unwired BY EAR on an SC-88Pro file -- in STANDARD 1 the kick reads 0 where the snare and
+    //   crash read 127, so any kit played with the send open had a room on the one drum the module
+    //   keeps dry -- and pinned it with a 3x3 of the key's own send against the part's, showing
+    //   that the two multiply rather than one overriding the other. The chorus plane at +0x380 and
+    //   the delay plane at +0x400 were left latched there because that measurement had not been
+    //   done for them. This mode is his 3x3, run for those two.
     //
     //   One cell per run, deliberately. Nine cells in one process is not nine measurements: a GS
     //   reset does not restore the module -- `resetstate` puts the residue at about -51 dB and the
