@@ -3101,7 +3101,8 @@ unsafe
         // arguments entirely.
         var busses=new (string,long)[]{
             ("19070 stage_l IN",  0x181a19070L), ("190f0 stage_r IN",  0x181a190f0L),
-            ("19170 stage_l OUT", 0x181a19170L), ("19270 stage_r OUT", 0x181a19270L),
+            ("19170 chorus OUT L", 0x181a19170L), ("191f0 chorus OUT R", 0x181a191f0L),
+            ("19270 delay OUT L",  0x181a19270L), ("192f0 delay OUT R",  0x181a192f0L),
             ("19370 reverb arg",  0x181a19370L), ("19470 biquad out",  0x181a19470L),
             ("1a8f0",             0x181a1a8f0L), ("1ac70 out mix",     0x181a1ac70L),
             ("1ad70 reverb in",   0x181a1ad70L),
@@ -3140,6 +3141,21 @@ unsafe
         Console.Write("  MAC src [181a19570] x8:");
         for(int i=0;i<8;i++) Console.Write($" {*(float*)(srcC+i*4):0.######}");
         Console.WriteLine();
+
+        // The chorus's own coefficients, from fx_chorus_stage_l's body:
+        //   delay_mem[c] = (prev_wet1 * fb[181a62b10] + lowpass) * write_gain[181a6ef70 + i]
+        //   out_L        = wet1 * tap_gain[181a6f0f0 + i]
+        // The two gains are per-sample arrays rather than scalars, which is worth knowing before
+        // comparing them against a port that holds one number for each.
+        Console.Write("  chorus write gain [181a6ef70] x8:");
+        for(int i=0;i<8;i++) Console.Write($" {*(float*)(b+(0x181a6ef70L-0x180000000L)+i*4):0.######}");
+        Console.WriteLine();
+        Console.Write("  chorus tap gain   [181a6f0f0] x8:");
+        for(int i=0;i<8;i++) Console.Write($" {*(float*)(b+(0x181a6f0f0L-0x180000000L)+i*4):0.######}");
+        Console.WriteLine();
+        Console.WriteLine($"  chorus feedback   [181a62b10] = {*(float*)(b+(0x181a62b10L-0x180000000L)):0.########}");
+        Console.WriteLine($"  chorus lpf a      [181a62af0] = {*(float*)(b+(0x181a62af0L-0x180000000L)):0.########}"
+            + $"   lpf b [181a62af4] = {*(float*)(b+(0x181a62af4L-0x180000000L)):0.########}");
 
         // The two output filters. fx_biquad_process @180086690 is not a direct-form biquad: it is
         // two cascaded FIRST-ORDER sections sharing one 9-float block, so its two poles are real
