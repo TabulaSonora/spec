@@ -2843,7 +2843,7 @@ unsafe
     //   The record hangs off part+0x18, which is heap, so this reads it through a sounding voice
     //   rather than off any static address.
     //   args: dll drumnrpn <note> [value] [gs|xg] [prog]
-    if (args.Length > 1 && args[1] == "drumnrpn" || args[1] == "svfslew")
+    if (args.Length > 1 && (args[1] == "drumnrpn" || args[1] == "svfslew"))
     {
         int ntn=int.Parse(args[2]);
         int valn=args.Length>3?int.Parse(args[3]):0x50;
@@ -2899,7 +2899,7 @@ unsafe
     //   setup records live behind a pointer the module allocates, so a static dump cannot see them.
     //   args: dll xgdrumfilt <note> <param> <value> [prog]
     //   param is the XG Drum Setup parameter: 0b filter cutoff, 0c filter resonance, 02 level.
-    if (args.Length > 1 && args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew")
+    if (args.Length > 1 && (args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "svfslew"))
     {
         int ntx=int.Parse(args[2]);
         int prmx=Convert.ToInt32(args[3],16);
@@ -3465,7 +3465,7 @@ unsafe
     // drumnote mode: strike ONE drum note on ch10 and render it alone, for per-instrument A/B.
     //   (a lone hit cannot be compared against drumsong's opening -- a crash and hat fire with it)
     //   args: dll drumnote <kit> <note> <vel> <sec> <out.wav>
-    if (args.Length > 1 && args[1] == "drumnote" || args[1] == "panscan")
+    if (args.Length > 1 && (args[1] == "drumnote" || args[1] == "panscan"))
     {
         // (arg 7, if present, is a CSV path: also dump the full voice struct per control tick)
         int SR6=32000; int kit6=int.Parse(args[2]); int nt6=int.Parse(args[3]);
