@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3042,6 +3042,80 @@ unsafe
         Console.WriteLine($"  +0x10 counter    = {*(int*)(ptr+0x10)}");
         Console.WriteLine($"  +0x14 frac acc   = {*(float*)(ptr+0x14):R}");
         Console.WriteLine($"  +0x30..0x44 state= {*(float*)(ptr+0x30):R} {*(float*)(ptr+0x34):R} {*(float*)(ptr+0x38):R} {*(float*)(ptr+0x3c):R} {*(float*)(ptr+0x40):R} {*(float*)(ptr+0x44):R}");
+        return;
+    }
+    // lfonodes mode: when does an LFO node inherit from a standing one, and what does it cost?
+    //
+    //   The parentage rules were read out of the decompile and never measured. partial_alloc_node
+    //   @1800029e0 writes node+0xa0 -- zero for a parentless node, otherwise the node it inherits
+    //   from -- gated on bit 5 of the waveform byte (tone header 0x0E for LFO1, partial block 0x06
+    //   for LFO2). note_on_voice_setup @18005f5c0 then branches on +0xa0: parentless initialises
+    //   and takes a prng_lfsr draw, inheriting copies +0x72 phase, +0x70 out, +0x7a held and
+    //   +0x78 slewed across and takes none.
+    //
+    //   Two claims follow and neither has been checked. That a node with the bit set inherits at
+    //   all, and that it can only inherit while the note it belongs to is still SOUNDING --
+    //   partial_shared_node_free clears the list head when it frees the last node, so the slot
+    //   should empty once the previous note ends. This plays a run of notes at a chosen overlap
+    //   and reads both: the node table after each note-on, and the generator either side of it,
+    //   so the draw count is counted rather than inferred from audio.
+    //
+    //   args: dll lfonodes <prog> <note> <vel> <map> <count> <gapTicks> <holdTicks> [bank]
+    if (args.Length > 1 && args[1] == "lfonodes")
+    {
+        int pgN=int.Parse(args[2]), ntN=int.Parse(args[3]), vlN=int.Parse(args[4]), mpN=int.Parse(args[5]);
+        int cntN=int.Parse(args[6]), gapN=int.Parse(args[7]), holdN=int.Parse(args[8]);
+        int bkN=args.Length>9?int.Parse(args[9]):0;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        var getLFOn=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c340);
+        ushort* prng0=(ushort*)(b+(0x181a6f630L-0x180000000L));
+        ushort* prng1=(ushort*)(b+(0x181a6f634L-0x180000000L));
+        var lN=new float[512]; var rN=new float[512];
+        void CCn(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        GsReset(); if(mpN>=1&&mpN<=4) for(int c=0;c<16;c++) ToneMap0(c,mpN);
+        flush(); fixed(float* pl=lN,pr=rN) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCn(0,bkN); CCn(32,0); CCn(7,127); CCn(10,64); CCn(91,0); CCn(93,0);
+        shortIn((uint)(0xC0|(pgN<<8)),0); flush();
+        fixed(float* pl=lN,pr=rN) process(pl,pr,512);
+
+        // Counting draws by stepping the LFSR forward from its own state: the generator is a pure
+        // function of itself, so replaying it is exact and needs no instrumentation in the module.
+        ushort DrawsBetween(ushort a0,ushort a1,ushort b0,ushort b1){
+            ushort s=a0, w=a1;
+            for(int i=0;i<4096;i++){
+                if(s==b0 && w==b1) return (ushort)i;
+                ushort st=(ushort)(s>>1);
+                if(((s&0x20)!=0)!=((s&0x8000)!=0)) st=(ushort)(st|0x8000);
+                s=st;
+                bool one=(w&4)!=0 ? (w&0x2000)==0 : (w&0x200)!=0;
+                w=(ushort)((w<<1)|(one?1:0));
+            }
+            return 0xFFFF;
+        }
+
+        Console.WriteLine($"lfonodes prog={pgN} bank={bkN} note={ntN} vel={vlN} map={mpN}: {cntN} notes, gap {gapN} ticks, hold {holdN} ticks");
+        Console.WriteLine($"  overlap: {(holdN>gapN ? "YES -- a previous note is still sounding at each note-on" : "no -- each note ends before the next begins")}");
+        var live=new System.Collections.Generic.List<int>();
+        for(int k=0;k<cntN;k++){
+            ushort s0=*prng0, w0=*prng1;
+            shortIn((uint)(0x90|((ntN+k)<<8)|(vlN<<16)),0); flush();
+            fixed(float* pl=lN,pr=rN) process(pl,pr,320);
+            ushort draws=DrawsBetween(s0,w0,*prng0,*prng1);
+            Console.WriteLine($"  note {k} (key {ntN+k}): draws={draws}");
+            for(int i=0;i<128;i++){
+                long nd=getLFOn(i);
+                if(nd==0) continue;
+                if(*(byte*)(nd+0)==0 && *(byte*)(nd+2)==0 && *(ushort*)(nd+0x72)==0
+                   && *(long*)(nd+0xa0)==0) continue;      // never claimed
+                long parent=*(long*)(nd+0xa0);
+                Console.WriteLine($"      node{i,3} inuse={*(byte*)(nd+0)} type={*(byte*)(nd+2)} parent={(parent==0?"0 (parentless -> drew)":"0x"+(parent-b).ToString("X")+" (INHERITED)")}"
+                    + $"  phase={*(ushort*)(nd+0x72)} out={*(short*)(nd+0x70)} held={*(short*)(nd+0x7a)} wave={*(byte*)(nd+0x38)}");
+            }
+            for(int t=0;t<gapN;t++) fixed(float* pl=lN,pr=rN) process(pl,pr,320);
+            if(holdN<=gapN*(k+1)) { shortIn((uint)(0x80|((ntN+k)<<8)),0); flush(); }
+        }
+        for(int k=0;k<cntN;k++) shortIn((uint)(0x80|((ntN+k)<<8)),0);
+        flush();
         return;
     }
     // resetstate mode: does a GS Reset actually return the module to where it started?
