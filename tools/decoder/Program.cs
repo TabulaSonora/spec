@@ -3111,6 +3111,19 @@ unsafe
         uint back=0; VirtualProtect((void*)stageR,16,old,&back);
         ShowBus("with fx_chorus_stage_r as ret:");
 
+        // The MAC that 2c7190c named as feeding this bus:
+        //   bus[0x181a190f0] = src[0x181a19570] * gain[0x181a6ecf0] + bus
+        // Both operands sit in banks that survive a block, so unlike the bus itself they can be
+        // read from outside. If the gain does not move with CC#93 then the address is not on the
+        // part's chorus send path at all, and no amount of trapping the bus will help.
+        long srcC=b+(0x181a19570L-0x180000000L), gainC=b+(0x181a6ecf0L-0x180000000L);
+        Console.Write("  MAC gain[181a6ecf0] x8:");
+        for(int i=0;i<8;i++) Console.Write($" {*(float*)(gainC+i*4):0.######}");
+        Console.WriteLine();
+        Console.Write("  MAC src [181a19570] x8:");
+        for(int i=0;i<8;i++) Console.Write($" {*(float*)(srcC+i*4):0.######}");
+        Console.WriteLine();
+
         Console.WriteLine($"  dry peak this block = {dryPeak:0.#########}");
         Console.WriteLine($"  prediction: the bus should be 5.79x larger than dry x 0.515625");
         Console.WriteLine($"  dry x 0.515625      = {dryPeak*0.515625:0.#########}");
