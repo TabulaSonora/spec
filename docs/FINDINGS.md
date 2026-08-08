@@ -1191,8 +1191,9 @@ in `(0.85, 1.0)`, so no second blocker design exists.
 **The dry path was walked end to end and has none**: `render_block` → `voice_render_dispatch` →
 per-voice SVF (`FUN_18008d9a0`, unity DC) → `FUN_18008af50` (pure MAC into 4 buses; dry = buses
 58/59) → `fx_process_block`'s 33-bus send matrix (*not* an FIR — memoryless) → `FUN_18008bd30`
-(sums dry bus 58 unfiltered) → `tg_output_filter` @`0x18008aca0`, which is a **first-order allpass**
-`(k + z⁻¹)/(1 + kz⁻¹)` used as a half-sample delay for the 2× interpolating SRC — unity at DC.
+(sums dry bus 58 unfiltered) → `tg_output_filter` @`0x18008aca0`, whose allpass is
+unity at DC. It is not a fixed 2× converter; see *The output stage is a 2× oversampled linear
+interpolator* below.
 
 The removal demonstrably happens anyway: measured on the real dry renders, max |DC| in 50 ms windows
 is 0.0045 (`real_sweeppad.wav`), 0.0040 (`real_engine_piano.wav`), 0.0007 (`flute_note.wav`, vs a
@@ -1210,6 +1211,64 @@ that block's scale, i.e. the encoder *tries* to close the loop and misses.
 **Decision for now:** `play_wave` keeps the absolute re-stitch (the ideal-DC-removal limit), which
 matches the ~0 DC the real engine actually produces. Adding a 20 Hz blocker to the dry path would be
 guessing at placement.
+
+## The output stage is a 2× oversampled linear interpolator `[confirmed]`
+
+`tg_output_filter` @`0x18008aca0`, over the `CAPFRateConverter` object at `DAT_181a6e4a8`. It is the
+last thing every block passes through on its way to the host, and it is a **sample-rate converter**,
+not a tone-shaping filter — an earlier note here called it "the 2× interpolating SRC", which is
+wrong in a way worth correcting: the 2× is *internal*, and the conversion ratio is arbitrary.
+
+Per input sample it forms the midpoint between the previous input and this one with a first-order
+allpass, then interpolates linearly on whichever side of that midpoint the phase has reached:
+
+```
+mid = allpass(x)                    // k = 1/3
+out = frac < 0.5 ? lerp(prev, mid, 2·frac)
+                 : lerp(mid, cur,  2·frac − 1)
+```
+
+That is a **2× oversampled linear interpolator** — a lerp over a grid twice as dense as the input,
+which buys most of a real interpolating filter's stopband for one multiply-add. The allpass exists
+only to synthesise the odd-index sample, and `k = 0x3eaaaaab` is **exactly 1/3**, which is
+`(1−d)/(1+d)` at `d = 0.5` — the half-sample delay, confirmed rather than inferred. It reads back
+unchanged at 22.05, 32, 44.1 and 48 kHz, so it is a constant of the structure; only the ratio moves.
+
+**The ratio is `32000 / host_rate`**, at `+0x0c`, written through vtable slot `+0x10` — the same slot
+`TG_activate` and `TG_setSampleRate` both call, and the reason it is 1.0 in the init block and then
+immediately reset. State: `+0x0c` increment, `+0x10` input counter within the 32-sample chunk, `+0x14`
+phase accumulator (seeded `1e-5`, not zero), `+0x18` the coefficient, `+0x30`/`+0x34` allpass state
+L/R, `+0x38`/`+0x3c` the midpoints, `+0x40`/`+0x44` the previous input held across chunks, `+0x48` the
+engine rate 32000.0. A call consumes exactly 32 input samples and returns however many outputs that
+produced.
+
+### At the oracle's rate it does nothing, and it does not explain the peak discrepancies `[measured 2026-08-08]`
+
+**Do not re-chase this as a source of peak error.** Every `scdec` probe and both fixture generators
+run the DLL at 32 kHz, where the ratio is exactly 1: the phase never leaves its seed, the
+interpolation weight is ~0, the output is the previous input, and the allpass contributes nothing.
+It degenerates to a **one-sample delay** — which is real latency, and is accounted for, but is not
+gain and not shape.
+
+Running the algorithm offline over a hard attack transient, the case it would most plausibly affect:
+
+| ratio | peak vs input | rms vs input |
+|---|---|---|
+| **32 kHz — what we measure at** | **1.00000×** | **1.00000×** |
+| 44.1 kHz | +1.54% | +0.26% |
+| 48 kHz | +0.99% | +0.21% |
+
+The port models the stage (`OutputFilter`) and differs from the module in one detail only: the module
+seeds phase at `1e-5` and the port at `0.0`. At 32 kHz that is worth a **max sample delta of 5.4e-06,
+0.000365% of peak**.
+
+This was tested as a candidate for the two open peak-without-RMS discrepancies — the dry attack where
+the module peaks 1.49× higher, and the transcendental case where the port peaks ~1.3× higher, both
+with RMS matching. An allpass fits their signature well: unity magnitude, non-flat phase, moves peak
+without moving energy, and can move it in *either* direction depending on material, which is the part
+no gain error explains. **It is refuted.** Explaining a 49% peak change needs five orders of magnitude
+more than this stage produces where we measure, and the stage is already modelled. The signature is
+still the right clue; the output filter is not the cause of it.
 
 ## TVF filter TYPE = four SVF taps `[confirmed]`
 
