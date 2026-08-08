@@ -4425,6 +4425,15 @@ unsafe
             flush();
             int nf = Math.Min(blk, total - pos);
             fixed (float* pl = sL, pr = sR) process(pl, pr, (uint)nf);
+            // TS_VOICE_COUNT: how many voices the module has sounding, per rendered chunk. A
+            // detuned unison that loses one of its two partials is about 3 dB down, constant, with
+            // its envelope shape intact -- which is the signature NativeTS #8's channel 15 shows,
+            // and nothing about the expression path itself accounts for.
+            if (Environment.GetEnvironmentVariable("TS_VOICE_COUNT") != null) {
+                int live = 0;
+                for (int v = 0; v < 64; v++) if ((*(byte*)(b + 0x1a1b5b8 + v * 0x50) & 1) != 0) live++;
+                Console.Error.WriteLine($"voices: {pos},{live}");
+            }
             for (int i = 0; i < nf; i++) { outL[pos + i] = sL[i]; outR[pos + i] = sR[i]; }
             pos += nf;
         }
