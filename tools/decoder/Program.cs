@@ -4436,6 +4436,13 @@ unsafe
 
         while (pos < total)
         {
+            // Flush BEFORE enqueueing, not after. `TG_flushMidi` is the only thing that zeroes
+            // the scheduler's block counter (`DAT_181a6e4a0`), and it also force-drains the ring
+            // regardless of timestamp -- so flushing after submitting, as this used to, discarded
+            // every event's placement and applied a whole chunk at its first sample. Flushing
+            // first clears the previous chunk's leftovers and resets the counter, leaving this
+            // chunk's events to be released by `TG_Process` at the offsets they now carry.
+            flush();
             while (ei < events.Count && events[ei].At < pos + blk)
             {
                 var e = events[ei++];
@@ -4482,11 +4489,10 @@ unsafe
                 }
                 if (e.Bytes != null && !xgUncheckedIndex)
                 {
-                    fixed (byte* mp = e.Bytes) longIn(mp, 0);
+                    fixed (byte* mp = e.Bytes) longIn(mp, (uint)(e.At - pos));
                 }
-                else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), 0);
+                else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), (uint)(e.At - pos));
             }
-            flush();
             int nf = Math.Min(blk, total - pos);
             fixed (float* pl = sL, pr = sR) process(pl, pr, (uint)nf);
             // TS_VOICE_COUNT: how many voices the module has sounding, per rendered chunk. A
