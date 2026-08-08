@@ -3071,7 +3071,12 @@ unsafe
         var VirtualProtect=(delegate* unmanaged[Stdcall]<void*,nuint,uint,uint*,int>)
             NativeLibrary.GetExport(k32,"VirtualProtect");
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
-        long busC=b+(0x181a190f0L-0x180000000L);
+        // Both inputs, read off the disassembly rather than inferred. At 18008c960 the call to
+        // fx_chorus_stage_l is preceded by `lea rdx,[0x181a19070]`, and at 18008c973 the call to
+        // fx_chorus_stage_r by `lea rdx,[0x181a190f0]` -- so 0x19070 is the LEFT input and 0x190f0
+        // the right. 2c7190c named only the second of the pair.
+        long busC=b+(0x181a19070L-0x180000000L);
+        long busR=b+(0x181a190f0L-0x180000000L);
         long stageR=b+0x85460;
         var lC=new float[512]; var rC=new float[512];
         void CCc(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
@@ -3085,14 +3090,14 @@ unsafe
             shortIn((uint)(0x90|(ntC<<8)|(vlC<<16)),0); flush();
             fixed(float* pl=lC,pr=rC) for(int i=0;i<8;i++) process(pl,pr,512);
         }
-        void ShowBus(string tag){
+        void ShowOne(string tag,long at){
             double peak=0.0, sum=0.0;
-            for(int i=0;i<32;i++){ double v=*(float*)(busC+i*4); peak=System.Math.Max(peak,System.Math.Abs(v)); sum+=v*v; }
-            Console.WriteLine($"  {tag,-34} peak={peak:0.#########}  rms={System.Math.Sqrt(sum/32):0.#########}");
-            Console.Write("     first 8:");
-            for(int i=0;i<8;i++) Console.Write($" {*(float*)(busC+i*4):0.######}");
+            for(int i=0;i<32;i++){ double v=*(float*)(at+i*4); peak=System.Math.Max(peak,System.Math.Abs(v)); sum+=v*v; }
+            Console.Write($"  {tag,-30} peak={peak:0.#########} rms={System.Math.Sqrt(sum/32):0.#########}  x4:");
+            for(int i=0;i<4;i++) Console.Write($" {*(float*)(at+i*4):0.######}");
             Console.WriteLine();
         }
+        void ShowBus(string tag){ ShowOne(tag+" L 19070",busC); ShowOne(tag+" R 190f0",busR); }
 
         Console.WriteLine($"chorusin prog={pgC} note={ntC} vel={vlC} map={mpC} cc93={sndC}");
         Arm();
