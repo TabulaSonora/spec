@@ -3079,7 +3079,13 @@ unsafe
         shortIn((uint)(0x90|(ntE<<8)|(vlE<<16)),0); flush();
 
         Console.WriteLine($"envseg prog={pgE} note={ntE} vel={vlE} map={mpE}");
-        Console.WriteLine("  tick  stage curve   rate  start target    out    phase  carry   amp+0xac");
+        // The sampler's sub-sample phase alongside the envelope. sampler_pcm reads
+        // *(ushort*)(param_1[4] + 6) -- state +0x46 -- and selects an interpolator phase with
+        // `frac >> 9`, so the kernel has 128 positions. A transient read on an exact sample
+        // boundary keeps its peak; read between samples it is spread across the four taps and
+        // flattened, which is the shape of the attack difference this is chasing.
+        long ssE=b+0x1a1b570;
+        Console.WriteLine("  tick  stage curve   rate  start target    out    phase  carry   amp+0xac   sampPos  frac16  ph/128");
         for(int t=0;t<tkE;t++){
             fixed(float* pl=lE,pr=rE) process(pl,pr,320);
             for(int v=0;v<64;v++){
@@ -3087,7 +3093,9 @@ unsafe
                 long pv=vcE+(long)v*0x220;
                 Console.WriteLine($"  {t,4}  {*(byte*)(pv+0x0c),5} 0x{*(ushort*)(pv+0x10):X4} {*(ushort*)(pv+0x12),6}"
                     + $" {*(ushort*)(pv+0x14),6} {*(ushort*)(pv+0x16),6} {*(ushort*)(pv+0x18),6}"
-                    + $" {*(ushort*)(pv+0x1a),8} {*(ushort*)(pv+0x1c),6}   {*(int*)(pv+0xac),8}");
+                    + $" {*(ushort*)(pv+0x1a),8} {*(ushort*)(pv+0x1c),6}   {*(int*)(pv+0xac),8}"
+                    + $"  {*(int*)(ssE+(long)v*0x50+0x28),8}  {*(ushort*)(ssE+(long)v*0x50+0x46),6}"
+                    + $"  {*(ushort*)(ssE+(long)v*0x50+0x46)>>9,6}");
                 break;   // one voice is enough for a single-partial probe
             }
         }
