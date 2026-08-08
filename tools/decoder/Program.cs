@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "envseg" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3042,6 +3042,60 @@ unsafe
         Console.WriteLine($"  +0x10 counter    = {*(int*)(ptr+0x10)}");
         Console.WriteLine($"  +0x14 frac acc   = {*(float*)(ptr+0x14):R}");
         Console.WriteLine($"  +0x30..0x44 state= {*(float*)(ptr+0x30):R} {*(float*)(ptr+0x34):R} {*(float*)(ptr+0x38):R} {*(float*)(ptr+0x3c):R} {*(float*)(ptr+0x40):R} {*(float*)(ptr+0x44):R}");
+        return;
+    }
+    // envseg mode: the TVA envelope segment's own state, tick by tick, plus the curve it rides.
+    //
+    //   env_ramp_segment @180083a70 works on a block based at voice+0xc:
+    //     +0x0c stage (4 = done)   +0x0d rate modifier   +0x10 CURVE   +0x12 rate
+    //     +0x14 start   +0x16 target   +0x18 out   +0x1a phase   +0x1c carry
+    //   Per tick phase += rate * (g_env_block_speed + carry); on wrap past 0xffff the segment ends
+    //   and out := target, otherwise out interpolates start -> target by phase. The curve word
+    //   selects how: 0x4000 is linear, 0 rides a 256-entry table at DAT_1819a7a90 indexed by the
+    //   INVERTED phase high byte, anything else forces out to zero.
+    //
+    //   What partial_load_params hands the amplitude ramp is +0x18, the interpolated OUT, not the
+    //   segment target -- so the ramp chases the envelope and the attack's PEAK is a property of
+    //   the curve rather than of any single stored level. This prints the three that decide it.
+    //   args: dll envseg <prog> <note> <vel> <map> [ticks]
+    if (args.Length > 1 && args[1] == "envseg")
+    {
+        int pgE=int.Parse(args[2]), ntE=int.Parse(args[3]), vlE=int.Parse(args[4]), mpE=int.Parse(args[5]);
+        int tkE=args.Length>6?int.Parse(args[6]):24;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long fbE=b+0x1a1b5b8;
+        var getVCe=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
+        long vcE=getVCe(0);
+        var lE=new float[512]; var rE=new float[512];
+        void CCe(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpE); flush();
+        fixed(float* pl=lE,pr=rE) for(int i=0;i<8;i++) process(pl,pr,512);
+        CCe(7,127); CCe(10,64); CCe(91,0); CCe(93,0);
+        shortIn((uint)(0xC0|(pgE<<8)),0); flush();
+        fixed(float* pl=lE,pr=rE) process(pl,pr,512);
+        shortIn((uint)(0x90|(ntE<<8)|(vlE<<16)),0); flush();
+
+        Console.WriteLine($"envseg prog={pgE} note={ntE} vel={vlE} map={mpE}");
+        Console.WriteLine("  tick  stage curve   rate  start target    out    phase  carry   amp+0xac");
+        for(int t=0;t<tkE;t++){
+            fixed(float* pl=lE,pr=rE) process(pl,pr,320);
+            for(int v=0;v<64;v++){
+                if((*(byte*)(fbE+v*0x50)&1)==0) continue;
+                long pv=vcE+(long)v*0x220;
+                Console.WriteLine($"  {t,4}  {*(byte*)(pv+0x0c),5} 0x{*(ushort*)(pv+0x10):X4} {*(ushort*)(pv+0x12),6}"
+                    + $" {*(ushort*)(pv+0x14),6} {*(ushort*)(pv+0x16),6} {*(ushort*)(pv+0x18),6}"
+                    + $" {*(ushort*)(pv+0x1a),8} {*(ushort*)(pv+0x1c),6}   {*(int*)(pv+0xac),8}");
+                break;   // one voice is enough for a single-partial probe
+            }
+        }
+        // The curve itself. Pairs on a 2-byte stride, so the table proper is 256 entries.
+        Console.WriteLine("\n  DAT_1819a7a90 curve table, 256 entries of u16:");
+        long tbl=b+(0x1819a7a90L-0x180000000L);
+        for(int i=0;i<256;i+=16){
+            Console.Write($"    [{i,3}]");
+            for(int k=0;k<16;k++) Console.Write($" {*(ushort*)(tbl+(i+k)*2),5}");
+            Console.WriteLine();
+        }
         return;
     }
     // chorusin mode: read the chorus input bus, by stopping the thing that consumes it.
