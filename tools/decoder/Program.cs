@@ -3067,6 +3067,7 @@ unsafe
     {
         int pgC=int.Parse(args[2]), ntC=int.Parse(args[3]), vlC=int.Parse(args[4]), mpC=int.Parse(args[5]);
         int sndC=args.Length>6?int.Parse(args[6]):127;
+        int dlyC=args.Length>7?int.Parse(args[7]):0;
         var k32=NativeLibrary.Load("kernel32.dll");
         var VirtualProtect=(delegate* unmanaged[Stdcall]<void*,nuint,uint,uint*,int>)
             NativeLibrary.GetExport(k32,"VirtualProtect");
@@ -3084,7 +3085,7 @@ unsafe
         void Arm(){
             GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpC); flush();
             fixed(float* pl=lC,pr=rC) for(int i=0;i<8;i++) process(pl,pr,512);
-            CCc(7,127); CCc(10,64); CCc(91,0); CCc(93,sndC);
+            CCc(7,127); CCc(10,64); CCc(91,0); CCc(93,sndC); CCc(94,dlyC);
             shortIn((uint)(0xC0|(pgC<<8)),0); flush();
             fixed(float* pl=lC,pr=rC) process(pl,pr,512);
             shortIn((uint)(0x90|(ntC<<8)|(vlC<<16)),0); flush();
@@ -3093,13 +3094,24 @@ unsafe
         void ShowOne(string tag,long at){
             double peak=0.0, sum=0.0;
             for(int i=0;i<32;i++){ double v=*(float*)(at+i*4); peak=System.Math.Max(peak,System.Math.Abs(v)); sum+=v*v; }
-            Console.Write($"  {tag,-30} peak={peak:0.#########} rms={System.Math.Sqrt(sum/32):0.#########}  x4:");
-            for(int i=0;i<4;i++) Console.Write($" {*(float*)(at+i*4):0.######}");
-            Console.WriteLine();
+            Console.WriteLine($"    {tag,-26} peak={peak:0.#########}  rms={System.Math.Sqrt(sum/32):0.#########}");
         }
-        void ShowBus(string tag){ ShowOne(tag+" L 19070",busC); ShowOne(tag+" R 190f0",busR); }
+        // Every buffer the tail of fx_process_block hands to a stage, in call order. Read off the
+        // disassembly at 18008c952..18008c99e rather than from the decompile, which dropped the
+        // arguments entirely.
+        var busses=new (string,long)[]{
+            ("19070 stage_l IN",  0x181a19070L), ("190f0 stage_r IN",  0x181a190f0L),
+            ("19170 stage_l OUT", 0x181a19170L), ("19270 stage_r OUT", 0x181a19270L),
+            ("19370 reverb arg",  0x181a19370L), ("19470 biquad out",  0x181a19470L),
+            ("1a8f0",             0x181a1a8f0L), ("1ac70 out mix",     0x181a1ac70L),
+            ("1ad70 reverb in",   0x181a1ad70L),
+        };
+        void ShowBus(string tag){
+            Console.WriteLine($"  {tag}");
+            foreach(var (n,a) in busses) ShowOne(n, b+(a-0x180000000L));
+        }
 
-        Console.WriteLine($"chorusin prog={pgC} note={ntC} vel={vlC} map={mpC} cc93={sndC}");
+        Console.WriteLine($"chorusin prog={pgC} note={ntC} vel={vlC} map={mpC} cc93={sndC} cc94={dlyC}");
         Arm();
         double dryPeak=0.0;
         fixed(float* pl=lC,pr=rC){ process(pl,pr,32);
