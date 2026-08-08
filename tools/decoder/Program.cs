@@ -5183,7 +5183,14 @@ static class Smf
             }
             double when = lastSeconds + (tick - lastTick) * (us / 1e6) / division;
             var copy = ev;
-            copy.At = (int)(when * sampleRate);
+            // Round, do not truncate. A cast to int truncates toward zero, which biases every
+            // event early by up to a sample and -- because the dispatch loop below advances an
+            // event to the start of whichever 320-sample block holds it -- occasionally by a whole
+            // block, when truncation drops a position back across a boundary that rounding would
+            // have kept it above. `Math.Round`'s default is half-to-even, matching the C++ side's
+            // `std::nearbyint` under FE_TONEAREST, so both harnesses now land on the same integer
+            // for the same input instead of agreeing only most of the time.
+            copy.At = (int)Math.Round(when * sampleRate, MidpointRounding.ToEven);
             outEvents.Add(copy);
         }
 
