@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3042,6 +3042,78 @@ unsafe
         Console.WriteLine($"  +0x10 counter    = {*(int*)(ptr+0x10)}");
         Console.WriteLine($"  +0x14 frac acc   = {*(float*)(ptr+0x14):R}");
         Console.WriteLine($"  +0x30..0x44 state= {*(float*)(ptr+0x30):R} {*(float*)(ptr+0x34):R} {*(float*)(ptr+0x38):R} {*(float*)(ptr+0x3c):R} {*(float*)(ptr+0x40):R} {*(float*)(ptr+0x44):R}");
+        return;
+    }
+    // resetstate mode: does a GS Reset actually return the module to where it started?
+    //
+    //   Renders one note twice in the *same* DLL instance. The first time from a fresh reset; then
+    //   unrelated material is played with the reverb and chorus sends wide open and left to ring;
+    //   then a GS Reset, and the same note again. If a reset cleared everything the two renders
+    //   would be identical sample for sample. Any difference is state that survived, and the test
+    //   does not have to name the carrier to prove one exists.
+    //
+    //   The decompile predicts a difference: reverb_state_reset @1800043c0 and chorus_state_reset
+    //   @180004010 are never called from anywhere, so the tanks and delay lines are never cleared.
+    //   args: dll resetstate <prog> <note> <vel> <map> [seconds] [contamSeconds]
+    if (args.Length > 1 && args[1] == "resetstate")
+    {
+        int pgR=int.Parse(args[2]), ntR=int.Parse(args[3]), vlR=int.Parse(args[4]), mpR=int.Parse(args[5]);
+        double secR=args.Length>6?double.Parse(args[6],System.Globalization.CultureInfo.InvariantCulture):1.0;
+        double conR=args.Length>7?double.Parse(args[7],System.Globalization.CultureInfo.InvariantCulture):2.0;
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        var lR=new float[512]; var rR=new float[512];
+        int blocksR=(int)(secR*32000.0/512.0), conBlocks=(int)(conR*32000.0/512.0);
+        void CCr(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+        void CCch(int ch,int c,int v)=>shortIn((uint)((0xB0|ch)|(c<<8)|(v<<16)),0);
+
+        float[] Probe(){
+            GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpR); flush();
+            fixed(float* pl=lR,pr=rR) for(int i=0;i<8;i++) process(pl,pr,512);
+            CCr(7,127); CCr(10,64); CCr(91,0); CCr(93,0);
+            shortIn((uint)(0xC0|(pgR<<8)),0); flush();
+            fixed(float* pl=lR,pr=rR) process(pl,pr,512);
+            shortIn((uint)(0x90|(ntR<<8)|(vlR<<16)),0); flush();
+            var buf=new float[blocksR*512*2];
+            for(int i=0;i<blocksR;i++){
+                fixed(float* pl=lR,pr=rR) process(pl,pr,512);
+                for(int j=0;j<512;j++){ buf[(i*512+j)*2]=lR[j]; buf[(i*512+j)*2+1]=rR[j]; }
+            }
+            shortIn((uint)(0x80|(ntR<<8)),0); flush();
+            return buf;
+        }
+
+        var A=Probe();
+        // The contamination: a different patch on other channels, sends wide open so the shared
+        // reverb and chorus networks are driven hard, then held silent long enough that only the
+        // tails are still sounding when the reset arrives.
+        for(int ch=1;ch<6;ch++){ CCch(ch,7,127); CCch(ch,91,127); CCch(ch,93,127);
+            shortIn((uint)((0xC0|ch)|(48<<8)),0); }
+        flush();
+        for(int ch=1;ch<6;ch++) shortIn((uint)((0x90|ch)|((36+ch*7)<<8)|(120<<16)),0);
+        flush();
+        for(int i=0;i<conBlocks;i++) fixed(float* pl=lR,pr=rR) process(pl,pr,512);
+        for(int ch=1;ch<6;ch++) shortIn((uint)((0x80|ch)|((36+ch*7)<<8)),0);
+        flush();
+        for(int i=0;i<conBlocks;i++) fixed(float* pl=lR,pr=rR) process(pl,pr,512);
+        var B=Probe();
+
+        double maxd=0.0, sa=0.0, sb=0.0, sd=0.0; int firstDiff=-1;
+        for(int i=0;i<A.Length;i++){
+            double d=System.Math.Abs((double)A[i]-(double)B[i]);
+            if(d>maxd) maxd=d;
+            if(firstDiff<0 && A[i]!=B[i]) firstDiff=i;
+            sa+=(double)A[i]*A[i]; sb+=(double)B[i]*B[i]; sd+=d*d;
+        }
+        double rmsA=System.Math.Sqrt(sa/A.Length), rmsB=System.Math.Sqrt(sb/B.Length), rmsD=System.Math.Sqrt(sd/A.Length);
+        Console.WriteLine($"resetstate prog={pgR} note={ntR} vel={vlR} map={mpR} {secR}s probe, {conR}s contamination x2");
+        Console.WriteLine($"  samples compared: {A.Length}  (interleaved stereo)");
+        Console.WriteLine($"  first differing sample: {(firstDiff<0?"none -- IDENTICAL":firstDiff.ToString())}");
+        Console.WriteLine($"  max abs diff: {maxd:0.#########}");
+        Console.WriteLine($"  rms A={rmsA:0.#########}  rms B={rmsB:0.#########}  rms diff={rmsD:0.#########}");
+        if(rmsA>0.0) Console.WriteLine($"  diff is {20.0*System.Math.Log10(rmsD/rmsA):0.00} dB relative to the first render");
+        Console.WriteLine(firstDiff<0
+            ? "  => a GS Reset returned the module to the same state."
+            : "  => state SURVIVED the GS Reset: the same note renders differently.");
         return;
     }
     // sampstate mode: play a melodic note and dump the sampler state (DAT_181a1b570 + v*0x50) of
