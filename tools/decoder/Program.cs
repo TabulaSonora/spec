@@ -3066,6 +3066,13 @@ unsafe
         void CCr(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
         void CCch(int ch,int c,int v)=>shortIn((uint)((0xB0|ch)|(c<<8)|(v<<16)),0);
 
+        // The Galois LFSR pair prng_lfsr @18008fbb0 walks. Seeded to 0xefa6/0x9c23 exactly once,
+        // in engine_init_tasks_ports @180084c60 (reached only from TG_initialize @1800888a0), so
+        // the reset path cannot restore it. Read either side of the reset to show that directly.
+        ushort* prngA=(ushort*)(b+(0x181a6f630L-0x180000000L));
+        ushort* prngB=(ushort*)(b+(0x181a6f634L-0x180000000L));
+        void ShowPrng(string when)=>Console.WriteLine($"  prng {when}: 181a6f630=0x{*prngA:X4} 181a6f634=0x{*prngB:X4}");
+
         float[] Probe(){
             GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpR); flush();
             fixed(float* pl=lR,pr=rR) for(int i=0;i<8;i++) process(pl,pr,512);
@@ -3082,7 +3089,9 @@ unsafe
             return buf;
         }
 
+        ShowPrng("at start (fresh instance)");
         var A=Probe();
+        ShowPrng("after render A");
         // The contamination: a different patch on other channels, sends wide open so the shared
         // reverb and chorus networks are driven hard, then held silent long enough that only the
         // tails are still sounding when the reset arrives.
@@ -3095,7 +3104,9 @@ unsafe
         for(int ch=1;ch<6;ch++) shortIn((uint)((0x80|ch)|((36+ch*7)<<8)),0);
         flush();
         for(int i=0;i<conBlocks;i++) fixed(float* pl=lR,pr=rR) process(pl,pr,512);
+        ShowPrng("after contamination, before reset");
         var B=Probe();
+        ShowPrng("after render B");
 
         double maxd=0.0, sa=0.0, sb=0.0, sd=0.0; int firstDiff=-1;
         for(int i=0;i<A.Length;i++){
