@@ -74,7 +74,7 @@ notes rather than of cycles. Report the whole curve, never one window.
 
 ## Before measuring anything
 
-Three ways to get a meaningless number from a correct engine:
+Four ways to get a meaningless number from a correct engine:
 
 1. **Feed the DLL on its own block.** It renders in 320-sample blocks — 10 ms at 32 kHz, its 100 Hz
    control tick — and asked for any other count it chunks internally, taking pending events only at
@@ -86,6 +86,57 @@ Three ways to get a meaningless number from a correct engine:
    over a window and take the best. A pure time offset destroys correlation at every window size at
    once, which is distinguishable from a real difference — and if the best lag *grows* through the
    file, the fault is a tempo-map bug in the harness, not the engine.
+4. **Apply the module's own latencies — the four-chunk event stage, and the output stage when the
+   final mix is what is being checked.** See below; this is the one that has caused misreadings
+   rather than merely noisy numbers.
+
+### The two latencies every timing-sensitive comparison owes the module
+
+**The module has no switch for either.** It always stages a message before a part sees it, and it
+always runs its output stage — even at its own 32 kHz. A comparison that skips them is measuring
+against a differently-timed engine, and every latency it turns up then has to be explained away by
+hand. That is not hypothetical: **the loop-crossing retune was misread twice** this way, and the
+`~4 ms note-on latency (voice-allocation delay)` recorded further down in `FINDINGS.md` is the same
+128 samples misattributed to voice allocation.
+
+**The event stage is four 32-sample chunks — 128 samples, 4 ms at 32 kHz.** `TG_ShortMidiIn` only
+puts a message in a ring; `TG_Process` drains that ring **after** `render_block()`, and the message
+then crosses four stages — the ready buffer, the per-port FIFO, the parser state machine, and
+`part_start_voices` — each advanced exactly once per rendered chunk. Measured against the oracle: a
+note-on onset lands 128 samples later in the module, and cross-correlating the two renders peaks at
+**r = 0.92 at a lag of 128–129 samples**.
+
+The **chunk** is the unit, not the host call. `TG_Process` over-renders — it serves whatever the
+previous call left buffered before rendering anything new — so a host asking for a length that is
+not a whole number of chunks leaves a remainder behind and the chunk grid drifts against the host's
+boundaries. A deferral counted in host calls drifts with it. (Relatedly, a message's timestamp is
+not a sample offset: `TG_ShortMidiIn` converts it to `offset * 1000 / host_rate` milliseconds and
+stamps that. One millisecond being exactly one chunk at 32 kHz is why the module can compare a
+stamp against a chunk counter at all.)
+
+**This applies to trace-buffer probes, not just to audio.** Anything that reads a buffer, a voice
+field or a coefficient at a chunk boundary and attributes it to the message that "caused" it owes
+the same four chunks — otherwise the probe reads state from before the message ever reached the
+part, and the conclusion is drawn about the wrong chunk. The `scdec` probes that step a chunk at a
+time are exactly the case this bites.
+
+**The output stage is worth one more sample, and only matters if the final mix is what you check.**
+`tg_output_filter` runs on every chunk `TG_Process` emits, at every host rate including the engine's
+own. At 32 kHz its ratio is exactly 1 and it degenerates to a **one-sample delay** — real latency,
+no gain and no shape (see *The output stage is a 2× oversampled linear interpolator*). So a probe
+reading an internal buffer does **not** owe it, and a comparison of rendered output does. Add it
+only on that side of the line, or a probe picks up a sample of skew it never had.
+
+At other host rates the event stage is that same 128 samples seen through the output resampler:
+**64 kHz reads 255, 16 kHz reads 48.** At 32 kHz — what every `scdec` probe and both fixture
+generators run at — it is 128 and it is exact.
+
+**Together they close the gap.** On the note gate's own footing, the module's onset is 131 and this
+port's is 130, with peaks at 1017 and 1018: one sample apart on both measures. In `NativeTS` the two
+are `ToneGeneratorOptions::event_delay_blocks = 4` and `bypass_output_filter = false`; both default
+to the *convenient* setting rather than the faithful one, because much of the unit suite reads state
+back on the line immediately after sending it. That makes the defaults right for a test of a **law**
+and wrong for a test of a **render** — the note and song oracle gates set both.
 
 ## What this does not measure
 

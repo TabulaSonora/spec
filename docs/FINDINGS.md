@@ -2718,7 +2718,9 @@ NOT click (first samples rise cleanly from 0; max first-difference 0.040 vs the 
 the old anti-click justification does not hold.
 
 Note: the 3 ms vs instant difference is confined to the first ~1 ms. The larger real-vs-ours marimba
-attack differences are a ~4 ms note-on latency the engine has (voice-allocation delay) that our per-note
+attack differences are a ~4 ms note-on latency the engine has (~~voice-allocation delay~~ — **corrected
+2026-08-08: this is the four-chunk MIDI event stage, 128 samples at 32 kHz, not voice allocation; see
+`COMPARING_RENDERS.md`, "The two latencies every timing-sensitive comparison owes the module"**) that our per-note
 render does not model, and a broadband HF/"graininess" gap tracked separately (our TVF runs too open --
 +10 dB harmonics / +19 dB noise floor above 4 kHz vs the engine; NOT the output SRC filter, which is
 unity at 32 kHz, and NOT interpolation, which uses the ROM kernel).
