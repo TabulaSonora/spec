@@ -1160,10 +1160,13 @@ unsafe
         int pg=args.Length>2?int.Parse(args[2]):19, nt=args.Length>3?int.Parse(args[3]):96, vel=args.Length>4?int.Parse(args[4]):110;
         int chunk=args.Length>5?int.Parse(args[5]):16; int npts=args.Length>6?int.Parse(args[6]):200;
         int map=args.Length>7?int.Parse(args[7]):4; int after=args.Length>8?int.Parse(args[8]):0;
+        // Which controller to step. 7 is volume, the case this was written for; 11 is expression,
+        // which reaches the same part-volume gain and needed checking for whether it slews at all.
+        int ccN=args.Length>9?int.Parse(args[9]):7;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         void CCr(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
         if(map>=1&&map<=4){ GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map); } else Gm1On();
-        CCr(7,127);CCr(10,64);CCr(91,0);CCr(93,0);
+        CCr(7,127);CCr(11,127);CCr(10,64);CCr(91,0);CCr(93,0);
         shortIn((uint)(0xC0|(pg<<8)),0);
         var l4=new float[512]; var r4=new float[512];
         flush();
@@ -1171,13 +1174,13 @@ unsafe
         shortIn((uint)(0x90|(nt<<8)|(vel<<16)),0); flush();
         fixed(float* pl=l4,pr=r4) for(int i=0;i<40;i++) process(pl,pr,512);   // settle fully
         long gb=b+0x1a1cbb0;
-        Console.WriteLine($"volramp prog={pg} note={nt} chunk={chunk} cc7 127 -> {after}");
+        Console.WriteLine($"volramp prog={pg} note={nt} chunk={chunk} cc{ccN} 127 -> {after}");
         Console.WriteLine("sample,gain");
         int t=0;
         // a few points at rest first, then the step
         for(int i=0;i<4;i++){ Console.WriteLine($"{t},{*(float*)gb:0.00000000}");
             fixed(float* pl=l4,pr=r4) process(pl,pr,(uint)chunk); t+=chunk; }
-        CCr(7,after); flush();
+        CCr(ccN,after); flush();
         for(int i=0;i<npts;i++){ Console.WriteLine($"{t},{*(float*)gb:0.00000000}");
             fixed(float* pl=l4,pr=r4) process(pl,pr,(uint)chunk); t+=chunk; }
         return;
