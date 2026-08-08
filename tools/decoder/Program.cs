@@ -3069,6 +3069,11 @@ unsafe
     {
         int pgE=int.Parse(args[2]), ntE=int.Parse(args[3]), vlE=int.Parse(args[4]), mpE=int.Parse(args[5]);
         int tkE=args.Length>6?int.Parse(args[6]):24;
+        // CC#11. If expression reaches the per-voice TVA level, voice+0xac moves with it; if it is
+        // only a part-level multiplier applied after the envelope, +0xac is unchanged and the
+        // level lands somewhere else. The two are indistinguishable at 127, which is why every
+        // clean-part measurement so far agreed.
+        int exprE=args.Length>7?int.Parse(args[7]):127;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         long fbE=b+0x1a1b5b8;
         var getVCe=(delegate* unmanaged[Cdecl]<int,long>)(b+0x5c360);
@@ -3077,12 +3082,12 @@ unsafe
         void CCe(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
         GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpE); flush();
         fixed(float* pl=lE,pr=rE) for(int i=0;i<8;i++) process(pl,pr,512);
-        CCe(7,127); CCe(10,64); CCe(91,0); CCe(93,0);
+        CCe(7,127); CCe(11,exprE); CCe(10,64); CCe(91,0); CCe(93,0);
         shortIn((uint)(0xC0|(pgE<<8)),0); flush();
         fixed(float* pl=lE,pr=rE) process(pl,pr,512);
         shortIn((uint)(0x90|(ntE<<8)|(vlE<<16)),0); flush();
 
-        Console.WriteLine($"envseg prog={pgE} note={ntE} vel={vlE} map={mpE}");
+        Console.WriteLine($"envseg prog={pgE} note={ntE} vel={vlE} map={mpE} cc11={exprE}");
         // The sampler's sub-sample phase alongside the envelope. sampler_pcm reads
         // *(ushort*)(param_1[4] + 6) -- state +0x46 -- and selects an interpolator phase with
         // `frac >> 9`, so the kernel has 128 positions. A transient read on an exact sample
