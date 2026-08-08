@@ -3141,6 +3141,22 @@ unsafe
         for(int i=0;i<8;i++) Console.Write($" {*(float*)(srcC+i*4):0.######}");
         Console.WriteLine();
 
+        // The two output filters. fx_biquad_process @180086690 is not a direct-form biquad: it is
+        // two cascaded FIRST-ORDER sections sharing one 9-float block, so its two poles are real
+        // and it cannot resonate.
+        //   y1[n] = c0*x[n]  + c1*x[n-1] + c2*y1[n-1]
+        //   y2[n] = c3*y1[n] + c4*y1[n-1] + c5*y2[n-1]
+        // c[6..8] are x[n-1], y1[n-1], y2[n-1]. Called twice, on 0x181a62a40 for the left pair
+        // (in 0x181a1a8f0, out 0x181a19470) and 0x181a62a70 for the right (0x181a1a970 ->
+        // 0x181a194f0), so unlike the chorus and delay stages these two really are a stereo pair.
+        foreach(var (nm,at) in new (string,long)[]{("L 181a62a40",0x181a62a40L),("R 181a62a70",0x181a62a70L)}){
+            long p0=b+(at-0x180000000L);
+            Console.Write($"  biquad {nm}: c0..c5");
+            for(int i=0;i<6;i++) Console.Write($" {*(float*)(p0+i*4):0.######}");
+            Console.Write("   state x1,y1,y2");
+            for(int i=6;i<9;i++) Console.Write($" {*(float*)(p0+i*4):0.######}");
+            Console.WriteLine();
+        }
         Console.WriteLine($"  dry peak this block = {dryPeak:0.#########}");
         Console.WriteLine($"  prediction: the bus should be 5.79x larger than dry x 0.515625");
         Console.WriteLine($"  dry x 0.515625      = {dryPeak*0.515625:0.#########}");
