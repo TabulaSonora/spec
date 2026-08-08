@@ -574,6 +574,48 @@ Traced from the export `TG_ShortMidiIn`. The path is a multi-stage queue → par
     by voice (`g_voice_wave_ctrl` etc.). The SoA layout is *why* `render_block` processes voices
     in **groups of 4** (SIMD-friendly), which I noted earlier without knowing the cause.
 
+## Part key shift transposes the NOTE, ahead of the patch lookup `[confirmed 2026-08-08]`
+
+GS part key shift (`40 1x 16`, centred 0x40) is not a tuning offset. The module adds it to the
+**note number** before the patch lookup runs, so the shifted note can select a different sample
+zone. Treating it as a pitch offset applied afterwards keeps the untransposed note's zone and
+stretches it instead.
+
+The two models give identical answers on most tones, which is what makes this easy to miss: where a
+tone's zones are uniformly tuned -- a finely multisampled piano -- shifting the zone and shifting
+the pitch agree exactly. They separate only where the zones are **not** uniformly tuned.
+
+Program 77 is such a tone. Its low zone plays an octave up and its zone above key 71 does not.
+Note 60, key shift swept, module against a port that applied it as a pitch offset:
+
+| shift | +0 | +2 | +4 | +6 | +8 | +10 | +12 | +16 | +24 |
+|---|---|---|---|---|---|---|---|---|---|
+| **module** | +12 | +14 | +16 | +18 | +20 | +22 | **+12** | **+16** | **+24** |
+| pitch-offset model | +12 | +14 | +16 | +18 | +20 | +22 | +24 | +28 | +36 |
+
+The columns agree while the shifted note stays inside the low zone and part company the moment it
+crosses out. Every module figure is simply the pitch of note (60 + shift), which is what a
+lookup-time transpose produces and what a playback-time one cannot.
+
+**There is no clamp on the range.** An earlier reading of this sweep claimed the module clamped the
+negative side at −12, on the strength of `0x28` (−24) reading −12 where the pitch-offset model read
+−24. It does not: that was the same zone effect seen from below -- note 60 shifted to 36 lands in a
+piano zone whose tuning is not the one note 60 would have used. Re-measured across `0x28`–`0x40` on
+two programs against a port that transposes the note, every value agrees, and the whole documented
+−24…+24 range is honoured. A single apparent outlier at −18 was an artifact of picking the spectral
+argmax: both engines put their peaks at the same 92.0 / 184.0 / 368.0 Hz and their RMS within
+0.23 dB, and the detector had taken the second harmonic on one render and the fundamental on the
+other.
+
+Two boundaries, both measured rather than assumed. The **receive range** (`40 1x 1D`/`1E`) tests the
+*arriving* note, not the shifted one -- it filters what the part accepts, and transposing is what
+the part does with what it accepted. And **rhythm parts ignore key shift entirely**: key 36 with
+shift 0 and shift +12 render identically, so the shift never reaches a drum kit's key lookup.
+
+`shangai.mid` is the corpus's one file that exercises this. Its channel 1 sets shift +12 over
+program 77 and sounds an octave high under the pitch-offset model for the whole song -- 1 kHz down
+18.7 dB and 2 kHz up 14.3, which is what an octave of displaced energy looks like at the mix.
+
 ## Ports: the module has 32 parts, and one AND hides half of them `[confirmed]`
 
 Step 3 above throws away the field that says which port an event was meant for. That single
