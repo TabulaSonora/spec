@@ -3090,14 +3090,20 @@ unsafe
 
         // 0.5 s of hit discarded, then 1.0 s of tail. Both channels, since a per-key pan would
         // otherwise masquerade as a level change.
+        // TWO windows, because the three networks do not decay alike. Reverb and delay leave a
+        // tail half a second on; a chorus is a twenty to thirty millisecond modulated delay and
+        // has contributed everything it will while the hit is still sounding. Measuring only the
+        // tail reads the floor for chorus and says nothing about it.
+        double early=0.0; int ne=0, hitPk=0;
         double hit=0.0;
         fixed(float* pl=lK,pr=rK) for(int i=0;i<31;i++){ process(pl,pr,512);
-            for(int j=0;j<512;j++) hit=System.Math.Max(hit,
-                System.Math.Max(System.Math.Abs((double)pl[j]),System.Math.Abs((double)pr[j]))); }
+            for(int j=0;j<512;j++){
+                hit=System.Math.Max(hit,System.Math.Max(System.Math.Abs((double)pl[j]),System.Math.Abs((double)pr[j])));
+                early+=(double)pl[j]*pl[j]+(double)pr[j]*pr[j]; ne+=2; } }
         double sum=0.0; int n=0;
         fixed(float* pl=lK,pr=rK) for(int i=0;i<62;i++){ process(pl,pr,512);
             for(int j=0;j<512;j++){ sum+=(double)pl[j]*pl[j]+(double)pr[j]*pr[j]; n+=2; } }
-        Console.WriteLine($"{System.Math.Sqrt(sum/n):0.00000000} hit={hit:0.000000}");
+        Console.WriteLine($"{System.Math.Sqrt(sum/n):0.00000000} early={System.Math.Sqrt(early/ne):0.00000000} hit={hit:0.000000}");
         return;
     }
     // envseg mode: the TVA envelope segment's own state, tick by tick, plus the curve it rides.
