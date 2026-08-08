@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -3042,6 +3042,79 @@ unsafe
         Console.WriteLine($"  +0x10 counter    = {*(int*)(ptr+0x10)}");
         Console.WriteLine($"  +0x14 frac acc   = {*(float*)(ptr+0x14):R}");
         Console.WriteLine($"  +0x30..0x44 state= {*(float*)(ptr+0x30):R} {*(float*)(ptr+0x34):R} {*(float*)(ptr+0x38):R} {*(float*)(ptr+0x3c):R} {*(float*)(ptr+0x40):R} {*(float*)(ptr+0x44):R}");
+        return;
+    }
+    // chorusin mode: read the chorus input bus, by stopping the thing that consumes it.
+    //
+    //   panwet.mid's chorus return is short by a pure gain of 5.79. Every coefficient on the path
+    //   has been read out of the module and matches this port -- the part send, the three system
+    //   sends, the return level, the write gain, the whole send-mix gain bank, and the network's
+    //   impulse response -- so the one stage left unexamined is the input bus at 0x181a190f0, and
+    //   it has never been readable: `buscap` reads 2.0003e-05 whatever is played.
+    //
+    //   That figure is the answer to why. fx_process_block @18008c2c0 seeds the send-mix
+    //   accumulator at 1e-05 per lane before summing anything into it, so 2.0003e-05 is what an
+    //   accumulation that summed to nothing leaves behind -- the bus had already been consumed and
+    //   rewritten by the time anything outside could look.
+    //
+    //   So rather than trying to catch it mid-block, this stops the consumer. fx_chorus_stage_r
+    //   @180085460 is patched to a single `ret` for one block, which leaves the bus holding what
+    //   the send mix wrote. The byte is restored immediately after. A control pass with the module
+    //   untouched runs first, so the difference between the two is the evidence rather than the
+    //   absolute number.
+    //   args: dll chorusin <prog> <note> <vel> <map> [cc93]
+    if (args.Length > 1 && args[1] == "chorusin")
+    {
+        int pgC=int.Parse(args[2]), ntC=int.Parse(args[3]), vlC=int.Parse(args[4]), mpC=int.Parse(args[5]);
+        int sndC=args.Length>6?int.Parse(args[6]):127;
+        var k32=NativeLibrary.Load("kernel32.dll");
+        var VirtualProtect=(delegate* unmanaged[Stdcall]<void*,nuint,uint,uint*,int>)
+            NativeLibrary.GetExport(k32,"VirtualProtect");
+        setSR(32000f); setBS(512); activate(32000f,512); setThr();
+        long busC=b+(0x181a190f0L-0x180000000L);
+        long stageR=b+0x85460;
+        var lC=new float[512]; var rC=new float[512];
+        void CCc(int c,int v)=>shortIn((uint)(0xB0|(c<<8)|(v<<16)),0);
+
+        void Arm(){
+            GsReset(); for(int c=0;c<16;c++) ToneMap0(c,mpC); flush();
+            fixed(float* pl=lC,pr=rC) for(int i=0;i<8;i++) process(pl,pr,512);
+            CCc(7,127); CCc(10,64); CCc(91,0); CCc(93,sndC);
+            shortIn((uint)(0xC0|(pgC<<8)),0); flush();
+            fixed(float* pl=lC,pr=rC) process(pl,pr,512);
+            shortIn((uint)(0x90|(ntC<<8)|(vlC<<16)),0); flush();
+            fixed(float* pl=lC,pr=rC) for(int i=0;i<8;i++) process(pl,pr,512);
+        }
+        void ShowBus(string tag){
+            double peak=0.0, sum=0.0;
+            for(int i=0;i<32;i++){ double v=*(float*)(busC+i*4); peak=System.Math.Max(peak,System.Math.Abs(v)); sum+=v*v; }
+            Console.WriteLine($"  {tag,-34} peak={peak:0.#########}  rms={System.Math.Sqrt(sum/32):0.#########}");
+            Console.Write("     first 8:");
+            for(int i=0;i<8;i++) Console.Write($" {*(float*)(busC+i*4):0.######}");
+            Console.WriteLine();
+        }
+
+        Console.WriteLine($"chorusin prog={pgC} note={ntC} vel={vlC} map={mpC} cc93={sndC}");
+        Arm();
+        double dryPeak=0.0;
+        fixed(float* pl=lC,pr=rC){ process(pl,pr,32);
+            for(int i=0;i<32;i++) dryPeak=System.Math.Max(dryPeak,System.Math.Abs(pl[i])); }
+        ShowBus("control, module untouched:");
+
+        // One block with the consumer neutered. Restored before anything else runs, so the module
+        // is only ever inconsistent for the duration of that single 32-sample call.
+        uint old=0; byte save=*(byte*)stageR;
+        if(VirtualProtect((void*)stageR,16,0x40,&old)==0){ Console.WriteLine("  VirtualProtect failed"); return; }
+        *(byte*)stageR=0xC3;
+        fixed(float* pl=lC,pr=rC) process(pl,pr,32);
+        *(byte*)stageR=save;
+        uint back=0; VirtualProtect((void*)stageR,16,old,&back);
+        ShowBus("with fx_chorus_stage_r as ret:");
+
+        Console.WriteLine($"  dry peak this block = {dryPeak:0.#########}");
+        Console.WriteLine($"  prediction: the bus should be 5.79x larger than dry x 0.515625");
+        Console.WriteLine($"  dry x 0.515625      = {dryPeak*0.515625:0.#########}");
+        Console.WriteLine($"  that x 5.79         = {dryPeak*0.515625*5.79:0.#########}");
         return;
     }
     // lfonodes mode: when does an LFO node inherit from a standing one, and what does it cost?
