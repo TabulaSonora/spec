@@ -1163,10 +1163,14 @@ unsafe
         // Which controller to step. 7 is volume, the case this was written for; 11 is expression,
         // which reaches the same part-volume gain and needed checking for whether it slews at all.
         int ccN=args.Length>9?int.Parse(args[9]):7;
+        // Base CC#7, so the OTHER controller can be held off full. Volume and expression are
+        // documented as entering symmetrically and being squared together; that is only actually
+        // exercised when both are away from 127, which is the case a real file presents.
+        int volBase=args.Length>10?int.Parse(args[10]):127;
         setSR(32000f); setBS(512); activate(32000f,512); setThr();
         void CCr(int c,int v)=>shortIn((uint)((0xB0|0)|(c<<8)|(v<<16)),0);
         if(map>=1&&map<=4){ GsReset(); for(int c=0;c<16;c++) ToneMap0(c,map); } else Gm1On();
-        CCr(7,127);CCr(11,127);CCr(10,64);CCr(91,0);CCr(93,0);
+        CCr(7,volBase);CCr(11,127);CCr(10,64);CCr(91,0);CCr(93,0);
         shortIn((uint)(0xC0|(pg<<8)),0);
         var l4=new float[512]; var r4=new float[512];
         flush();
