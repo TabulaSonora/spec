@@ -6221,3 +6221,42 @@ That the network's *measured* gain differs by 5.79 in situ while its impulse res
 ratio 1.0000 when driven directly is the whole remaining puzzle. Something between the send
 coefficient and the stage input is not what it appears, and the bus that would show it is cleared
 inside the block that fills it.
+
+## A zero-length note is started and released at once, not dropped `[measured]`
+
+A note-on and a note-off for the same key at the same tick is ordinary sequencer output, not a
+malformed file. Nine files in the comparison corpus carry at least one; `M000679_traintrain.mid`
+carries 806, `th07_19_user_gm.mid` 336, `shangai.mid` four.
+
+The module sounds them. Program 77, key 0x42, velocity 0x70, note-on and note-off at the same tick,
+rendered at 32 kHz against a held note of the same key:
+
+| t (ms) | zero-length | held |
+|---|---|---|
+| 500 | 0.003296 | 0.004669 |
+| 510 | 0.002136 | 0.006195 |
+| 530 | 0.001328 | 0.020523 |
+| 550 | 0.000412 | 0.026810 |
+| 570 | 0.000122 | 0.032654 |
+| 600 | 0.000092 | 0.034042 |
+| 1800 | 0.000031 | 0.030350 |
+
+The two agree at the onset and part immediately: the zero-length note is audible for roughly one
+block and is back at the noise floor within 60 ms, while the held note climbs to sustain. So the
+voice is allocated, sounded, and released -- it is not suppressed, and the release does not wait a
+control tick.
+
+**Why that ordering is forced.** The note-on is split in two: the allocation runs at dispatch, in
+message order, and the parameter load waits for the block-ordered setup pass at the top of the next
+chunk. Only the second half is deferred. The note therefore exists on the part from the moment the
+note-on is dispatched, which is what lets a note-off arriving later in the same chunk find it. Any
+reimplementation that defers the *allocation* as well has nowhere for that note-off to land, and the
+symptom is not a clipped note but a stuck one: the voice starts a tick later with nothing left to
+release it and sounds until the song ends.
+
+**A repeated key is not this case, and telling them apart matters.** Sequencers routinely emit the
+new note-on before the old note's note-off -- `shangai.mid` does it four bars running, and every one
+of `robyn_show_me_love.mid`'s twenty-nine same-tick pairs is of this kind. At the instant the
+note-off arrives there are two instances of the key on the part, one sounding and one queued, and
+the note-off belongs to the older. Releasing both is audible: it cost `robyn_show_me_love.mid` 0.048
+of peak, an 8.6% loss on a row whose tolerance is 0.01.
