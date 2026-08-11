@@ -6260,3 +6260,16 @@ of `robyn_show_me_love.mid`'s twenty-nine same-tick pairs is of this kind. At th
 note-off arrives there are two instances of the key on the part, one sounding and one queued, and
 the note-off belongs to the older. Releasing both is audible: it cost `robyn_show_me_love.mid` 0.048
 of peak, an 8.6% loss on a row whose tolerance is 0.01.
+
+**And the older instance is usually already in release by then, which is the part that catches you
+out.** A note-on for a key that is already down re-strikes it, and the re-strike releases the old
+voice before the new note is allocated -- so when the paired note-off arrives a moment later there
+is nothing *held* on that key at all. Reading "is anything sounding?" as "is anything still held?"
+therefore sends the note-off straight to the note struck a moment ago and kills it. On
+`robyn_show_me_love.mid`, note 40 is struck at 39.130 s, re-struck at 39.616 s with the older note's
+note-off immediately behind it, and is meant to ring until 40.085 s; misreading it cut the level to
+a third for the rest of the phrase, and the file does this twice.
+
+The test is whether a voice on that key is still *ringing*, released or not. A voice that has
+finished does not count, which is what stops a key played earlier in the song from swallowing a real
+zero-length note later on.
