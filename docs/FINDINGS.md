@@ -483,20 +483,29 @@ point gives 225 and 426 Hz for the low band against an advertised 200 and 400 �
 then 11 kHz for the high band's second setting against an advertised 6. So that reading is wrong
 despite half of it agreeing. `[guess]` — the poles are facts, the Hz are not.
 
-### Part EQ defaults **off**, against the manual `[confirmed — absence of evidence]`
+### Part EQ defaults **on**, with the manual `[confirmed — measured]`
 
-The SC-8820 manual gives `40 4x 20` (EQ ON/OFF, `part+0x450`) a default of `01 ON`. The binary
-disagrees: the part reset writes the byte to **zero**, and no code anywhere writes one to it — the
-only writer is `sysex_part_param_450` @ `0x180076e90`, the handler for the message itself. A module
-never told to switch the EQ on never switches it on.
+`40 4x 20` (EQ ON/OFF, `part+0x450`) resets to **1 on all sixteen blocks**, which is the default the
+SC-8820 manual gives and the opposite of what this section said for months. The system block `40 02`
+resets to `00 40 00 40` — flat, also as documented — and both are restored by the next GS reset, so
+neither leaks between songs rendered in one instance.
 
-This is silent until a stream also sends a non-flat `40 02`, because a flat EQ is exactly
-transparent. On a stream that sets an EQ curve without addressing `40 4x 20`, the two readings
-differ completely.
+Read with `scdec parteq`, which reads the bytes rather than inferring them from a render: a flat
+curve and a switched-off part sound identical, so no render can separate the two. `40 41 20 00`
+clears exactly one block, which is what says `0x450` is the byte the handler moves and that the
+stride walks parts.
 
-`[unverified]` against the DLL as an oracle — this rests on an exhaustive search for writers rather
-than on a measurement, which is a weaker footing than most findings here. One render of a file that
-sets `40 02` and no part EQ would settle it.
+**The previous reading, and why it was wrong, is the useful part.** It rested on an exhaustive
+search: the part reset writes `part+0x450` to zero, and the only writer of a one is
+`sysex_part_param_450` @ `0x180076e90`. Both halves are artefacts of the same mistake. The reset
+loop's cursor is biased `+0x12` from the part base, so the write that reads as `part+0x450` is
+`part+0x462` — a live field of its own — and the reset never touches the switch at all. Whatever
+does set it is reached through a stored pointer, not by name, which is precisely what a search for
+writers cannot see. The `40 02` block is written the same way: the FX reset only seeds the applied
+copy from the staging bytes, yet the staging bytes measurably do reset.
+
+A finding of the form *nothing writes this* is not the same kind of claim as *this writes that*, and
+this one was wrong. Mark them `[unverified]` and go and measure.
 
 ### The control matrix's destination scaling `[confirmed — partial]`
 
