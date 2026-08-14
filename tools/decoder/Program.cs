@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 unsafe
 {
     string dll = args.Length > 0 ? args[0] : @"C:\Program Files\Roland VS\SOUND Canvas VA\SCCore.dll";
-    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "envseg" || args[1] == "keysend" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "ccdiff" || args[1] == "buscap");
+    bool scanMode = args.Length > 1 && (args[1] == "scan" || args[1] == "enum" || args[1] == "map" || args[1] == "mapall" || args[1] == "voices" || args[1] == "calib" || args[1] == "filt" || args[1] == "lfo" || args[1] == "song" || args[1] == "smf" || args[1] == "drum" || args[1] == "drumsong" || args[1] == "holdnote" || args[1] == "tvftrace" || args[1] == "drumnote" || args[1] == "panscan" || args[1] == "lfotrace" || args[1] == "seq" || args[1] == "revdump" || args[1] == "chodump" || args[1] == "delaytest" || args[1] == "ampramp" || args[1] == "volramp" || args[1] == "volscan" || args[1] == "panramp" || args[1] == "sendramp" || args[1] == "ccscan" || args[1] == "busscan" || args[1] == "partfind" || args[1] == "pokebyte" || args[1] == "progscan" || args[1] == "peek" || args[1] == "partdump" || args[1] == "fxmatrix" || args[1] == "xgvoices" || args[1] == "xgsweep" || args[1] == "slotscan" || args[1] == "matscan" || args[1] == "mattrace" || args[1] == "outfilt" || args[1] == "sampstate" || args[1] == "resetstate" || args[1] == "lfonodes" || args[1] == "chorusin" || args[1] == "envseg" || args[1] == "keysend" || args[1] == "predtrace" || args[1] == "dumpmem" || args[1] == "postrace" || args[1] == "drumprobe" || args[1] == "portatrace" || args[1] == "panprobe" || args[1] == "svfcoef" || args[1] == "svfmel" || args[1] == "xgdrumfilt" || args[1] == "drumnrpn" || args[1] == "gsdrumnrpn" || args[1] == "mapsysex" || args[1] == "chophase" || args[1] == "blkdiff" || args[1] == "svfslew" || args[1] == "partialmix" || args[1] == "voicesolo" || args[1] == "stagedpitch" || args[1] == "pitchword" || args[1] == "pitchmat" || args[1] == "jitterprobe" || args[1] == "svfin" || args[1] == "notebatch" || args[1] == "tvatrace" || args[1] == "onsetprobe" || args[1] == "sysexstress" || args[1] == "sysexreplay" || args[1] == "efxdump" || args[1] == "revir" || args[1] == "choir" || args[1] == "dlyir" || args[1] == "partprobe" || args[1] == "partmap" || args[1] == "efxir" || args[1] == "fxgain" || args[1] == "envtrace" || args[1] == "bulkmap" || args[1] == "drumbulk" || args[1] == "drumreplay" || args[1] == "drumreset" || args[1] == "progorder" || args[1] == "smfstate" || args[1] == "parteq" || args[1] == "ccdiff" || args[1] == "buscap");
     int program = (args.Length > 1 && !scanMode) ? int.Parse(args[1]) : 73; // flute
     int note    = (args.Length > 2 && !scanMode) ? int.Parse(args[2]) : 72;
     string outWav = args.Length > 3 ? args[3] : "sample_decoded.wav";
@@ -4119,6 +4119,92 @@ unsafe
             Console.WriteLine($"{i,3}  {*(byte*)(q + 0x3d5),9} {*(byte*)(q + 0x3d4),10} " +
                               $"{*(byte*)(q + 0x3d8),6} 0x{*(byte*)(q + 0x3d9),-8:x2} " +
                               $"0x{*(byte*)(q + 0x12),-6:x2} {*(byte*)(q + 0x3dc),7}");
+        }
+        return;
+    }
+
+    // parteq mode: both EQ defaults, read out of memory instead of inferred from a render.
+    //
+    // Two bytes are in question and they are easy to confuse. The system block `40 02 00..03`
+    // (freq/gain, staged at 0x1a1efd4) says what curve the EQ has; the per-part switch `40 4x 20`
+    // (part+0x450) says which parts go through it. A flat curve and a switched-off part sound
+    // identical, so no render can separate them -- only a read can.
+    //
+    // The second reset is not redundant. The FX reset seeds the *applied* EQ from the staging
+    // bytes (`_DAT_181a0f1a0 = _DAT_181a1efd4`) rather than writing them, so a curve sent once may
+    // outlive the reset that is supposed to clear it, and a file's EQ would then leak into whatever
+    // is rendered next in the same instance.
+    //
+    // With a file named, it is replayed and the same bytes read at the end. That is what settles
+    // whether a file which never sends `40 4x 20` nevertheless ends up with the switch on.
+    //   args: dll parteq [midi|-] [ms] [map]
+    if (args.Length > 1 && args[1] == "parteq")
+    {
+        string midiPath = args.Length > 2 && args[2] != "-" ? args[2] : null;
+        int ms          = args.Length > 3 ? int.Parse(args[3]) : 4000;
+        int map         = args.Length > 4 ? int.Parse(args[4]) : 4;
+        const int SR = 32000, BlockFrames = 320;
+
+        setSR((float)SR); setBS(512); activate((float)SR, 512); setThr();
+        var wl = new float[512]; var wr = new float[512];
+        void Run(int blocks) { flush(); fixed (float* pl = wl, pr = wr) for (int i = 0; i < blocks; i++) process(pl, pr, 512); }
+
+        void ShowEq(string when)
+        {
+            long arr = *(long*)(b + 0x1a222a0);
+            var sw = new System.Text.StringBuilder();
+            for (int i = 0; i < 16; i++) sw.Append(*(byte*)(arr + (long)i * 0x488 + 0x450));
+            Console.WriteLine($"  {when,-16} 40 02 = {*(byte*)(b + 0x1a1efd4):x2} {*(byte*)(b + 0x1a1efd5):x2} "
+                            + $"{*(byte*)(b + 0x1a1efd6):x2} {*(byte*)(b + 0x1a1efd7):x2}   "
+                            + $"part+0x450 by block = {sw}");
+        }
+
+        // Before any reset, because the part array is malloc'd and zeroed: if the switch reads 1
+        // here it was never zero, and if it turns 1 at the reset then the reset is what sets it.
+        if (*(long*)(b + 0x1a222a0) != 0) ShowEq("allocated");
+        GsReset(); Run(6);
+        ShowEq("reset");
+        // Switching it *off* on one block is the control: it is what says 0x450 is the byte the
+        // handler moves and that the stride walks parts. Writing the value it already holds proves
+        // nothing about either.
+        SendSysEx(Dt1(0x40, 0x41, 0x20, 0x00)); Run(2);   // block 1 == channel 0
+        ShowEq("40 41 20 00");
+        SendSysEx(Dt1(0x40, 0x02, 0x01, 0x4c)); Run(2);   // low gain +12 dB
+        ShowEq("40 02 01 4c");
+        // Both moved values are left standing into this reset, so the line below says what a reset
+        // restores -- which is what a second song in the same instance inherits.
+        GsReset(); Run(6);
+        ShowEq("reset again");
+
+        if (midiPath != null)
+        {
+            byte[] smf; System.Collections.Generic.List<SmfEvent> events; double songSeconds;
+            try { smf = File.ReadAllBytes(midiPath); events = Smf.Parse(smf, SR, out songSeconds); }
+            catch (Exception ex) { Console.Error.WriteLine($"cannot read {midiPath}: {ex.Message}"); Environment.Exit(2); return; }
+
+            GsReset();
+            if (map >= 1 && map <= 4) { for (int c = 0; c < 16; c++) ToneMap0(c, map); }
+            Run(6);
+            ShowEq("file: reset");
+
+            int total = ms * SR / 1000;
+            var sL = new float[BlockFrames]; var sR = new float[BlockFrames];
+            int ei = 0, pos = 0, fed = 0, sysex = 0;
+            while (pos < total)
+            {
+                while (ei < events.Count && events[ei].At < pos + BlockFrames)
+                {
+                    var e = events[ei++];
+                    if (e.Bytes != null) { SendSysEx(e.Bytes); sysex++; }
+                    else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), 0);
+                    fed++;
+                }
+                flush();
+                fixed (float* pl = sL, pr = sR) process(pl, pr, BlockFrames);
+                pos += BlockFrames;
+            }
+            Console.WriteLine($"  {Path.GetFileName(midiPath)}: fed {fed} events ({sysex} sysex) over {ms} ms, map {map}");
+            ShowEq("file: after");
         }
         return;
     }
