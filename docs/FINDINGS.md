@@ -6436,3 +6436,39 @@ engine reading "not 1-4, so keep the default" gets a different snare and a diffe
 measured as **+4.8 dB at 125 Hz and +5.0 dB at 8 kHz** -- two narrow bands six octaves apart, which
 is what two wrong drum tones look like -- with the whole song's peak at 0.865 of the module's.
 Bank MSB 45 on the same part was swept alongside and does **nothing**.
+
+## The queue drop is a property of the *delivery*, not of the music `[measured]`
+
+*A single flush drops everything past about 6 KB* records that the module discards whatever a host
+hands over past 2,048 packets between two renders, and that `darkness3.mid` loses all nine of its
+opening program changes to it. That is correct, and it is only half the story: **the burst only
+exists because this harness hands a whole tick over at once.**
+
+MIDI runs at 31,250 baud — 3,125 bytes a second. `darkness3.mid`'s opening is thirty `48` messages,
+thirty `49`s and nine program changes, about 660 bytes, so over a cable it takes roughly **210 ms**
+to arrive: twenty-one control ticks, with the queue draining into the engine nineteen times on the
+way. **Hardware drops none of it.** A DAW handing a plugin a buffer's worth of MIDI in one call gets
+the drop; a wire never does.
+
+`scdec smf … spread` and `scdec smfstate … spread` rate-limit the feed to a packet budget and let
+the remainder spill into the next block, which is a cable's behaviour rather than a host's. On
+`darkness3.mid` that is the difference between the file playing its bulk dump and the file playing
+what it then asks for:
+
+| block | fed as one burst | fed at a wire's rate |
+|---|---|---|
+| 0 (drums) | program 1 | **0** |
+| 1, 2, 3 | program 1 | **0** |
+| 5 | 33, volume 105 | 33, volume **88** |
+| 6 | **48** (the dump's Strings Ensemble) | **29** |
+| 7 | **60** | **27** |
+| 8 | **63** | **16** |
+
+The render moves by 2.31 dB overall and the difference between the two is *larger* than either, which
+is what changing most of a song's instruments looks like rather than a level shift.
+
+**Neither reading is the module being wrong.** Fed a burst it drops, and that is faithfully what a
+plugin host can provoke; fed at a wire's rate it plays the file as written. What this settles is that
+a corpus oracle rendered through an instantaneous feed is measuring the harness's delivery as much
+as the engine, on any file whose opening is dense — and that a *player* built on this engine should
+be spreading its bursts, because a player is standing in for the cable.

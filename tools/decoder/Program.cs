@@ -4077,6 +4077,7 @@ unsafe
     //   args: dll smfstate <midi> [ms] [map]
     if (args.Length > 1 && args[1] == "smfstate")
     {
+        bool spreadState = Array.IndexOf(args, "spread") >= 0;
         string midiPath = args.Length > 2 ? args[2] : "song.mid";
         int ms          = args.Length > 3 ? int.Parse(args[3]) : 500;
         int map         = args.Length > 4 ? int.Parse(args[4]) : 4;
@@ -4098,8 +4099,17 @@ unsafe
         int ei = 0, pos = 0, fed = 0;
         while (pos < total)
         {
+            int spreadPackets = 0;
             while (ei < events.Count && events[ei].At < pos + BlockFrames)
             {
+                // `spread` here for the same reason as in `smf`: read the state a wire would have
+                // delivered rather than the state a burst dumped in one call leaves behind.
+                if (spreadState)
+                {
+                    int cost = events[ei].Bytes != null ? (events[ei].Bytes.Length + 2) / 3 : 1;
+                    if (spreadPackets > 0 && spreadPackets + cost > 2000) break;
+                    spreadPackets += cost;
+                }
                 var e = events[ei++];
                 if (e.Bytes != null) SendSysEx(e.Bytes);
                 else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), 0);
@@ -4444,13 +4454,32 @@ unsafe
         // force-drains regardless of timestamp, so flushing part-way through a block also releases
         // everything already enqueued in that block at the flush point rather than at the offsets
         // it carries. Sub-block placement is traded for delivery.
-        bool pinPhase = false, flushPerSysEx = false;
+        // `spread` rate-limits the feed so a burst cannot overrun the module's input queue.
+        //
+        // The queue holds 2048 four-byte packets and only `TG_Process` drains it, so everything a
+        // host hands over between two renders past that is discarded without a word. That is real
+        // for a *host* -- a DAW delivering a buffer's worth of MIDI in one call gets the same
+        // treatment -- but it is not what a wire does. MIDI runs at 31,250 baud, 3,125 bytes a
+        // second, so `darkness3.mid`'s opening burst of thirty `48` messages, thirty `49`s and nine
+        // program changes -- about 660 bytes -- takes roughly **210 ms** to arrive, twenty-one
+        // control ticks. Hardware would drop none of it. This harness hands the whole tick over at
+        // once, which is what makes the queue bite.
+        //
+        // With this flag the feed stops at a packet budget and the remainder spills into the next
+        // block, so a burst arrives spread over successive renders as it would over a cable. It
+        // changes *when* messages land, which is the honest cost, and it is opt-in for that reason:
+        // the default remains what the DLL does when a host dumps a burst on it.
+        bool pinPhase = false, flushPerSysEx = false, spreadBurst = false;
         for (int ai = 6; ai < args.Length; ai++)
         {
             if (args[ai] == "pin") pinPhase = true;
             else if (args[ai] == "flushsx") flushPerSysEx = true;
+            else if (args[ai] == "spread") spreadBurst = true;
         }
         int flushSxCount = 0;
+        int spilledEvents = 0;
+        // Under the 2048 the flush enforces, so a message that straddles the edge still fits.
+        const int SpreadPacketBudget = 2000;
         const int SR = 32000;
 
         // The core renders in 320-sample blocks -- 10 ms at 32 kHz, its 100 Hz control tick -- and
@@ -4550,8 +4579,21 @@ unsafe
             // first clears the previous chunk's leftovers and resets the counter, leaving this
             // chunk's events to be released by `TG_Process` at the offsets they now carry.
             flush();
+            int spreadPackets = 0;
             while (ei < events.Count && events[ei].At < pos + blk)
             {
+                if (spreadBurst)
+                {
+                    // Four bytes to a packet for a channel message, three data bytes to a packet
+                    // for a SysEx -- the same arithmetic the queue itself does.
+                    int cost = events[ei].Bytes != null ? (events[ei].Bytes.Length + 2) / 3 : 1;
+                    if (spreadPackets > 0 && spreadPackets + cost > SpreadPacketBudget)
+                    {
+                        spilledEvents++;
+                        break;
+                    }
+                    spreadPackets += cost;
+                }
                 var e = events[ei++];
                 // Drop XG messages whose address would index past the end of an array the core
                 // does not bounds-check. SCCore.dll does implement XG: `F0 43 10 4C 00 00 7E 00 F7`
@@ -4626,6 +4668,7 @@ unsafe
         }
         WriteWavStereo(wavPath, pcm, SR);
         if (flushPerSysEx) Console.WriteLine($"flushsx: flushed before {flushSxCount} SysEx messages");
+        if (spreadBurst) Console.WriteLine($"spread: held back a burst {spilledEvents} time(s)");
         Console.WriteLine($"wrote {wavPath}");
         return;
     }
