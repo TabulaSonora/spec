@@ -4429,7 +4429,28 @@ unsafe
         string wavPath  = args.Length > 3 ? args[3] : "real_engine_song.wav";
         int map         = args.Length > 4 ? int.Parse(args[4]) : 4;
         double tailSec  = args.Length > 5 ? double.Parse(args[5]) : 2.2;
-        bool pinPhase   = args.Length > 6 && args[6] == "pin";
+        // Trailing flags, in any order, so a second one did not have to displace `pin`.
+        //
+        // `flushsx` calls `TG_flushMidi` immediately before every SysEx message instead of once per
+        // block. The module's ready buffer holds 2048 four-byte packets and is emptied only by
+        // `TG_Process`, so a tick that carries more than that loses the remainder silently -- which
+        // is why `darkness3.mid`'s nine trailing program changes never reach the parts. Whether
+        // flushing more often changes that is a question about where the bound actually bites: if
+        // the *ring* is what overflows, per-message flushing empties it in time and the message
+        // survives; if it is the ready buffer, flushing cannot help, because nothing but a render
+        // drains it. This flag exists to answer that by measurement rather than by reading.
+        //
+        // It is not free, and that is why it is a flag rather than the default. `TG_flushMidi`
+        // force-drains regardless of timestamp, so flushing part-way through a block also releases
+        // everything already enqueued in that block at the flush point rather than at the offsets
+        // it carries. Sub-block placement is traded for delivery.
+        bool pinPhase = false, flushPerSysEx = false;
+        for (int ai = 6; ai < args.Length; ai++)
+        {
+            if (args[ai] == "pin") pinPhase = true;
+            else if (args[ai] == "flushsx") flushPerSysEx = true;
+        }
+        int flushSxCount = 0;
         const int SR = 32000;
 
         // The core renders in 320-sample blocks -- 10 ms at 32 kHz, its 100 Hz control tick -- and
@@ -4575,6 +4596,7 @@ unsafe
                 }
                 if (e.Bytes != null && !xgUncheckedIndex)
                 {
+                    if (flushPerSysEx) { flush(); flushSxCount++; }
                     fixed (byte* mp = e.Bytes) longIn(mp, (uint)(e.At - pos));
                 }
                 else shortIn((uint)(e.Status | (e.D1 << 8) | (e.D2 << 16)), (uint)(e.At - pos));
@@ -4603,6 +4625,7 @@ unsafe
             pcm[i * 2 + 1] = (short)Math.Clamp(outR[i] * 32767f, -32768f, 32767f);
         }
         WriteWavStereo(wavPath, pcm, SR);
+        if (flushPerSysEx) Console.WriteLine($"flushsx: flushed before {flushSxCount} SysEx messages");
         Console.WriteLine($"wrote {wavPath}");
         return;
     }
