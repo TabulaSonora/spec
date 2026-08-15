@@ -404,10 +404,15 @@ open hats" was one intrinsically loud key seen repeatedly, plus a little residue
 per-repeat pattern into it was wrong — the first hit of each *key* matched because the kick and
 closed hat are correct; the open hat never did.
 
-`[open]`, and now genuinely per-key: **tone 1946 renders about 1.2 dB loud** with a slightly higher
-spectral centroid. Its neighbour tone 1947 (key 49, same level 127, same pan 84) matches to 0.10 dB,
-so it is not a level-plane or pan law issue — it is that tone. Next probe is its partial structure:
-velocity zones, partial count, and whether one layer is sounding that should not.
+`[superseded]`, and now genuinely per-key: **tone 1946 renders about 1.2 dB loud** with a slightly
+higher spectral centroid. Its neighbour tone 1947 (key 49, same level 127, same pan 84) matches to
+0.10 dB, so it is not a level-plane or pan law issue — it is that tone. Next probe is its partial
+structure: velocity zones, partial count, and whether one layer is sounding that should not.
+
+**That probe was run and the answer was none of those.** The defect is in the wave *decode* and
+splits on the ROM region — see *The tone 1946 defect is in the WAVE DECODE, not the filter* and
+*Bank A is the 16 MB chip* below. Dumping the filter's input buffer showed the two engines already
+disagreeing before the filter, which retired the partial-structure and filter hypotheses together.
 
 Kick hit 2's −2.37 dB is separately unexplained and belongs to same-key retrigger, not to groups.
 
@@ -1898,8 +1903,22 @@ sweep-rate error, since `f` is a *ramp* (slew-limited), not a per-block jump.
   `+0xc8` but not the base), a recheck of `g_reso_curve[8]`, drum tones (4-partial, stride 0x1e8), and
   the effect-algorithm DSP internals (67 `fx_algo_*` located, not dissected).
 - Individual effect-algorithm DSP internals (67 `fx_algo_*` located/named, not dissected).
-- `fx_algo_orphan66` identity (hidden effect, unreachable).
+  **Partly superseded 2026-08-14:** seven are now dissected and reimplemented downstream — Thru,
+  Equalizer, Overdrive, Distortion, Rotary, Reverb and OD / OD2 — on top of the ABI they share
+  (*The EFX algorithm ABI*), the coefficient/register interface, and the `efxdump` oracle that
+  gates them register by register. 58 of the 65 selectable types remain undissected.
+
+  Two things that work belong in this file and are not yet in it: the **four-argument coefficient
+  bank loader** (`reverb_load_algo_regs` @ `0x1800053e0`) that the EQ's mid bands and several other
+  types share — frequency picks one of 17 coefficient tables, gain and Q pick a 5-byte row whose
+  fifth byte carries four wide-scale flags, each byte written twice, and gain is a *window* clamping
+  below `0x34` and above `0x4C` — and the per-type dataflow of the seven above. Both were recovered
+  here and written up only downstream, which is the wrong way round for this repository.
+- `fx_algo_orphan66` identity (hidden effect, unreachable). Still open.
 - Nothing validated against a live debugger; all static + spot-checked vs the engine's own output.
+  **Superseded:** the `scdec` oracle modes call into the loaded DLL and read its live state
+  (`efxdump`, `revir`, `tvftrace`, `partmap`, `drumnrpn` and the rest), so a great deal is now
+  measured against the running engine rather than inferred from the image.
 
 ### (earlier open items, now largely closed — kept for history)
 - Not analyzed any individual algorithm in `g_fx_algo_dispatch` — reverb topology, chorus,
@@ -2512,7 +2531,14 @@ those few ticks, not the level -- the peaks agree. Likely the same one-tick alig
 throughout, amplified because the whole envelope is a few ticks long, plus the invented 3 ms attack
 floor in `compute_tva_env`. Worth a pass, but the audible stake is small.
 
-### The attack floor: investigated, still empirical `[open]`
+### The attack floor: investigated, still empirical `[closed — see *TVA attack floor RESOLVED* below]`
+
+**Closed.** Measuring the engine's own per-voice gain word at one-sample resolution (`scdec ampramp`)
+showed there is no attack ramp at all to floor: the gain reaches full level in a single control
+update. The 3 ms constant this section could not derive was standing in for a transient that belongs
+to the sample, not to the envelope. Kept for the reasoning, which is what ruled out the 10 ms
+alternative.
+
 
 `compute_tva_env` floors the attack segment at 3 ms "to avoid a click" -- an invented constant, the
 kind the project tries to eliminate. I tried to derive it and could not, cleanly.
@@ -6196,7 +6222,13 @@ either. The two unidentified values are worth naming: `0.3125` is 5/16 and `0.87
 Note the asymmetry that keeps recurring: the reverb input is attenuated by 1/8 while the chorus
 write is unity.
 
-### The real number is 5.79, not 3.01 `[measured]`
+### The real number is 5.79, not 3.01 `[superseded — see *The chorus deficit, differenced properly* below]`
+
+**Read the correction first.** 5.79 is `3.01 x 1.92`: what the deficit *would become* if the
+per-part send clamp were applied on its own. That clamp has not been applied, so 5.79 has never been
+a deficit this port had, and tagging this section `[measured]` was wrong. Differencing the render
+three ways on 2026-08-07 puts the deficit at **2.95x** as things actually stand. The arithmetic
+below is still correct as arithmetic, and is why the clamp must not land alone.
 
 The indirect route -- reason from a known input rather than read the unreadable bus -- both narrows
 this and corrects its size.
@@ -6282,3 +6314,41 @@ a third for the rest of the phrase, and the file does this twice.
 The test is whether a voice on that key is still *ringing*, released or not. A voice that has
 finished does not count, which is what stops a key played earlier in the song from swallowing a real
 zero-length note later on.
+
+## The chorus deficit, differenced properly: 2.95x, and the reverb was never wrong `[measured]`
+
+Every earlier figure for `panwet.mid`'s chorus deficit was read off a mix, which carries the dry
+signal that fed the effect. Rendering the file **three ways through both engines and differencing**
+isolates each stage and cancels everything the two share: once normally, once with CC#93 zeroed, and
+once with both sends zeroed. Subtracting the second from the first leaves the chorus wet alone;
+subtracting the third from the second leaves the reverb wet alone; the third is the bare dry path.
+
+| stage | dll/port peak | dll/port rms |
+|---|---|---|
+| bare dry, no sends | 1.4903 | **0.9979** |
+| reverb wet | 0.9905 | **0.9769** |
+| **chorus wet** | **2.9695** | **2.9507** |
+
+Three things fall out of that table, and only one of them was known before.
+
+**The chorus deficit is 2.95x**, which confirms the original ~3.01 figure against a clean dry
+difference. The 5.79 recorded above is `3.01 x 1.92` -- a projection of what the deficit would
+become if the per-part send clamp landed by itself -- and is not a measurement of anything the port
+has ever done. It matters only as the reason the clamp must not land alone: applying a correct
+change on its own would take the deficit from 2.95x to 5.79x and the gate would record the
+correction as a regression.
+
+**The reverb is correct**, at 0.99 peak and 0.98 rms. That had never been established this way. It
+also means the deficit is specific to the chorus return rather than shared by the send network, which
+narrows the search to what the two paths do differently.
+
+**And the dry path matches in rms to 0.2% while the module peaks 1.49x higher.** Nobody had noticed
+that, because a peak that moves while rms and spectrum do not is invisible to a level comparison. It
+is the same signature as the `transcendental` and `shangai` rows -- and those point the *other* way,
+with this port peaking higher -- so it is one phenomenon with a sign that depends on material, which
+no gain error can produce. It belongs to that family rather than to this one.
+
+**Method note, general.** Prefer a difference of two renders over a figure read off a mix, and
+prefer a ratio between two paths through one network over an absolute constant: the wet measured off
+a note carries the dry that fed it, which differs by patch by about +-11%. An rms window mixes wet
+with a floor and combines in quadrature, which is what made an earlier send sweep look non-linear.

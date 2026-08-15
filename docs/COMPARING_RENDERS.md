@@ -89,6 +89,33 @@ Four ways to get a meaningless number from a correct engine:
 4. **Apply the module's own latencies — the four-chunk event stage, and the output stage when the
    final mix is what is being checked.** See below; this is the one that has caused misreadings
    rather than merely noisy numbers.
+5. **Never measure one stage of the mix by reading the mix.** See the rule below; this is the one
+   that has produced wrong *numbers* — a figure carried in these notes for a week turned out to be
+   twice the real deficit.
+
+### Isolate a stage by differencing renders, never by reading the mix
+
+A wet level read off a rendered note is not the wet: it carries the dry that fed it, which differs
+between engines by about ±11% depending on the patch. An RMS window over a decaying tail mixes the
+wet with a noise floor and combines the two in quadrature, which is enough on its own to make a
+linear send sweep look non-linear.
+
+**Render the same probe more than once, changing one thing, and subtract.** The send does not touch
+the dry path, so `render(send 127) − render(send 0)` is the return on its own, sample for sample.
+Three renders separate three stages: normal, one send zeroed, both sends zeroed — the third is the
+bare dry path, the second minus the third is the first send's return, and the first minus the second
+is the other's. Everything the two engines share cancels, including the part of the error that is
+not in the stage being measured.
+
+Two things follow from that, and both have been paid for:
+
+- **Prefer a ratio between two paths through one network to an absolute constant.** A ratio cancels
+  the voice path; a constant fitted to a rendered level is fitting the voice path as much as the
+  effect.
+- **Do not carry a projected figure as a measurement.** `panwet.mid`'s chorus deficit was recorded
+  as 5.79x, which was the measured 2.95x multiplied by a send clamp the engine does not yet apply —
+  a prediction of where the deficit would land after an unrelated fix. It was tagged `[measured]`
+  and read as one for a week. If a number is what something *would* be, say so in the same sentence.
 
 ### The two latencies every timing-sensitive comparison owes the module
 
