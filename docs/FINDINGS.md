@@ -6352,3 +6352,51 @@ no gain error can produce. It belongs to that family rather than to this one.
 prefer a ratio between two paths through one network over an absolute constant: the wet measured off
 a note carries the dry that fed it, which differs by patch by about +-11%. An rms window mixes wet
 with a floor and combines in quadrature, which is what made an earlier send sweep look non-linear.
+
+## The chorus deficit measured on whole songs: 1.71x and 3.10x, and one song hides it `[measured]`
+
+`panwet.mid` established the chorus return deficit at 2.95x on a one-note probe. Two whole songs now
+carry the same measurement, taken the same way -- zero the file's CC#93 messages, re-render both
+engines, and difference the pair so the dry that fed the effect cancels instead of being counted as
+wet.
+
+| song | mix, ours/module | with the chorus send zeroed | chorus wet, module/ours | wet as a share of the module's mix |
+|---|---|---|---|---|
+| `th07_19_user_gm.mid` | **-0.81 dB** | **+0.08 dB** | **1.71x** | 53.7% |
+| `macross2.mid` | -0.04 dB | **+0.47 dB** | **3.10x** | 36.0% |
+
+**The first row is the cleaner reading.** Thirty-three minutes of dry and reverb agree to within a
+tenth of a decibel once the chorus send is out of the way, so on that file the entire level deficit
+is the return and nothing else. Its peak follows: at the module's own peak instant the ratio goes
+from 0.794 to 0.921.
+
+**The second row is the more useful one, because it looks like a pass and is not.** `macross2`'s mix
+sits at -0.04 dB and would be read as agreement. It is two errors annihilating: the dry and reverb
+paths are **+0.47 dB hot** and the chorus return is **3.10x short**. A song inside its level bound is
+not evidence that its paths are right, and the only way to see this was to difference them. 3.10x
+also sits beside `panwet`'s 2.95x, which is the first corroboration of that figure from a different
+file and a different kind of material.
+
+**Why `th07` reads 1.71x rather than ~3x.** It is an XG file and sets most of its chorus sends
+through XG Multi Part `08 nn 12`, not CC#93; only two CC#93 messages exist and only those were
+zeroed. So its 1.71x is the deficit on the wet those two parts carry, with whatever the XG-set sends
+contribute remaining in both renders and cancelling. That the residual comes out at +0.08 dB is
+itself worth following up: either those XG sends are producing little wet, or both engines agree on
+them, and which of the two is not established here.
+
+### Three things this ruled out on the way, all by measurement `[measured]`
+
+The file's peak had moved *away* from this port when the harness was corrected, which made it look
+like an event-placement or XG fault.
+
+- **Not the event grid.** Both sides round half-to-even onto the 1 ms grid -- `std::nearbyint` under
+  `FE_TONEAREST` against .NET's `Math.Round` -- so the truncate-to-round fix left no rounding
+  difference between them.
+- **Not voice stealing**, though this is the corpus's densest file: 173,183 notes, 70,484 steals at
+  64 slots. Re-rendered with a pool that grows to 128 and never steals, the whole-song RMS moves by
+  **0.01 dB** and the peak not at all. The module's own sounding-voice flag, logged per 320-sample
+  chunk across all 33 minutes, runs at a **mean of 56.5, median 58, and never reaches 64** -- so the
+  module is not fighting its ceiling on this file either.
+- **Not XG.** The corpus's other XG file, `MAKORO.MID`, deviates the *opposite* way -- our peak is
+  15.6% higher than the module's where `th07`'s is 10% lower -- and `canyon.mid`, which is GS, has a
+  worse peak ratio than either. Opposite signs are not one defect.
