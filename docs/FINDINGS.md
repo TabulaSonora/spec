@@ -6400,3 +6400,39 @@ like an event-placement or XG fault.
 - **Not XG.** The corpus's other XG file, `MAKORO.MID`, deviates the *opposite* way -- our peak is
   15.6% higher than the module's where `th07`'s is 10% lower -- and `canyon.mid`, which is GS, has a
   worse peak ratio than either. Opposite signs are not one defect.
+
+## An out-of-range bank select LSB lands the part on SC-8820 `[measured]`
+
+Bank select LSB is the tone-map selector on this module, and what it does with a value outside 1-4
+was never established. It is not ignored.
+
+Swept on a rhythm part -- GS reset, program 0, one snare at a fixed velocity, everything else held
+-- the renders fall into four groups, and the top one is open-ended:
+
+| LSB | render |
+|---|---|
+| 0, 1 | identical; `0` leaves the part's map alone (the harness had set map 1) |
+| 2 | its own kit |
+| 3 | its own kit |
+| **4 and up** | identical for **4, 5, 6, 8, 10, 42, 64 and 127** |
+
+**And it overrides an explicit selection rather than deferring to it.** With `40 4x 01` setting each
+part's map first, LSB 42 renders **byte for byte the same at maps 1, 2, 3 and 4**, and that render is
+the map-4 one. So a file's out-of-range bank select takes the part off whatever map was asked for.
+
+**Whether that is a clamp to the top of the range or a fall back to the module's own default cannot
+be told apart, and probably cannot be told apart at all.** SC-8820 is both the highest map and the
+power-on default, and the DLL offers no way to move the default and watch which one follows. The two
+readings predict identical audio for every input; anything downstream should implement the observable
+behaviour and claim nothing about the mechanism.
+
+Note the asymmetry with the SysEx that writes the same byte: `sysex_part_bank_lsb` filters to 1-4 on
+the way in, so a `40 4x 01` carrying 42 stores nothing and leaves the map where it was. The CC path does
+not filter. Same destination, two different treatments of the same out-of-range value.
+
+**Found through `canyon.mid`**, which sends bank MSB 45 and **LSB 42** on its drum channel at tick 0.
+The module therefore plays its drums from the SC-8820 kit whatever map is requested. A downstream
+engine reading "not 1-4, so keep the default" gets a different snare and a different maracas, which
+measured as **+4.8 dB at 125 Hz and +5.0 dB at 8 kHz** -- two narrow bands six octaves apart, which
+is what two wrong drum tones look like -- with the whole song's peak at 0.865 of the module's.
+Bank MSB 45 on the same part was swept alongside and does **nothing**.
