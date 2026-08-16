@@ -1088,7 +1088,15 @@ unsafe
         var bytes = new byte[samples.Length * 4];
         Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
         File.WriteAllBytes(irOut, bytes);
-        Console.WriteLine($"efxir -> {irOut} ({irCount} frames, interleaved f32)");
+
+        // The state window as the algorithm addresses it, for locating a transcription fault that
+        // an output comparison can only tell you exists. `a(X)` in an algorithm is the float at
+        // `aBase + X`, so 0x200 bytes from the final sample's base is every slot it can reach.
+        var stateA = new byte[0x200];
+        System.Runtime.InteropServices.Marshal.Copy(
+            (nint)(*(long*)bufA + (long)(*(int*)(bufA + 0x10)) * 4), stateA, 0, 0x200);
+        File.WriteAllBytes(irOut + ".stateA", stateA);
+        Console.WriteLine($"efxir -> {irOut} ({irCount} frames, interleaved f32), state -> {irOut}.stateA");
         return;
     }
     // efxdump mode: select an insertion-EFX type over SysEx in the LIVE engine and dump the block's

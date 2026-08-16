@@ -1903,10 +1903,11 @@ sweep-rate error, since `f` is a *ramp* (slew-limited), not a per-block jump.
   `+0xc8` but not the base), a recheck of `g_reso_curve[8]`, drum tones (4-partial, stride 0x1e8), and
   the effect-algorithm DSP internals (67 `fx_algo_*` located, not dissected).
 - Individual effect-algorithm DSP internals (67 `fx_algo_*` located/named, not dissected).
-  **Partly superseded 2026-08-14:** seven are now dissected and reimplemented downstream — Thru,
-  Equalizer, Overdrive, Distortion, Rotary, Reverb and OD / OD2 — on top of the ABI they share
+  **Partly superseded 2026-08-15:** eleven are now dissected and reimplemented downstream — Thru,
+  Equalizer, Enhancer, Overdrive, Distortion, Rotary, Hexa Chorus, Space D, Reverb, OD / OD2 and
+  GTR Multi 2 — on top of the ABI they share
   (*The EFX algorithm ABI*), the coefficient/register interface, and the `efxdump` oracle that
-  gates them register by register. 58 of the 65 selectable types remain undissected.
+  gates them register by register. 54 of the 65 selectable types remain undissected.
 
   Two things that work belong in this file and are not yet in it: the **four-argument coefficient
   bank loader** (`reverb_load_algo_regs` @ `0x1800053e0`) that the EQ's mid bands and several other
@@ -6472,3 +6473,49 @@ plugin host can provoke; fed at a wire's rate it plays the file as written. What
 a corpus oracle rendered through an instantaneous feed is measuring the harness's delivery as much
 as the engine, on any file whose opening is dense — and that a *player* built on this engine should
 be spreading its bursts, because a player is standing in for the cable.
+
+## An algorithm's float sums are not left-to-right, and the state window is what proves it `[measured]`
+
+The insertion-effect algorithms are long chains of `a * b + c * d + e * f + 1e-08`. Reading one out
+of a decompiler gives the terms and their operands correctly and gives the **association** only by
+accident: the decompiler prints a flat left-to-right sum, and the compiled code does not always
+evaluate one.
+
+Measured on GTR Multi 2 (`04 01`, dispatch 58), four of its sums group differently, each worth one
+or two ULP:
+
+| The sum | What the module computes |
+| --- | --- |
+| three products + `1e-08`, where two share an operand | the shared pair first, then the third, then the nudge |
+| an inlined phase fold's `p + \|x\| + 4.8828e-09` | `\|x\|` and the nudge first, then the product |
+| four products + `1e-08`, two of them at the same gain | the same-gain pair first |
+
+The pattern behind all four is scheduling, not arithmetic: where two products' operands become
+available before a third's — visible as the coefficient loads being hoisted above the value they
+will be multiplied by — those two are added together and the late one joins afterwards. Where all
+operands arrive together, the sum *is* left-to-right.
+
+**Why this is worth a finding rather than a footnote.** A one-ULP difference in a feedback path is
+not a one-ULP difference in the output. GTR Multi 2's compressor and its chorus both feed back, and
+the four groupings above were together worth 3e-08 of output at 4096 frames and growing. That is
+far below anything audible and far above bit-exact, which is the range where a reimplementation
+looks finished and is not.
+
+**How to find one.** An output comparison says only that a divergence exists, and by the time it
+shows, the responsible expression is thousands of samples upstream. `scdec efxir` now writes the
+algorithm's own state window — 0x200 bytes from the delay line's base, the exact bytes `a(0x00)`
+through `a(0x1FC)` address — beside its impulse response. Diffing that against the same window from
+a reimplementation names the **slot**, the slot names the expression, and the expression has few
+enough terms to solve by enumeration: take the traced operands for several samples, enumerate every
+binary tree over the terms, and keep the associations that reproduce every sample. Four terms is 18
+trees, five is 180, and the answer is usually unique or nearly so.
+
+Two cautions from doing it:
+
+- **Solve several samples at once.** A single sample admits many associations, and picking one that
+  fits it alone will fit nothing else. Two of the four groupings above were found and then
+  discarded because a second sample refused them.
+- **Take the *upstream* values from the module, not from the reimplementation.** Feeding a
+  reimplementation's own already-wrong intermediate into the search makes every association fail,
+  which reads as "the term list is wrong" when it is not.
+
