@@ -210,7 +210,10 @@
       "va": "0x181a01020",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "multisample velocity-crossfade curve"
+      "purpose": "multisample velocity-crossfade curve",
+      "index": "(block[0x4e] & 0xf)*0x80 + t",
+      "rows": 16,
+      "index_note": "crossfade shape row per low nibble"
     },
     {
       "name": "env_shape_7a90.bin",
@@ -262,7 +265,10 @@
       "va": "0x181a01b20",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "pitch key-follow (row=(block[0x13]-0x40)>>2)"
+      "purpose": "pitch key-follow (row=(block[0x13]-0x40)>>2)",
+      "index": "clamp(0,7,(block[0x13]-0x40)>>2)*0x80 + key",
+      "rows": 8,
+      "index_note": "row clamped to 0-7"
     },
     {
       "name": "kf_pitchrate0_01f20.bin",
@@ -275,7 +281,10 @@
       "va": "0x181a01f20",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "pitch env rate key-follow, segments (block 0x27/0x29)"
+      "purpose": "pitch env rate key-follow, segments (block 0x27/0x29)",
+      "index": "block[0x27]*0x80 + key",
+      "rows": 128,
+      "index_note": "block[0x27] reaches 0xff in the tone table, which would index row 255 -- this blob covers only rows 0-127; see docs/DLL_VERSIONS.md"
     },
     {
       "name": "kf_pitchrate1_01aa0.bin",
@@ -288,7 +297,10 @@
       "va": "0x181a01aa0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "pitch env rate key-follow, release (block 0x27/0x2a)"
+      "purpose": "pitch env rate key-follow, release (block 0x27/0x2a)",
+      "index": "block[0x27]*0x80 + key",
+      "rows": 128,
+      "index_note": "same 0xff reach as kf_pitchrate0"
     },
     {
       "name": "kf_tvalevel2_01fa0.bin",
@@ -301,7 +313,9 @@
       "va": "0x181a01fa0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "TVA level key-follow (second term)"
+      "purpose": "TVA level key-follow (second term)",
+      "index": "block[0x55]*0x80 + key",
+      "rows": 128
     },
     {
       "name": "kf_tvalevel_026a0.bin",
@@ -314,7 +328,9 @@
       "va": "0x181a026a0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "TVA base-level key-follow"
+      "purpose": "TVA base-level key-follow",
+      "index": "block[0x54]*0x80 + key",
+      "rows": 128
     },
     {
       "name": "kf_tvarate0_023a0.bin",
@@ -327,7 +343,9 @@
       "va": "0x181a023a0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "TVA env rate key-follow, segments (block 0x65)"
+      "purpose": "TVA env rate key-follow, segments (block 0x65)",
+      "index": "block[0x65]*0x80 + key  (block[0x66] for the release row)",
+      "rows": 128
     },
     {
       "name": "kf_tvarate1_020a0.bin",
@@ -340,20 +358,25 @@
       "va": "0x181a020a0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "TVA env rate key-follow, release (block 0x66)"
+      "purpose": "TVA env rate key-follow, release (block 0x66)",
+      "index": "block[0x66]*0x80 + key",
+      "rows": 128
     },
     {
       "name": "kf_tvfenv_02a20.bin",
       "symbol": "g_kf_tvfenv",
       "subsystem": "TVF",
       "dtype": "s16",
-      "shape": "128x128 (rows 0-15 used)",
-      "size": 32768,
+      "shape": "16x128 (row = block[0x32] & 0xf)",
+      "size": 4096,
       "file_offset": "0x1a01a20",
       "va": "0x181a02a20",
       "section_adjust": "0x1000",
-      "match": "prefix 25059/32768",
-      "purpose": "TVF env-depth key-follow (block 0x32 nibble)"
+      "match": "full",
+      "purpose": "TVF env-depth key-follow (block 0x32 nibble)",
+      "index": "(block[0x32] & 0xf)*0x80 + key",
+      "rows": 16,
+      "index_note": "index nibble-masked, so only rows 0-15 are reachable"
     },
     {
       "name": "kf_tvfrate_03920.bin",
@@ -366,7 +389,9 @@
       "va": "0x181a03920",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "TVF env rate key-follow (main 0x46/0x48; release row0 == g_kf_tvfrate2)"
+      "purpose": "TVF env rate key-follow (main 0x46/0x48; release row0 == g_kf_tvfrate2)",
+      "index": "block[0x46]*0x80 + key  (block[0x47] for the release row)",
+      "rows": 128
     },
     {
       "name": "layered_1896690.bin",
@@ -483,7 +508,8 @@
       "va": "0x1819f28b0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "program/tone directory LUT 2"
+      "purpose": "program/tone directory LUT 2",
+      "index": "g_dir_lut1[tone_map]*0x80 + bank"
     },
     {
       "name": "lut3_32b0.bin",
@@ -496,7 +522,8 @@
       "va": "0x1819f32b0",
       "section_adjust": "0x1000",
       "match": "full",
-      "purpose": "program/tone directory LUT 3 (tone# lookup)"
+      "purpose": "program/tone directory LUT 3 (tone# lookup)",
+      "index": "(g_dir_lut2[i2]*0x80 + program)*2"
     },
     {
       "name": "multisample_a.bin",
@@ -737,5 +764,6 @@
       "va": "0x19f1eb0",
       "purpose": "[row*0x80+program] -> kit index (0xFF=undefined)"
     }
-  ]
+  ],
+  "_overlap_note": "Several cached_tables overlap in the file. That is NOT an extraction error: the key-follow tables and the directory LUTs are base pointers into a shared region, and each one legitimately spans its own whole indexable range (see each entry's 'index' and 'rows'). Do not 'fix' an overlap by shrinking a blob to the next entry's offset -- the engine really does read that far. The one true over-read was kf_tvfenv, whose index is nibble-masked to 16 rows; it is now sized 4096."
 }
