@@ -295,8 +295,8 @@ in many places, so no window anchors it. Ambiguous, not absent.)
 
 | | segments | distinct shifts | table area mapped | bytes verified byte-equal |
 |---|---|---|---|---|
-| 2016-03-09 x64 | 824 | 701 | 97 % | **1,153,300 — all match** |
-| 2016-03-09 x86 | 801 | 751 | 97 % | **1,150,763 — all match** |
+| 2016-03-09 x64 | 963 | 828 | 98 % | **1,162,405 — all match** |
+| 2016-03-09 x86 | 956 | 904 | 98 % | **1,159,458 — all match** |
 
 The verification is the point: every table was reassembled out of the 2016 image through the map and
 compared against the pinned bytes, and **every mapped byte is identical, with zero mismatches**. That
@@ -306,7 +306,7 @@ The maps ship as [`../tables/segments-2016-03-09-x64.json`](../tables/segments-2
 and [`-x86.json`](../tables/segments-2016-03-09-x86.json); `versions.json` links them per build and
 records per-table coverage.
 
-**39 of 52 tables fully resolved** in each image. Every one of the eleven that no per-table search
+**41 of 52 tables fully resolved** in each image. Every one of the eleven that no per-table search
 could place is now covered, most completely:
 
 | symbol | pieces | coverage | first piece (x64) |
@@ -324,10 +324,27 @@ could place is now covered, most completely:
 (0..1225 descending against the pinned 0..258 ascending). It is neither — it resolves at 100 % and is
 byte-identical. That reading came from a base that was one table off, exactly as the A/B implied.
 
-The thirteen still partial are almost all the **`kf_*` over-read windows** — 16 KB blobs that span far
-past any real table, so a large share of what they cover is unrelated data (§4). Their actual
-key-follow rows are covered. The rest (`g_multisample_table` 99 %, `g_dir_lut3` 99 %,
-`g_lfo_wavebank` 94 %, `g_lfo_wave` 84 %) lose only ambiguous runs.
+The eleven still partial are almost all the **`kf_*` over-read windows** — 16 KB blobs that span far
+past any real table. Their actual key-follow rows are covered.
+
+### What the unmapped remainder actually is
+
+Not table data, and not findable. Every unmapped 16-byte window is absent from the **whole 27 MB
+target file**, not merely from its table area, so no amount of searching will place them. Reading the
+bytes says why: MSVC section-contribution names — `.text$mn`, `.text$di`, `.idata$5`, `.00cfg`,
+`.CRT$XCA`, `.CRT$XIZ` — interleaved with 8-byte image VAs such as `0x181a04658` and `0x18008ac20`.
+About a quarter of those bytes are printable ASCII.
+
+The cached blobs over-read past the end of the real tables into the linker's own furniture, and a VA
+encodes an address: a build laid out differently cannot contain the same one. Those bytes are
+unmappable by construction, and there is nothing to gain by mapping them.
+
+That leaves a loose end in §4. The argument for *not* shrinking the `kf_*` blobs was that
+`block[0x54]` reaches `0x7f` across the tone table, so all 128 rows are reachable. But the real data
+in `g_kf_tvalevel` ends at `+0x1761` — row 46 — with linker metadata after it. Both cannot be true.
+Either those high rows are never selected at render time, or the DLL really does read section names
+as key-follow values for some tones. The 100-case A/B found no difference, which is consistent with
+the first but does not prove it.
 
 ## 6. What multi-version support should look like
 

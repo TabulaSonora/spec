@@ -362,43 +362,43 @@
      "whole_blob_exact": true
     },
     "kf_pitch_01b20.bin": {
-     "mapped_bytes": 1920,
+     "mapped_bytes": 2048,
      "size": 2048,
-     "complete": false,
+     "complete": true,
      "whole_blob_exact": false
     },
     "kf_pitchrate0_01f20.bin": {
-     "mapped_bytes": 8612,
+     "mapped_bytes": 9737,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_pitchrate1_01aa0.bin": {
-     "mapped_bytes": 9764,
+     "mapped_bytes": 10889,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvalevel2_01fa0.bin": {
-     "mapped_bytes": 8612,
+     "mapped_bytes": 9609,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvalevel_026a0.bin": {
-     "mapped_bytes": 6820,
+     "mapped_bytes": 7817,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvarate0_023a0.bin": {
-     "mapped_bytes": 7588,
+     "mapped_bytes": 8585,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvarate1_020a0.bin": {
-     "mapped_bytes": 8356,
+     "mapped_bytes": 9353,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
@@ -410,7 +410,7 @@
      "whole_blob_exact": false
     },
     "kf_tvfrate_03920.bin": {
-     "mapped_bytes": 2242,
+     "mapped_bytes": 3278,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
@@ -446,7 +446,7 @@
      "whole_blob_exact": false
     },
     "lfo_wavebank_a17f0.bin": {
-     "mapped_bytes": 5846,
+     "mapped_bytes": 5884,
      "size": 6192,
      "complete": false,
      "whole_blob_exact": false
@@ -470,9 +470,9 @@
      "whole_blob_exact": false
     },
     "lut3_32b0.bin": {
-     "mapped_bytes": 65408,
+     "mapped_bytes": 65536,
      "size": 65536,
-     "complete": false,
+     "complete": true,
      "whole_blob_exact": false
     },
     "multisample_a.bin": {
@@ -494,7 +494,7 @@
      "whole_blob_exact": true
     },
     "ramp_divider_a03e00.bin": {
-     "mapped_bytes": 0,
+     "mapped_bytes": 1,
      "size": 4,
      "complete": true,
      "whole_blob_exact": true
@@ -554,13 +554,13 @@
      "whole_blob_exact": true
     },
     "tone_indirect_bank64_a8bf0.bin": {
-     "mapped_bytes": 1280,
+     "mapped_bytes": 1408,
      "size": 1408,
      "complete": true,
      "whole_blob_exact": true
     },
     "tone_indirect_bank65_a9800.bin": {
-     "mapped_bytes": 0,
+     "mapped_bytes": 1408,
      "size": 1408,
      "complete": true,
      "whole_blob_exact": true
@@ -923,43 +923,43 @@
      "whole_blob_exact": true
     },
     "kf_pitch_01b20.bin": {
-     "mapped_bytes": 1920,
+     "mapped_bytes": 2048,
      "size": 2048,
-     "complete": false,
+     "complete": true,
      "whole_blob_exact": false
     },
     "kf_pitchrate0_01f20.bin": {
-     "mapped_bytes": 8273,
+     "mapped_bytes": 9344,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_pitchrate1_01aa0.bin": {
-     "mapped_bytes": 9425,
+     "mapped_bytes": 10496,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvalevel2_01fa0.bin": {
-     "mapped_bytes": 8273,
+     "mapped_bytes": 9216,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvalevel_026a0.bin": {
-     "mapped_bytes": 6481,
+     "mapped_bytes": 7424,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvarate0_023a0.bin": {
-     "mapped_bytes": 7249,
+     "mapped_bytes": 8192,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
     },
     "kf_tvarate1_020a0.bin": {
-     "mapped_bytes": 8017,
+     "mapped_bytes": 8960,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
@@ -971,7 +971,7 @@
      "whole_blob_exact": false
     },
     "kf_tvfrate_03920.bin": {
-     "mapped_bytes": 1745,
+     "mapped_bytes": 2688,
      "size": 16384,
      "complete": false,
      "whole_blob_exact": false
@@ -1007,7 +1007,7 @@
      "whole_blob_exact": false
     },
     "lfo_wavebank_a17f0.bin": {
-     "mapped_bytes": 5842,
+     "mapped_bytes": 5887,
      "size": 6192,
      "complete": false,
      "whole_blob_exact": false
@@ -1031,9 +1031,9 @@
      "whole_blob_exact": false
     },
     "lut3_32b0.bin": {
-     "mapped_bytes": 65408,
+     "mapped_bytes": 65536,
      "size": 65536,
-     "complete": false,
+     "complete": true,
      "whole_blob_exact": false
     },
     "multisample_a.bin": {
@@ -1055,7 +1055,7 @@
      "whole_blob_exact": true
     },
     "ramp_divider_a03e00.bin": {
-     "mapped_bytes": 0,
+     "mapped_bytes": 1,
      "size": 4,
      "complete": true,
      "whole_blob_exact": true
@@ -1115,13 +1115,13 @@
      "whole_blob_exact": true
     },
     "tone_indirect_bank64_a8bf0.bin": {
-     "mapped_bytes": 1280,
+     "mapped_bytes": 1408,
      "size": 1408,
      "complete": true,
      "whole_blob_exact": true
     },
     "tone_indirect_bank65_a9800.bin": {
-     "mapped_bytes": 0,
+     "mapped_bytes": 1408,
      "size": 1408,
      "complete": true,
      "whole_blob_exact": true
