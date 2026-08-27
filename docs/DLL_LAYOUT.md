@@ -7,9 +7,12 @@ re-reverse an offset.
 
 The Python engine in this repo is a **reference model / proof of concept**. The intended product is a
 cross-platform engine that loads this DLL, reads the data below, and plays MIDI from an SMF file or a
-live keyboard. The `tables/*.bin` files are a convenience cache — each is a byte-for-byte slice of the
-DLL at the offsets listed in the manifest, shipped only so the repo need not redistribute the
-copyrighted DLL.
+live keyboard. The `tables/*.bin` files are a local cache — each is a byte-for-byte slice of the DLL
+at the offsets listed in the manifest. They are **not** in the repo (`.gitignore` excludes
+`tables/*.bin`), because they are copyrighted Roland data; what the repo ships is the *map*
+(`tables/manifest.json`), and you generate the cache from your own DLL with
+`python tools/extract_tables.py <path-to-SCCore.dll>`. Re-run it after any manifest change — the
+extents are part of the map, and a stale cache is a silently wrong one.
 
 ## Pin the DLL version first
 
@@ -28,6 +31,12 @@ The tables are version-specific. This work was done against exactly this file:
 
 The Win32 version resource is empty (no `FileVersion`), so identify the build by **hash + PE timestamp
 + size**. A different SC-VA build may move tables; re-run the generator (below) to re-derive offsets.
+
+Other builds exist and they move data freely — tables are *reordered*, not merely shifted, so the
+offsets above cannot be projected onto another build by any section delta. Two further builds (the
+2016-03-09 x86/x64 pair) are surveyed in [`DLL_VERSIONS.md`](DLL_VERSIONS.md), with per-build
+fingerprints and table maps in [`../tables/versions.json`](../tables/versions.json); run
+`python tools/identify_dll.py <SCCore.dll>` to fingerprint an arbitrary one.
 
 ## Address model
 
@@ -74,5 +83,10 @@ VA, and re-emits `tables/manifest.json` (including fresh DLL hashes). To pull a 
 DLL, slice `size` bytes at `file_offset`. From the loaded image instead, `scdec dumpmem <VAhex> <count>
 <out.bin>` reads it at the runtime VA.
 
-All 48 cached tables match the DLL byte-for-byte at these offsets (one, `kf_tvfenv`, is an over-read
-whose used rows 0–15 match; the unused high rows differ and are never indexed).
+All 52 cached tables match the DLL byte-for-byte at these offsets. Several of them **overlap each
+other** — the `kf_*` key-follow tables and the directory LUTs are base pointers into a shared region,
+and each spans its own whole indexable range. That is the real layout, not an extraction artefact, so
+never shrink one of these blobs to the next entry's offset. Each such entry carries the `index`
+expression and `rows` count that bounds it; an extent is only defensible when the code's index is
+*masked* (as `kf_tvfenv`'s is, to 16 rows), never when a selector byte merely happens to stay small
+in the tone table. See [`DLL_VERSIONS.md`](DLL_VERSIONS.md) §4.
