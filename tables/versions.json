@@ -1,0 +1,1268 @@
+{
+ "_note": "Known SCCore.dll builds. There is no VS_VERSION_INFO in any of them, so a build is identified by sha256 (+ size + PE timestamp). 'tables' maps this repo's tables/*.bin to byte-exact file offsets in that build; 'tables_unresolved' are the ones that are not byte-identical to the pinned build's copy and must be re-derived. Regenerate with tools/identify_dll.py. See docs/DLL_VERSIONS.md. 'tables_located' holds per-table bases where one exists. For tables the re-packing fragmented, there is no single base: use 'segment_map', a piecewise pinned->target offset map covering the whole table area, and 'table_coverage' for how much of each table it resolves.",
+ "builds": {
+  "2016-03-09-x64": {
+   "description": "SOUND Canvas VA, 2016-03-09 build, 64-bit. Ships beside the 32-bit sibling in one installer.",
+   "pinned": false,
+   "filename": "SCCore.64.dll",
+   "size": 27440128,
+   "md5": "f16b5eb9c7e204de7f9b3a829d2d5500",
+   "sha1": "dc797f12ed9359544010a7d977239bbb447876e9",
+   "sha256": "e95e7f8f97667c247cccb8b15735cba949a07e92673a6a5411116d18e2268c47",
+   "arch": "x64",
+   "pe_timestamp": 1457503232,
+   "image_base": "0x180000000",
+   "msvc_linker": "10.0",
+   "sections": {
+    ".text": {
+     "raw": "0x400",
+     "va": "0x1000",
+     "vsize": "0xa2b7b"
+    },
+    ".rdata": {
+     "raw": "0xa3000",
+     "va": "0xa4000",
+     "vsize": "0x1977b06"
+    },
+    ".data": {
+     "raw": "0x1a1ac00",
+     "va": "0x1a1c000",
+     "vsize": "0x71a40"
+    },
+    ".pdata": {
+     "raw": "0x1a22c00",
+     "va": "0x1a8e000",
+     "vsize": "0x3ad4"
+    },
+    ".rsrc": {
+     "raw": "0x1a26800",
+     "va": "0x1a92000",
+     "vsize": "0x1b4"
+    },
+    ".reloc": {
+     "raw": "0x1a26a00",
+     "va": "0x1a93000",
+     "vsize": "0x4848"
+    }
+   },
+   "wave_rom": {
+    "blocks": 24,
+    "banks": [
+     {
+      "file_offset": "0x215120",
+      "blocks": 8,
+      "size": 8388608,
+      "generations": [
+       "8820_wv0",
+       "rom_make"
+      ]
+     },
+     {
+      "file_offset": "0xa15130",
+      "blocks": 16,
+      "size": 16777216,
+      "generations": [
+       "rom_make",
+       "ver200"
+      ]
+     }
+    ],
+    "generations": [
+     "8820_wv0",
+     "rom_make",
+     "ver200"
+    ]
+   },
+   "tables": {
+    "curve_amp_hi_2ba0.bin": "0x104a00",
+    "curve_amp_lo_2da0.bin": "0x104c00",
+    "curve_level_2a00.bin": "0x104900",
+    "curve_segrate_2900.bin": "0x104260",
+    "env_shape_7a90.bin": "0xff850",
+    "interp_coef_a0f210.bin": "0x1a22360",
+    "layered_1896690.bin": "0x20f120",
+    "lfo_cents_2690.bin": "0x104f40",
+    "lfo_delay_a2590.bin": "0x105140",
+    "lfo_rate_2790.bin": "0x105040",
+    "lfo_wavemap_87ae0.bin": "0x11ddb8",
+    "lut1_2e30.bin": "0xb3e60",
+    "pan_a2fa1.bin": "0x104841",
+    "porta_step_7800.bin": "0xffa90",
+    "ramp_divider_a03e00.bin": "0x1a16570",
+    "ramp_exp_986420.bin": "0x1a1bda0",
+    "ramp_flagword_a84d8.bin": "0xf2e08",
+    "svf_fceil_986860.bin": "0x1a1ada0",
+    "tone_a.bin": "0x120950",
+    "tone_indirect_bank64_a8bf0.bin": "0xfd6a0",
+    "tone_indirect_bank65_a9800.bin": "0xfdc20",
+    "tvf_ceil_a7ed0.bin": "0xff090",
+    "tvf_q_lp_a7cd0.bin": "0xff190",
+    "tvf_q_t6_a7fd0.bin": "0xff390",
+    "tvf_warp_a83d0.bin": "0xfef30",
+    "wavedesc_a.bin": "0x1f8310"
+   },
+   "tables_unresolved": [
+    "curve_filtenvdepth_2f00.bin",
+    "curve_filttype_987b00.bin",
+    "curve_pitchbias_2890.bin",
+    "curve_pitchdepthvs_28d0.bin",
+    "curve_pitchenv_2578.bin",
+    "curve_rateout_3060.bin",
+    "curve_reso_2b88.bin",
+    "curve_scale_28e8.bin",
+    "curve_vel_2b00.bin",
+    "curve_velsens_01520.bin",
+    "curve_velxfade_01020.bin",
+    "env_startphase_7a30.bin",
+    "kf_pitch_01b20.bin",
+    "kf_pitchrate0_01f20.bin",
+    "kf_pitchrate1_01aa0.bin",
+    "kf_tvalevel2_01fa0.bin",
+    "kf_tvalevel_026a0.bin",
+    "kf_tvarate0_023a0.bin",
+    "kf_tvarate1_020a0.bin",
+    "kf_tvfenv_02a20.bin",
+    "kf_tvfrate_03920.bin",
+    "lfo_wave_1740.bin",
+    "lfo_wavebank_a17f0.bin",
+    "lut2_28b0.bin",
+    "lut3_32b0.bin",
+    "multisample_a.bin"
+   ],
+   "tables_located": {
+    "curve_filtenvdepth_2f00.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 161,
+     "shift": "0x6ee0",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x104d60"
+    },
+    "curve_pitchbias_2890.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 64,
+     "shift": "0x6ee0",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x104e00"
+    },
+    "curve_rateout_3060.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 513,
+     "shift": "0x6e88",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x104560"
+    },
+    "curve_vel_2b00.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 138,
+     "shift": "0x6e88",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x104760"
+    },
+    "kf_pitch_01b20.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 1024,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa3590"
+    },
+    "kf_tvalevel2_01fa0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 384,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa3990"
+    },
+    "kf_tvalevel_026a0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 896,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa5810"
+    },
+    "kf_tvarate0_023a0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 896,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa5b90"
+    },
+    "kf_tvarate1_020a0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 768,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa5e90"
+    },
+    "kf_tvfenv_02a20.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 3584,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa4110"
+    },
+    "lfo_wave_1740.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 136,
+     "shift": "0x6ee0",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x105240"
+    },
+    "lfo_wavebank_a17f0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 3096,
+     "shift": "0x6f38",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x105320"
+    },
+    "lut2_28b0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 1408,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xb3ee0"
+    },
+    "lut3_32b0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 55553,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xa6560"
+    },
+    "multisample_a.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 164500,
+     "shift": "0x7e00",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x1b4450"
+    }
+   },
+   "segment_map": "tables/segments-2016-03-09-x64.json",
+   "table_coverage": {
+    "curve_amp_hi_2ba0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_amp_lo_2da0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_filtenvdepth_2f00.bin": {
+     "mapped_bytes": 340,
+     "size": 352,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "curve_filttype_987b00.bin": {
+     "mapped_bytes": 64,
+     "size": 64,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_level_2a00.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_pitchbias_2890.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_pitchdepthvs_28d0.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_pitchenv_2578.bin": {
+     "mapped_bytes": 856,
+     "size": 856,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_rateout_3060.bin": {
+     "mapped_bytes": 1024,
+     "size": 1024,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_reso_2b88.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_scale_28e8.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_segrate_2900.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_vel_2b00.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_velsens_01520.bin": {
+     "mapped_bytes": 2048,
+     "size": 2048,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_velxfade_01020.bin": {
+     "mapped_bytes": 2048,
+     "size": 2048,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "env_shape_7a90.bin": {
+     "mapped_bytes": 516,
+     "size": 516,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "env_startphase_7a30.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "interp_coef_a0f210.bin": {
+     "mapped_bytes": 2048,
+     "size": 2048,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "kf_pitch_01b20.bin": {
+     "mapped_bytes": 1920,
+     "size": 2048,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_pitchrate0_01f20.bin": {
+     "mapped_bytes": 8612,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_pitchrate1_01aa0.bin": {
+     "mapped_bytes": 9764,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvalevel2_01fa0.bin": {
+     "mapped_bytes": 8612,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvalevel_026a0.bin": {
+     "mapped_bytes": 6820,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvarate0_023a0.bin": {
+     "mapped_bytes": 7588,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvarate1_020a0.bin": {
+     "mapped_bytes": 8356,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvfenv_02a20.bin": {
+     "mapped_bytes": 4096,
+     "size": 4096,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "kf_tvfrate_03920.bin": {
+     "mapped_bytes": 2242,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "layered_1896690.bin": {
+     "mapped_bytes": 1200,
+     "size": 1200,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_cents_2690.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_delay_a2590.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_rate_2790.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_wave_1740.bin": {
+     "mapped_bytes": 216,
+     "size": 256,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "lfo_wavebank_a17f0.bin": {
+     "mapped_bytes": 5846,
+     "size": 6192,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "lfo_wavemap_87ae0.bin": {
+     "mapped_bytes": 32,
+     "size": 32,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lut1_2e30.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lut2_28b0.bin": {
+     "mapped_bytes": 16384,
+     "size": 16384,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "lut3_32b0.bin": {
+     "mapped_bytes": 65408,
+     "size": 65536,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "multisample_a.bin": {
+     "mapped_bytes": 286708,
+     "size": 286720,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "pan_a2fa1.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "porta_step_7800.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "ramp_divider_a03e00.bin": {
+     "mapped_bytes": 0,
+     "size": 4,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "ramp_exp_986420.bin": {
+     "mapped_bytes": 1028,
+     "size": 1028,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "ramp_flagword_a84d8.bin": {
+     "mapped_bytes": 16,
+     "size": 16,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "svf_fceil_986860.bin": {
+     "mapped_bytes": 4096,
+     "size": 4096,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tone_a.bin": {
+     "mapped_bytes": 604928,
+     "size": 604928,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_ceil_a7ed0.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_q_lp_a7cd0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_q_t6_a7fd0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_warp_a83d0.bin": {
+     "mapped_bytes": 258,
+     "size": 258,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "wavedesc_a.bin": {
+     "mapped_bytes": 93698,
+     "size": 93698,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tone_indirect_bank64_a8bf0.bin": {
+     "mapped_bytes": 1280,
+     "size": 1408,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tone_indirect_bank65_a9800.bin": {
+     "mapped_bytes": 0,
+     "size": 1408,
+     "complete": true,
+     "whole_blob_exact": true
+    }
+   }
+  },
+  "2016-03-09-x86": {
+   "description": "SOUND Canvas VA, 2016-03-09 build, 32-bit. Same data payload as the x64 sibling.",
+   "pinned": false,
+   "filename": "SCCore.32.dll",
+   "size": 27472384,
+   "md5": "d44d1b8c9a6f956ca2324f2f5d348c44",
+   "sha1": "41911c21d7e1d6da5574cb42c35c7ba96ea110e0",
+   "sha256": "8ddb29d5e1c20ba5a262084e96fbc4f4de8c70db988873b80a1a6bd3ee244f29",
+   "arch": "x86",
+   "pe_timestamp": 1457503331,
+   "image_base": "0x10000000",
+   "msvc_linker": "10.0",
+   "sections": {
+    ".text": {
+     "raw": "0x400",
+     "va": "0x1000",
+     "vsize": "0x9c34e"
+    },
+    ".rdata": {
+     "raw": "0x9c800",
+     "va": "0x9e000",
+     "vsize": "0x1972766"
+    },
+    ".data": {
+     "raw": "0x1a0f000",
+     "va": "0x1a11000",
+     "vsize": "0x6f4a0"
+    },
+    ".rsrc": {
+     "raw": "0x1a17000",
+     "va": "0x1a81000",
+     "vsize": "0x1b4"
+    },
+    ".reloc": {
+     "raw": "0x1a17200",
+     "va": "0x1a82000",
+     "vsize": "0x1be40"
+    }
+   },
+   "wave_rom": {
+    "blocks": 24,
+    "banks": [
+     {
+      "file_offset": "0x20cd48",
+      "blocks": 8,
+      "size": 8388608,
+      "generations": [
+       "8820_wv0",
+       "rom_make"
+      ]
+     },
+     {
+      "file_offset": "0xa0cd58",
+      "blocks": 16,
+      "size": 16777216,
+      "generations": [
+       "rom_make",
+       "ver200"
+      ]
+     }
+    ],
+    "generations": [
+     "8820_wv0",
+     "rom_make",
+     "ver200"
+    ]
+   },
+   "tables": {
+    "curve_amp_hi_2ba0.bin": "0xfdb20",
+    "curve_amp_lo_2da0.bin": "0xfdd20",
+    "curve_level_2a00.bin": "0xfda20",
+    "curve_segrate_2900.bin": "0xfd3c0",
+    "env_shape_7a90.bin": "0xf89e8",
+    "interp_coef_a0f210.bin": "0x1a166c0",
+    "layered_1896690.bin": "0x207320",
+    "lfo_cents_2690.bin": "0xfe060",
+    "lfo_delay_a2590.bin": "0xfe260",
+    "lfo_rate_2790.bin": "0xfe160",
+    "lfo_wavemap_87ae0.bin": "0x1166ac",
+    "lut1_2e30.bin": "0xad450",
+    "pan_a2fa1.bin": "0xfd981",
+    "porta_step_7800.bin": "0xf8c00",
+    "ramp_divider_a03e00.bin": "0x1a0e0d0",
+    "ramp_exp_986420.bin": "0x1a10128",
+    "ramp_flagword_a84d8.bin": "0xec204",
+    "svf_fceil_986860.bin": "0x1a0f128",
+    "tone_a.bin": "0x118b50",
+    "tone_indirect_bank64_a8bf0.bin": "0xf68f8",
+    "tone_indirect_bank65_a9800.bin": "0xf6e78",
+    "tvf_ceil_a7ed0.bin": "0xf82e8",
+    "tvf_q_lp_a7cd0.bin": "0xf83e8",
+    "tvf_q_t6_a7fd0.bin": "0xf85e8",
+    "tvf_warp_a83d0.bin": "0xf81d0",
+    "wavedesc_a.bin": "0x1f0510"
+   },
+   "tables_unresolved": [
+    "curve_filtenvdepth_2f00.bin",
+    "curve_filttype_987b00.bin",
+    "curve_pitchbias_2890.bin",
+    "curve_pitchdepthvs_28d0.bin",
+    "curve_pitchenv_2578.bin",
+    "curve_rateout_3060.bin",
+    "curve_reso_2b88.bin",
+    "curve_scale_28e8.bin",
+    "curve_vel_2b00.bin",
+    "curve_velsens_01520.bin",
+    "curve_velxfade_01020.bin",
+    "env_startphase_7a30.bin",
+    "kf_pitch_01b20.bin",
+    "kf_pitchrate0_01f20.bin",
+    "kf_pitchrate1_01aa0.bin",
+    "kf_tvalevel2_01fa0.bin",
+    "kf_tvalevel_026a0.bin",
+    "kf_tvarate0_023a0.bin",
+    "kf_tvarate1_020a0.bin",
+    "kf_tvfenv_02a20.bin",
+    "kf_tvfrate_03920.bin",
+    "lfo_wave_1740.bin",
+    "lfo_wavebank_a17f0.bin",
+    "lut2_28b0.bin",
+    "lut3_32b0.bin",
+    "multisample_a.bin"
+   ],
+   "tables_located": {
+    "curve_filtenvdepth_2f00.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 161,
+     "shift": "0x6ee0",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xfde80"
+    },
+    "curve_pitchbias_2890.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 64,
+     "shift": "0x6ee0",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xfdf20"
+    },
+    "curve_rateout_3060.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 513,
+     "shift": "0x6e88",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xfd6d8"
+    },
+    "curve_vel_2b00.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 138,
+     "shift": "0x6e88",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xfd8d8"
+    },
+    "kf_pitch_01b20.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 1024,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9cb80"
+    },
+    "kf_tvalevel2_01fa0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 384,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9cf80"
+    },
+    "kf_tvalevel_026a0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 896,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9ee00"
+    },
+    "kf_tvarate0_023a0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 896,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9f180"
+    },
+    "kf_tvarate1_020a0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 768,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9f480"
+    },
+    "kf_tvfenv_02a20.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 3584,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9d700"
+    },
+    "lfo_wave_1740.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 136,
+     "shift": "0x6ee0",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xfe360"
+    },
+    "lfo_wavebank_a17f0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 3096,
+     "shift": "0x6f38",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xfe3e8"
+    },
+    "lut2_28b0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 1408,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0xad4d0"
+    },
+    "lut3_32b0.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 55553,
+     "shift": "0x6a10",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x9fb50"
+    },
+    "multisample_a.bin": {
+     "grade": "confirmed",
+     "method": "exact prefix match, unique in BOTH images of the release at a consistent shift",
+     "exact_prefix_bytes": 164500,
+     "shift": "0x7e00",
+     "note": "the run ends at a .rdata segment boundary, not at a data change -- the table continues at another shift (the region was re-packed, see docs/DLL_VERSIONS.md 5.1)",
+     "file_offset": "0x1ac650"
+    }
+   },
+   "segment_map": "tables/segments-2016-03-09-x86.json",
+   "table_coverage": {
+    "curve_amp_hi_2ba0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_amp_lo_2da0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_filtenvdepth_2f00.bin": {
+     "mapped_bytes": 340,
+     "size": 352,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "curve_filttype_987b00.bin": {
+     "mapped_bytes": 64,
+     "size": 64,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_level_2a00.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_pitchbias_2890.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_pitchdepthvs_28d0.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_pitchenv_2578.bin": {
+     "mapped_bytes": 856,
+     "size": 856,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_rateout_3060.bin": {
+     "mapped_bytes": 1024,
+     "size": 1024,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_reso_2b88.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_scale_28e8.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_segrate_2900.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "curve_vel_2b00.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_velsens_01520.bin": {
+     "mapped_bytes": 2048,
+     "size": 2048,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "curve_velxfade_01020.bin": {
+     "mapped_bytes": 2048,
+     "size": 2048,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "env_shape_7a90.bin": {
+     "mapped_bytes": 516,
+     "size": 516,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "env_startphase_7a30.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "interp_coef_a0f210.bin": {
+     "mapped_bytes": 2048,
+     "size": 2048,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "kf_pitch_01b20.bin": {
+     "mapped_bytes": 1920,
+     "size": 2048,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_pitchrate0_01f20.bin": {
+     "mapped_bytes": 8273,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_pitchrate1_01aa0.bin": {
+     "mapped_bytes": 9425,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvalevel2_01fa0.bin": {
+     "mapped_bytes": 8273,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvalevel_026a0.bin": {
+     "mapped_bytes": 6481,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvarate0_023a0.bin": {
+     "mapped_bytes": 7249,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvarate1_020a0.bin": {
+     "mapped_bytes": 8017,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "kf_tvfenv_02a20.bin": {
+     "mapped_bytes": 4096,
+     "size": 4096,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "kf_tvfrate_03920.bin": {
+     "mapped_bytes": 1745,
+     "size": 16384,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "layered_1896690.bin": {
+     "mapped_bytes": 1200,
+     "size": 1200,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_cents_2690.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_delay_a2590.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_rate_2790.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lfo_wave_1740.bin": {
+     "mapped_bytes": 214,
+     "size": 256,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "lfo_wavebank_a17f0.bin": {
+     "mapped_bytes": 5842,
+     "size": 6192,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "lfo_wavemap_87ae0.bin": {
+     "mapped_bytes": 32,
+     "size": 32,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lut1_2e30.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "lut2_28b0.bin": {
+     "mapped_bytes": 16384,
+     "size": 16384,
+     "complete": true,
+     "whole_blob_exact": false
+    },
+    "lut3_32b0.bin": {
+     "mapped_bytes": 65408,
+     "size": 65536,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "multisample_a.bin": {
+     "mapped_bytes": 286708,
+     "size": 286720,
+     "complete": false,
+     "whole_blob_exact": false
+    },
+    "pan_a2fa1.bin": {
+     "mapped_bytes": 128,
+     "size": 128,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "porta_step_7800.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "ramp_divider_a03e00.bin": {
+     "mapped_bytes": 0,
+     "size": 4,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "ramp_exp_986420.bin": {
+     "mapped_bytes": 1028,
+     "size": 1028,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "ramp_flagword_a84d8.bin": {
+     "mapped_bytes": 16,
+     "size": 16,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "svf_fceil_986860.bin": {
+     "mapped_bytes": 4096,
+     "size": 4096,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tone_a.bin": {
+     "mapped_bytes": 604928,
+     "size": 604928,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_ceil_a7ed0.bin": {
+     "mapped_bytes": 256,
+     "size": 256,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_q_lp_a7cd0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_q_t6_a7fd0.bin": {
+     "mapped_bytes": 512,
+     "size": 512,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tvf_warp_a83d0.bin": {
+     "mapped_bytes": 258,
+     "size": 258,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "wavedesc_a.bin": {
+     "mapped_bytes": 93698,
+     "size": 93698,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tone_indirect_bank64_a8bf0.bin": {
+     "mapped_bytes": 1280,
+     "size": 1408,
+     "complete": true,
+     "whole_blob_exact": true
+    },
+    "tone_indirect_bank65_a9800.bin": {
+     "mapped_bytes": 0,
+     "size": 1408,
+     "complete": true,
+     "whole_blob_exact": true
+    }
+   }
+  },
+  "2019-10-30-x64": {
+   "description": "SOUND Canvas VA, 2019-10-30 build, 64-bit. THE PINNED BUILD -- every offset in manifest.json and DLL_LAYOUT.md is this one.",
+   "pinned": true,
+   "filename": "SCCore.dll",
+   "size": 27347456,
+   "md5": "dbd9a30c168efef577d40a28d9adf37d",
+   "sha1": "cf9dce5a0cabee06792e884673b8beef806f1aed",
+   "sha256": "117e6aa147a96fbde5e10d2caf16c89965acc1e44235fd245992216cc620bdb1",
+   "arch": "x64",
+   "pe_timestamp": 1572416468,
+   "image_base": "0x180000000",
+   "msvc_linker": "14.16",
+   "sections": {
+    ".text": {
+     "raw": "0x400",
+     "va": "0x1000",
+     "vsize": "0x90bcb"
+    },
+    ".rdata": {
+     "raw": "0x91000",
+     "va": "0x92000",
+     "vsize": "0x1976aa6"
+    },
+    ".data": {
+     "raw": "0x1a07c00",
+     "va": "0x1a09000",
+     "vsize": "0x6cb40"
+    },
+    ".pdata": {
+     "raw": "0x1a10200",
+     "va": "0x1a76000",
+     "vsize": "0x3618"
+    },
+    ".rsrc": {
+     "raw": "0x1a13a00",
+     "va": "0x1a7a000",
+     "vsize": "0x1e0"
+    },
+    ".reloc": {
+     "raw": "0x1a13c00",
+     "va": "0x1a7b000",
+     "vsize": "0xca4"
+    }
+   },
+   "wave_rom": {
+    "blocks": 24,
+    "banks": [
+     {
+      "file_offset": "0x92700",
+      "blocks": 16,
+      "size": 16777216,
+      "generations": [
+       "rom_make",
+       "ver200"
+      ]
+     },
+     {
+      "file_offset": "0x1092730",
+      "blocks": 8,
+      "size": 8388608,
+      "generations": [
+       "8820_wv0",
+       "rom_make"
+      ]
+     }
+    ],
+    "generations": [
+     "8820_wv0",
+     "rom_make",
+     "ver200"
+    ]
+   },
+   "tables": {
+    "curve_amp_hi_2ba0.bin": "0x19a1ba0",
+    "curve_amp_lo_2da0.bin": "0x19a1da0",
+    "curve_filtenvdepth_2f00.bin": "0x19a1f00",
+    "curve_filttype_987b00.bin": "0x1986b00",
+    "curve_level_2a00.bin": "0x19a1a00",
+    "curve_pitchbias_2890.bin": "0x19a1890",
+    "curve_pitchdepthvs_28d0.bin": "0x19a18d0",
+    "curve_pitchenv_2578.bin": "0x19a1578",
+    "curve_rateout_3060.bin": "0x19a2060",
+    "curve_reso_2b88.bin": "0x19a1b88",
+    "curve_scale_28e8.bin": "0x19a18e8",
+    "curve_segrate_2900.bin": "0x19a1900",
+    "curve_vel_2b00.bin": "0x19a1b00",
+    "curve_velsens_01520.bin": "0x1a00520",
+    "curve_velxfade_01020.bin": "0x1a00020",
+    "env_shape_7a90.bin": "0x19a6a90",
+    "env_startphase_7a30.bin": "0x19a6a30",
+    "interp_coef_a0f210.bin": "0x1a0de10",
+    "kf_pitch_01b20.bin": "0x1a00b20",
+    "kf_pitchrate0_01f20.bin": "0x1a00f20",
+    "kf_pitchrate1_01aa0.bin": "0x1a00aa0",
+    "kf_tvalevel2_01fa0.bin": "0x1a00fa0",
+    "kf_tvalevel_026a0.bin": "0x1a016a0",
+    "kf_tvarate0_023a0.bin": "0x1a013a0",
+    "kf_tvarate1_020a0.bin": "0x1a010a0",
+    "kf_tvfenv_02a20.bin": "0x1a01a20",
+    "kf_tvfrate_03920.bin": "0x1a02920",
+    "layered_1896690.bin": "0x1896690",
+    "lfo_cents_2690.bin": "0x19a1690",
+    "lfo_delay_a2590.bin": "0x19a1590",
+    "lfo_rate_2790.bin": "0x19a1790",
+    "lfo_wave_1740.bin": "0x19a0740",
+    "lfo_wavebank_a17f0.bin": "0x19a07f0",
+    "lfo_wavemap_87ae0.bin": "0x1986ae0",
+    "lut1_2e30.bin": "0x19f1e30",
+    "lut2_28b0.bin": "0x19f18b0",
+    "lut3_32b0.bin": "0x19f22b0",
+    "multisample_a.bin": "0x18c9570",
+    "pan_a2fa1.bin": "0x19a1fa1",
+    "porta_step_7800.bin": "0x19a6800",
+    "ramp_divider_a03e00.bin": "0x1a02e00",
+    "ramp_exp_986420.bin": "0x1985420",
+    "ramp_flagword_a84d8.bin": "0x19a74d8",
+    "svf_fceil_986860.bin": "0x1985860",
+    "tone_a.bin": "0x18f1810",
+    "tone_indirect_bank64_a8bf0.bin": "0x19a7bf0",
+    "tone_indirect_bank65_a9800.bin": "0x19a8800",
+    "tvf_ceil_a7ed0.bin": "0x19a6ed0",
+    "tvf_q_lp_a7cd0.bin": "0x19a6cd0",
+    "tvf_q_t6_a7fd0.bin": "0x19a6fd0",
+    "tvf_warp_a83d0.bin": "0x19a73d0",
+    "wavedesc_a.bin": "0x1896b40"
+   },
+   "tables_unresolved": []
+  }
+ },
+ "ab_test": {
+  "what": "holdnote renders through the real DLLs (scdec, CrossOver ARM bottle, FEX), one note per process",
+  "compared": "2019-10-30-x64 vs 2016-03-09-x64, identical event streams, 32 kHz, reverb+chorus off",
+  "cases": 100,
+  "matrix": "10 GM programs x 3 octaves x 2 velocities, plus 10 synth patches x banks 0/8 x velocities 1/127",
+  "result": "100/100 essentially identical; max deviation exactly 1 LSB of 16-bit, relative RMS ~1e-5",
+  "conclusion": "the two 64-bit builds are behaviourally equivalent. The voice tables hold the SAME data; .rdata was re-packed into differently ordered segments. The 1 LSB residual is compiler rounding (MSVC 10.0 -> 14.16), not a data change."
+ }
+}
